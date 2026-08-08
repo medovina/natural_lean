@@ -34,4 +34,4 @@ theorem t3_2: ∀x y z: Nat, x + (y + z) = (x + y) + z :=
     this
   this
 
-theorem l3_3a (n: Nat): 0 + n = n + 0 := by aesop
+theorem l3_3a (n: Nat): 0 + n = n := by aesop

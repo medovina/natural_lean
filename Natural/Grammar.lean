@@ -68,3 +68,9 @@ declare_syntax_cat proof
 
 syntax proof_step1+ : proof
 syntax "By" "induction" "." : proof
+
+-- theorem
+
+declare_syntax_cat _theorem
+
+syntax ("Lemma" <|> "Theorem") : _theorem

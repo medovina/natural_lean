@@ -9,8 +9,6 @@ Proof.  By induction.
 
 Theorem n1_2.  For all x : ℕ, S(x) ≠ x.
 
-Proof.  By induction.
-
 Theorem n3_2.  For all x, y, z: ℕ, x + (y + z) = (x + y) + z.
 
 Proof. Let x, y : ℕ.  Let
@@ -25,3 +23,5 @@ Proof. Let x, y : ℕ.  Let
                  = (x + y) + S(z).
 
   Thus S(z) ∈ A.  We have shown that z ∈ A implies S(z) ∈ A.  Hence by induction z ∈ A for all z: ℕ.
+
+Lemma n3_3a.  For all x: ℕ, 0 + x = x.

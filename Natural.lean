@@ -219,5 +219,8 @@ def of_proof: TSyntax `proof → MacroM Term
 
 -- theorem
 
-macro "Theorem" id:ident "." p:prop "." "Proof." proof:proof : command => do
+macro _theorem id:ident "." p:prop "." "Proof." proof:proof : command => do
   `(theorem $id : $(← of_prop p) := $(← of_proof proof))
+
+macro _theorem id:ident "." p:prop "." : command => do
+  `(theorem $id : $(← of_prop p) := by aesop)
