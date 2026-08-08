@@ -129,7 +129,7 @@ def of_proof_step: TSyntax `proof_step → MacroM (List ProofStep)
   | _ => Macro.throwError "unknown proof step"
 
 def of_proof_step1: TSyntax `proof_step1 → MacroM (List ProofStep)
-  | `(proof_step1| $[$i:initial]? $ps:proof_step and* .) =>
+  | `(proof_step1| $[$i:initial]? $ps:proof_step /* .) =>
         List.flatten <$> ps.getElems.toList.mapM of_proof_step
   | _ => Macro.throwError "unknown proof step 1"
 
@@ -181,11 +181,11 @@ def tactic : Option Reason → MacroM Term
   | .some (.induction) => `(by intro x ; induction x <;> aesop)
   | .none => `(by aesop)
 
-def translate: List Block → MacroM Term
-  | [] => `(this)
+def translate (top: Bool): List Block → MacroM Term
+  | [] => if top then `(by aesop) else `(this)
   | ⟨step, children⟩ :: rest => do
-      let c ← translate children
-      let r ← translate rest
+      let c ← translate False children
+      let r ← translate top rest
       match step with
         | .assert (.term p) rs =>
               let b := with_info (← tactic rs[0]!) p
@@ -203,7 +203,8 @@ def translate: List Block → MacroM Term
             let ids := ids.toArray.map mkIdent
             `(have: _ := fun $ids* : $(mkIdent type) => $c; $r)
         | .let_def id e =>
-            assert! (rest = [])
+            if (rest ≠ []) then
+              dbg_trace "error: rest != []"
             `(let $(mkIdent id) := $e; $c)
         | .assume p =>
             `(have: _ := fun (_: $p) => $c; $r)
@@ -213,7 +214,7 @@ def of_proof: TSyntax `proof → MacroM Term
       let steps := List.flatten (← steps.toList.mapM of_proof_step1)
       let blocks := infer_blocks steps
       -- dbg_trace (show_blocks blocks)
-      translate blocks
+      translate True blocks
   | `(proof| By induction .) => `(by intro x ; induction x <;> aesop)
   | _ => Macro.throwError "unknown proof"
 

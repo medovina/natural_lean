@@ -62,9 +62,12 @@ declare_syntax_cat initial
 syntax ("Clearly" <|> "First" <|> "Hence" <|> "Now" <|>
         "Second" <|> "So" <|> "Then" <|> "Thus") ","? : initial
 
+declare_syntax_cat step_sep
+syntax ","? ("and" <|> "so") : step_sep
+
 declare_syntax_cat proof_step1
 
-syntax initial ? sepBy1(proof_step, "and") "." : proof_step1
+syntax initial ? sepBy1(proof_step, "/", step_sep) "." : proof_step1
 
 -- proof
 
