@@ -119,7 +119,7 @@ instance: ToString ProofStep where
 def of_proof_step: TSyntax `proof_step → MacroM (List ProofStep)
   | `(proof_step| $p:assert_prop) =>
         do pure [(Function.uncurry .assert) (← of_assert_prop p)]
-  | `(proof_step| assume $p:prop) => do pure [.assume (← of_prop p)]
+  | `(proof_step| $_:_assume $p:prop) => do pure [.assume (← of_prop p)]
   | `(proof_step| $_:_let $ids:ident,* : $type) =>
       pure [.let (ids.getElems.toList.map TSyntax.getId) type.getId]
   | `(proof_step| $_:_let $id = $e) => do pure [.let_def id.getId (← of_expr e)]

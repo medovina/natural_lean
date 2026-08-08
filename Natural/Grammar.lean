@@ -43,10 +43,13 @@ syntax expr eq_expr_by eq_expr_by+ : assert_prop
 declare_syntax_cat _let
 syntax ("let" <|> "Let") : _let
 
+declare_syntax_cat _assume
+syntax ("assume" <|> "suppose") "that"? : _assume
+
 declare_syntax_cat proof_step
 
 syntax assert_prop : proof_step
-syntax "assume" prop : proof_step
+syntax _assume prop : proof_step
 syntax _let ident,+ ":" ident : proof_step
 syntax _let ident "=" expr : proof_step
 syntax "We" "have" "shown" "that" prop : proof_step
@@ -56,7 +59,8 @@ syntax "We" "must" "show" "that" prop : proof_step
 
 declare_syntax_cat initial
 
-syntax ("First," <|> "Hence" <|> "Now," <|> "Second," <|> "Then" <|> "Thus") : initial
+syntax ("Clearly" <|> "First" <|> "Hence" <|> "Now" <|>
+        "Second" <|> "So" <|> "Then" <|> "Thus") ","? : initial
 
 declare_syntax_cat proof_step1
 
