@@ -12,6 +12,18 @@ def range_info (s: TSyntax α) := match s.raw.getRange? with
 def set_info_from (s: TSyntax α) (t: TSyntax β): Term :=
   ⟨s.raw.setInfo (range_info t)⟩
 
+partial def syntax_free_vars (s: Syntax): List Name := match s with
+  | `(∀ $x:ident* : $_typ, $t) => (syntax_free_vars t).removeAll (x.toList.map TSyntax.getId)
+  | `(Exists (fun $x:ident : $_typ => $t)) => (syntax_free_vars t).erase (x.getId)
+  | `({($x:ident) : $_typ | $t}) => (syntax_free_vars t).erase (x.getId)
+  | _ => match s with
+    | .missing => []
+    | .node _ _ args => args.toList.flatMap syntax_free_vars |>.eraseDups
+    | .ident _ _ _ _ => [s.getId]
+    | .atom _ _ => []
+
+def free_vars (t: Term): List Name := syntax_free_vars (t.raw)
+
 -- expr/prop translation
 
 abbrev TExpr := TSyntax `expr
@@ -34,10 +46,7 @@ mutual
 
   partial def of_prop (prop: TProp): MacroM Term := do
     let t ← match prop with
-      | `(prop| $es:expr =*) => do
-          match (← es.getElems.mapM of_expr) with
-            | #[t, u] => `($t = $u)
-            | ts => `(all_eq $ts*)
+      | `(prop| $a:expr = $b:expr) => do `($(← of_expr a) = $(← of_expr b))
       | `(prop| $a:expr ≠ $b:expr) => do `($(← of_expr a) ≠ $(← of_expr b))
       | `(prop| $a:expr ∈ $b:expr) => do `($(← of_expr a) ∈ $(← of_expr b))
       | `(prop| $p:prop or $q:prop) => do `($(← of_prop p) ∨ $(← of_prop q))
@@ -51,48 +60,71 @@ mutual
     pure (set_info_from t prop)
 end
 
+inductive Reason where
+  | tactic (t: Syntax.Tactic)
+  | induction
+
+def of_reason: TSyntax `reason → MacroM Reason
+  | `(reason| [ $t:tactic ]) => pure (Reason.tactic t)
+  | `(reason| induction) => pure Reason.induction
+  | _ => Macro.throwError "unknown reason"
+
+def of_eq_expr_by: TSyntax `eq_expr_by → MacroM (Term × Option Reason)
+  | `(eq_expr_by| = $e:expr $[ by $r:reason ]?) =>
+        do pure ((← of_expr e), (← r.mapM of_reason))
+  | _ => Macro.throwError "unknown eq_expr_by"
+
+inductive ETerm where
+  | term (t: Term)
+  | eq_chain (ts: List Term)
+
+def eterm_free_vars : ETerm → List Name
+  | .term t => free_vars t
+  | .eq_chain ts => ts.flatMap free_vars
+
+def of_assert_prop: TSyntax `assert_prop → MacroM (ETerm × List (Option Reason))
+  | `(assert_prop| $[ by $r:reason ]? $p:prop) =>
+        do pure (.term (← of_prop p), [← r.mapM of_reason])
+  | `(assert_prop| $e:expr $eb:eq_expr_by $ebs:eq_expr_by*) => do
+        let (e1, by1) ← of_eq_expr_by eb
+        let (es, bys) := (← ebs.toList.mapM of_eq_expr_by).unzip
+        pure (.eq_chain ((← of_expr e) :: e1 :: es), by1 :: bys)
+  | _ => Macro.throwError "unknown assert_prop"
+
 inductive ProofStep where
-  | assert (p: Term)
+  | assert (p: ETerm) (reason: List (Option Reason))
   | let (ids: List Name) (type: Name)
   | let_def (id: Name) (e: Term)
   | assume (p: Term)
 
 def step_decl_vars: ProofStep → List Name
-  | .assert _ => []
+  | .assert .. => []
   | .let ids _ => ids
   | .let_def id _ => [id]
   | .assume _ => []
 
-partial def free_vars (s: Syntax): List Name := match s with
-  | `(∀ $x:ident* : $_typ, $t) => (free_vars t).removeAll (x.toList.map (fun i => i.getId))
-  | `(Exists (fun $x:ident : $_typ => $t)) => (free_vars t).erase (x.getId)
-  | `({($x:ident) : $_typ | $t}) => (free_vars t).erase (x.getId)
-  | _ => match s with
-    | .missing => []
-    | .node _ _ args => args.toList.flatMap free_vars |>.eraseDups
-    | .ident _ _ _ _ => [s.getId]
-    | .atom _ _ => []
-
 def step_vars : ProofStep → List Name
-  | .assert p => free_vars p
+  | .assert p _ => eterm_free_vars p
   | .let _ _ => []
   | .let_def _ e => free_vars e
   | .assume p => free_vars p
 
 instance: ToString ProofStep where
   toString
-    | .assert _p => "assert"
+    | .assert .. => "assert"
     | .let ids _ => s!"let {ids}"
     | .let_def id _e => s!"let_def {id}"
     | .assume _p => "assume"
 
 def of_proof_step: TSyntax `proof_step → MacroM (List ProofStep)
-  | `(proof_step| $[by induction]? $p:prop) => do pure [.assert (← of_prop p)]
+  | `(proof_step| $p:assert_prop) =>
+        do pure [(Function.uncurry .assert) (← of_assert_prop p)]
   | `(proof_step| assume $p:prop) => do pure [.assume (← of_prop p)]
   | `(proof_step| $_:_let $ids:ident,* : $type) =>
-      pure [.let (ids.getElems.toList.map (fun i => i.getId)) type.getId]
+      pure [.let (ids.getElems.toList.map TSyntax.getId) type.getId]
   | `(proof_step| $_:_let $id = $e) => do pure [.let_def id.getId (← of_expr e)]
-  | `(proof_step| We have shown that $p:prop) => do pure [.assert (← of_prop p)]
+  | `(proof_step| We have shown that $p:prop) =>
+        do pure [.assert (.term (← of_prop p)) [none]]
   | `(proof_step| We must show that $_p:prop) => pure []
   | _ => Macro.throwError "unknown proof step"
 
@@ -144,24 +176,29 @@ def adjust_info (n: Nat) (s: SourceInfo) :=
 def with_info2 (t: Term) (source: Term): Term :=
     ⟨t.raw.setInfo (adjust_info 2 (get_info source))⟩
 
+def tactic : Option Reason → MacroM Term
+  | .some (.tactic t) => `(by { $t })
+  | .some (.induction) => `(by intro x ; induction x <;> aesop)
+  | .none => `(by aesop)
+
 def translate: List Block → MacroM Term
   | [] => `(this)
   | ⟨step, children⟩ :: rest => do
       let c ← translate children
       let r ← translate rest
       match step with
-        | .assert p => match p with
-            | `(all_eq $ts*) => do
-                  let mk_step t := do
-                    let b := with_info2 (← `(by aesop)) t
-                    `(calcStep| _ = $t := $b)
-                  let steps ← ts.drop 2 |>.mapM mk_step
-                  let b := with_info2 (← `(by aesop)) ts[1]!
-                  `(have: _ := calc $(ts[0]!) = $(ts[1]!) := $b
-                               $steps* ; $r)
-            | _ =>
-              let b := with_info (← `(by aesop)) p
+        | .assert (.term p) rs =>
+              let b := with_info (← tactic rs[0]!) p
               `(have: $p := $b; $r)
+        | .assert (.eq_chain ts) reasons => do
+            let tactics ← reasons.mapM tactic
+            let mk_step t tactic :=
+              let b := with_info2 tactic t
+              `(calcStep| _ = $t := $b)
+            let steps ← (ts.drop 2).zipWithM mk_step (tactics.drop 1)
+            let b := with_info2 tactics[0]! ts[1]!
+            `(have: _ := calc $(ts[0]!) = $(ts[1]!) := $b
+                         $(steps.toArray)* ; $r)
         | .let ids type =>
             let ids := ids.toArray.map mkIdent
             `(have: _ := fun $ids* : $(mkIdent type) => $c; $r)
@@ -177,7 +214,7 @@ def of_proof: TSyntax `proof → MacroM Term
       let blocks := infer_blocks steps
       -- dbg_trace (show_blocks blocks)
       translate blocks
-  | `(proof| By induction on $x:ident .) => `(by intro ($x) ; induction ($x) <;> aesop)
+  | `(proof| By induction .) => `(by intro x ; induction x <;> aesop)
   | _ => Macro.throwError "unknown proof"
 
 -- theorem
