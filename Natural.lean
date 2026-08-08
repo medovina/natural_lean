@@ -27,7 +27,10 @@ mutual
       | `(expr| ( $e:expr )) => of_expr e
       | `(expr| { $x:ident : $t:ident | $p:prop }) => do `({($x) : $t | $(← of_prop p)})
       | _ => Macro.throwError "unknown expr"
-    pure (set_info_from t expr)
+
+    -- Avoid copying SourceInfo to identifiers, which produces spurious
+    -- "variable not referenced" errors.
+    pure (if expr matches `(expr| $_:ident) then t else set_info_from t expr)
 
   partial def of_prop (prop: TProp): MacroM Term := do
     let t ← match prop with
