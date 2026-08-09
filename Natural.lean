@@ -227,7 +227,7 @@ def of_proof: TSyntax `proof → MacroM Term
 
 macro t:_theorem : command => do
   match t with
-    | `(_theorem| $_:_thm $id:ident $[( $_:ident* )]? . $p:prop . $[ Proof. $proof:proof ]?) =>
+    | `(_theorem| $_:_thm $id:ident $[ $_:str ]? . $p:prop . $[ Proof. $proof:proof ]?) =>
         let pr ← (proof.map of_proof).getD `(by default)
         `(theorem $id : $(← of_prop p) := $pr)
     | _ => Macro.throwError "unknown theorem"

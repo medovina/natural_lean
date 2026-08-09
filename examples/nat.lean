@@ -13,7 +13,9 @@ Theorem n1_2.  For all x : ℕ, S(x) ≠ x.
 
 -- addition
 
-Theorem n3_2 (Associativity of Addition).  For all x, y, z: ℕ, x + (y + z) = (x + y) + z.
+Theorem n3_2 "Associativity of Addition".  For all x, y, z: ℕ,
+
+  x + (y + z) = (x + y) + z.
 
 Proof. Let x, y : ℕ.  Let
 
@@ -42,7 +44,9 @@ Proof.  Let x : ℕ.  Let
 
   So S(y) ∈ B.  Hence by induction y ∈ B for all y: ℕ.
 
-Theorem n3_4 (Commutativity of Addition).  For all x, y : ℕ, x + y = y + x.
+Theorem n3_4 "Commutativity of Addition".  For all x, y : ℕ,
+
+  x + y = y + x.
 
 Proof.  Let y : ℕ.  Let
 
@@ -55,3 +59,7 @@ Proof.  Let y : ℕ.  Let
              = y + S(x).
 
   So S(x) ∈ C.  Hence by induction x ∈ C for all x : ℕ.
+
+Theorem n3_5 "Cancellation Law for Addition".  For all x, y, z: ℕ,
+
+  x + z = y + z implies x = y.

@@ -85,4 +85,4 @@ syntax ("Lemma" <|> "Theorem") : _thm
 
 declare_syntax_cat _theorem
 
-syntax _thm ident ("(" ident+ ")")? "." prop "." ("Proof." proof)? : _theorem
+syntax _thm ident str ? "." prop "." ("Proof." proof)? : _theorem
