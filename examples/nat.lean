@@ -18,15 +18,13 @@ Proof. Let x, y : ℕ.  Let
   We must show that A = ℕ.  First, 0 ∈ A.  Second, let z : ℕ and assume z ∈ A.  Then x + (y + z) = (x + y) + z.  Now,
 
     x + (y + S(z)) = x + (S(y + z))
-                   = S(x + (y + z)) by [rfl]
+                   = S(x + (y + z))
                    = S((x + y) + z)
                    = (x + y) + S(z).
 
   Thus S(z) ∈ A.  We have shown that z ∈ A implies S(z) ∈ A.  Hence by induction z ∈ A for all z: ℕ.
 
-Lemma n3_3a.  For all x: ℕ, 0 + x = x.
-
-Lemma n3_3b.  For all x, y: ℕ, S(x) + y = S(x + y).
+Lemma n3_3.  For all x, y: ℕ, S(x) + y = S(x + y).
 
 Proof.  Let x : ℕ.  Let
 
@@ -39,3 +37,17 @@ Proof.  Let x : ℕ.  Let
                 = S(x + S(y)).
 
   So S(y) ∈ B.  Hence by induction y ∈ B for all y: ℕ.
+
+Theorem n3_4.  For all x, y : ℕ, x + y = y + x.
+
+Proof.  Let y : ℕ.  Let
+
+    C = { x : ℕ | x + y = y + x }.
+
+  0 + y = y = y + 0, so 0 ∈ C.  Now let x : ℕ, and suppose that x ∈ C.  Then
+
+    S(x) + y = S(x + y) by :n3_3
+             = S(y + x)
+             = y + S(x).
+
+  So S(x) ∈ C.  Hence by induction x ∈ C for all x : ℕ.

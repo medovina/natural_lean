@@ -64,10 +64,12 @@ end
 
 inductive Reason where
   | tactic (t: Syntax.Tactic)
+  | apply (n: Name)
   | induction
 
 def of_reason: TSyntax `reason → MacroM Reason
   | `(reason| [ $t:tactic ]) => pure (Reason.tactic t)
+  | `(reason| : $n:ident) => pure (Reason.apply n.getId)
   | `(reason| induction) => pure Reason.induction
   | _ => Macro.throwError "unknown reason"
 
@@ -180,6 +182,7 @@ def with_info2 (t: Term) (source: Term): Term :=
 
 def tactic : Option Reason → MacroM Term
   | .some (.tactic t) => `(by { $t })
+  | .some (.apply n) => `(by apply $(mkIdent n))
   | .some (.induction) => `(by intro x ; induction x <;> default)
   | .none => `(by default)
 

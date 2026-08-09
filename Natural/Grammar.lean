@@ -27,6 +27,7 @@ syntax "there" "exists" "some" ident ":" ident "such" "that" prop : prop
 
 declare_syntax_cat reason
 syntax "[" tactic "]" : reason
+syntax ":" ident : reason
 syntax "induction" : reason
 
 -- assert_prop
