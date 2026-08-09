@@ -5,6 +5,8 @@ import Natural.Grammar
 
 open Lean
 
+macro "default" : tactic => `(tactic| first | trivial | aesop)
+
 def range_info (s: TSyntax α) := match s.raw.getRange? with
     | .some ⟨pos, endPos⟩ => SourceInfo.synthetic pos endPos
     | .none => SourceInfo.none
@@ -178,11 +180,11 @@ def with_info2 (t: Term) (source: Term): Term :=
 
 def tactic : Option Reason → MacroM Term
   | .some (.tactic t) => `(by { $t })
-  | .some (.induction) => `(by intro x ; induction x <;> aesop)
-  | .none => `(by aesop)
+  | .some (.induction) => `(by intro x ; induction x <;> default)
+  | .none => `(by default)
 
 def translate (top: Bool): List Block → MacroM Term
-  | [] => if top then `(by aesop) else `(this)
+  | [] => if top then `(by default) else `(this)
   | ⟨step, children⟩ :: rest => do
       let c ← translate False children
       let r ← translate top rest
@@ -215,7 +217,7 @@ def of_proof: TSyntax `proof → MacroM Term
       let blocks := infer_blocks steps
       -- dbg_trace (show_blocks blocks)
       translate True blocks
-  | `(proof| By induction .) => `(by intro x ; induction x <;> aesop)
+  | `(proof| By induction .) => `(by intro x ; induction x <;> default)
   | _ => Macro.throwError "unknown proof"
 
 -- theorem
@@ -224,4 +226,4 @@ macro _theorem id:ident "." p:prop "." "Proof." proof:proof : command => do
   `(theorem $id : $(← of_prop p) := $(← of_proof proof))
 
 macro _theorem id:ident "." p:prop "." : command => do
-  `(theorem $id : $(← of_prop p) := by aesop)
+  `(theorem $id : $(← of_prop p) := by default)
