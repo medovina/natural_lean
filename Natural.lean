@@ -5,6 +5,9 @@ import Natural.Grammar
 
 open Lean
 
+infix:50 "≮" => fun x y => ¬(x < y)
+infix:50 "≯" => fun x y => ¬(x > y)
+
 macro "default" : tactic => `(tactic| first | trivial | aesop)
 
 def range_info (s: TSyntax α) := match s.raw.getRange? with
@@ -31,19 +34,6 @@ def free_vars (t: Term): List Name := syntax_free_vars (t.raw)
 abbrev TExpr := TSyntax `expr
 abbrev TProp := TSyntax `prop
 
-abbrev mem [Membership α γ] (x: α) (s: γ) := x ∈ s
-
-def atom_str : Syntax → String
-  | .atom _ s => s
-  | .node _ _ #[stx] => atom_str stx
-  |_ => panic! "not an atom"
-
-def ops : List (String × MacroM Term) :=
-  [("=", `(Eq)), ("≠", `(Ne)), ("∈", `(mem))]
-
-def eq_op_f (op: TSyntax `eq_op): MacroM Term :=
-  ops.lookup (atom_str op) |>.get!
-
 mutual
   partial def of_expr (expr: TExpr): MacroM Term := do
     let t ← match expr with
@@ -61,9 +51,17 @@ mutual
 
   partial def of_prop (prop: TProp): MacroM Term := do
     let t ← match prop with
-      | `(prop| $a:expr $op:eq_op $b:expr) => do `($(← eq_op_f op) $(← of_expr a) $(← of_expr b))
+      | `(prop| $a:expr = $b:expr) => do `($(← of_expr a) = $(← of_expr b))
+      | `(prop| $a:expr ≠ $b:expr) => do `($(← of_expr a) ≠ $(← of_expr b))
+      | `(prop| $a:expr < $b:expr) => do `($(← of_expr a) < $(← of_expr b))
+      | `(prop| $a:expr ≮ $b:expr) => do `($(← of_expr a) ≮ $(← of_expr b))
+      | `(prop| $a:expr > $b:expr) => do `($(← of_expr a) > $(← of_expr b))
+      | `(prop| $a:expr ≯ $b:expr) => do `($(← of_expr a) ≯ $(← of_expr b))
+      | `(prop| $a:expr ∈ $b:expr) => do `($(← of_expr a) ∈ $(← of_expr b))
+      | `(prop| $p:prop and $q:prop) => do `($(← of_prop p) ∧ $(← of_prop q))
       | `(prop| $p:prop or $q:prop) => do `($(← of_prop p) ∨ $(← of_prop q))
       | `(prop| $p:prop implies $q:prop) => do `($(← of_prop p) → $(← of_prop q))
+      | `(prop| $p:prop $_:_iff $q:prop) => do `($(← of_prop p) ↔ $(← of_prop q))
       | `(prop| $_:_for all $x:ident,* : $t:ident, $p:prop)
       | `(prop| $p:prop $_:_for all $x:ident,* : $t:ident) => do
             `(∀ $x* : $t, $(← of_prop p))
