@@ -5,7 +5,9 @@ declare_syntax_cat prop
 
 syntax num : expr
 syntax ident : expr
-syntax expr "+" expr : expr
+
+syntax:65 expr:65 "+" expr:66 : expr
+
 syntax expr "(" expr ")" : expr
 syntax "(" expr ")" : expr
 syntax "{" ident ":" ident "|" prop "}" : expr
@@ -15,10 +17,15 @@ syntax "{" ident ":" ident "|" prop "}" : expr
 declare_syntax_cat _for
 syntax ("for" <|> "For") : _for
 
-syntax expr "=" expr : prop
-syntax expr "≠" expr : prop
-syntax expr "∈" expr : prop
-syntax prop ("or" <|> "implies") prop : prop
+declare_syntax_cat eq_op
+syntax ("=" <|> "≠" <|> "∈") : eq_op
+
+syntax:50 expr:51 eq_op expr:51 : prop
+
+syntax:30 prop:31 "or" prop:30 : prop
+
+syntax:25 prop:26 "implies" prop:25 : prop
+
 syntax _for "all" ident,+ ":" ident "," prop : prop
 syntax prop _for "all" ident,+ ":" ident : prop
 syntax "there" "exists" "some" ident ":" ident "such" "that" prop : prop
