@@ -55,18 +55,21 @@ mutual
       | `(prop| $a:expr ≠ $b:expr) => do `($(← of_expr a) ≠ $(← of_expr b))
       | `(prop| $a:expr < $b:expr) => do `($(← of_expr a) < $(← of_expr b))
       | `(prop| $a:expr ≮ $b:expr) => do `($(← of_expr a) ≮ $(← of_expr b))
+      | `(prop| $a:expr ≤ $b:expr) => do `($(← of_expr a) ≤ $(← of_expr b))
       | `(prop| $a:expr > $b:expr) => do `($(← of_expr a) > $(← of_expr b))
+      | `(prop| $a:expr ≥ $b:expr) => do `($(← of_expr a) ≥ $(← of_expr b))
       | `(prop| $a:expr ≯ $b:expr) => do `($(← of_expr a) ≯ $(← of_expr b))
       | `(prop| $a:expr ∈ $b:expr) => do `($(← of_expr a) ∈ $(← of_expr b))
       | `(prop| $p:prop and $q:prop) => do `($(← of_prop p) ∧ $(← of_prop q))
       | `(prop| $p:prop or $q:prop) => do `($(← of_prop p) ∨ $(← of_prop q))
-      | `(prop| $p:prop implies $q:prop) => do `($(← of_prop p) → $(← of_prop q))
+      | `(prop| $p:prop implies $q:prop)
+      | `(prop| if $p:prop then $q:prop) => do `($(← of_prop p) → $(← of_prop q))
       | `(prop| $p:prop $_:_iff $q:prop) => do `($(← of_prop p) ↔ $(← of_prop q))
       | `(prop| $_:_for all $x:ident,* : $t:ident, $p:prop)
       | `(prop| $p:prop $_:_for all $x:ident,* : $t:ident) => do
             `(∀ $x* : $t, $(← of_prop p))
-      | `(prop| there exists some $x:ident : $t:ident such that $p:prop) => do
-          `(Exists (fun $x : $t => $(← of_prop p)))
+      | `(prop| there exists some $x:binderIdent : $t:ident such that $p:prop) => do
+            `(∃ ($x : $t), $(← of_prop p))
       | stx => Macro.throwError s!"unknown prop: {stx}"
     pure (set_info_from t prop)
 end

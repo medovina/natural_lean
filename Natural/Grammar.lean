@@ -15,7 +15,10 @@ syntax "{" ident ":" ident "|" prop "}" : expr
 -- prop
 
 declare_syntax_cat eq_op
-syntax ("=" <|> "≠" <|> "<" <|> "≮" <|> ">" <|> "≯" <|> "∈") : eq_op
+syntax ("=" <|> "≠" <|>
+        "<" <|> "≮" <|> "≤" <|>
+        ">" <|> "≯" <|> "≥" <|>
+        "∈") : eq_op
 
 syntax:50 expr:51 eq_op expr:51 : prop
 
@@ -24,6 +27,8 @@ syntax:35 prop:36 "and" prop:35 : prop
 syntax:30 prop:31 "or" prop:30 : prop
 
 syntax:25 prop:26 "implies" prop:25 : prop
+
+syntax "if" prop "then" prop : prop
 
 declare_syntax_cat _iff
 syntax ("iff" <|> ("if" "and" "only" "if")): _iff
@@ -35,7 +40,8 @@ syntax ("for" <|> "For") : _for
 
 syntax _for "all" ident,+ ":" ident "," prop : prop
 syntax prop _for "all" ident,+ ":" ident : prop
-syntax "there" "exists" "some" ident ":" ident "such" "that" prop : prop
+
+syntax "there" "exists" "some" Lean.binderIdent ":" ident "such" "that" prop : prop
 
 -- reason
 
