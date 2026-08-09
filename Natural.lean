@@ -225,8 +225,9 @@ def of_proof: TSyntax `proof → MacroM Term
 
 -- theorem
 
-macro _theorem id:ident "." p:prop "." "Proof." proof:proof : command => do
-  `(theorem $id : $(← of_prop p) := $(← of_proof proof))
-
-macro _theorem id:ident "." p:prop "." : command => do
-  `(theorem $id : $(← of_prop p) := by default)
+macro t:_theorem : command => do
+  match t with
+    | `(_theorem| $_:_thm $id:ident $[( $_:ident* )]? . $p:prop . $[ Proof. $proof:proof ]?) =>
+        let pr ← (proof.map of_proof).getD `(by default)
+        `(theorem $id : $(← of_prop p) := $pr)
+    | _ => Macro.throwError "unknown theorem"

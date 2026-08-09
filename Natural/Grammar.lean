@@ -79,6 +79,10 @@ syntax "By" "induction" "." : proof
 
 -- theorem
 
+declare_syntax_cat _thm
+
+syntax ("Lemma" <|> "Theorem") : _thm
+
 declare_syntax_cat _theorem
 
-syntax ("Lemma" <|> "Theorem") : _theorem
+syntax _thm ident ("(" ident+ ")")? "." prop "." ("Proof." proof)? : _theorem
