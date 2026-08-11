@@ -99,13 +99,21 @@ def eterm_free_vars : ETerm → List Name
   | .eq_chain ts => ts.flatMap free_vars
 
 def of_assert_prop: TSyntax `assert_prop → MacroM (ETerm × List (Option Reason))
-  | `(assert_prop| $[ by $r:reason ]? $p:prop) =>
-        do pure (.term (← of_prop p), [← r.mapM of_reason])
+  | `(assert_prop| $p:prop) =>
+        do pure (.term (← of_prop p), [none])
   | `(assert_prop| $e:expr $eb:eq_expr_by $ebs:eq_expr_by*) => do
         let (e1, by1) ← of_eq_expr_by eb
         let (es, bys) := (← ebs.toList.mapM of_eq_expr_by).unzip
         pure (.eq_chain ((← of_expr e) :: e1 :: es), by1 :: bys)
   | _ => Macro.throwError "unknown assert_prop"
+
+def of_proof_prop: TSyntax `proof_prop → MacroM (ETerm × List (Option Reason))
+  | `(proof_prop| $[by $r:reason]? $[$_:_have]? $p:assert_prop) => do
+        let (e, rs) ← of_assert_prop p
+        match e with
+          | .term _ => do pure (e, [← r.mapM of_reason])
+          | .eq_chain _ => pure (e, rs)
+  | _ => Macro.throwError "unknown proof_prop"
 
 inductive ProofStep where
   | assert (p: ETerm) (reason: List (Option Reason))
@@ -132,22 +140,31 @@ instance: ToString ProofStep where
     | .let_def id _e => s!"let_def {id}"
     | .assume _p => "assume"
 
-def of_proof_step: TSyntax `proof_step → MacroM (List ProofStep)
-  | `(proof_step| $p:assert_prop) =>
-        do pure [(Function.uncurry .assert) (← of_assert_prop p)]
-  | `(proof_step| $_:_assume $p:prop) => do pure [.assume (← of_prop p)]
-  | `(proof_step| $_:_let $ids:ident,* : $type) =>
-      pure [.let (ids.getElems.toList.map TSyntax.getId) type.getId]
-  | `(proof_step| $_:_let $id = $e) => do pure [.let_def id.getId (← of_expr e)]
-  | `(proof_step| We have shown that $p:prop) =>
-        do pure [.assert (.term (← of_prop p)) [none]]
-  | `(proof_step| We must show that $_p:prop) => pure []
-  | _ => Macro.throwError "unknown proof step"
+def of_let_or_assume: TSyntax `let_or_assume → MacroM ProofStep
+  | `(let_or_assume| $_:_let $ids:ident,* : $type) =>
+        pure $ .let (ids.getElems.toList.map TSyntax.getId) type.getId
+  | `(let_or_assume| $_:_let $id = $e) =>
+        do pure $ .let_def id.getId (← of_expr e)
+  | `(let_or_assume| $_:_assume $p:prop) => do pure $ .assume (← of_prop p)
+  | _ => Macro.throwError "unknown let_or_assume"
 
-def of_proof_step1: TSyntax `proof_step1 → MacroM (List ProofStep)
-  | `(proof_step1| $[$i:initial]? $ps:proof_step /* .) =>
-        List.flatten <$> ps.getElems.toList.mapM of_proof_step
-  | _ => Macro.throwError "unknown proof step 1"
+def of_assert_step: TSyntax `assert_step → MacroM (List ProofStep)
+  | `(assert_step| $_:will_show $_p:prop) => pure []
+  | `(assert_step| $_:_so ? $p:proof_prop) =>
+        do pure [(Function.uncurry .assert) (← of_proof_prop p)]
+  | _ => Macro.throwError "unknown assert_step"
+
+def of_proof_sentence1: TSyntax `proof_sentence1 → MacroM (List ProofStep)
+  | `(proof_sentence1| $ls:let_or_assume /*) =>
+        ls.getElems.toList.mapM of_let_or_assume
+  | `(proof_sentence1| $s:assert_step /*) =>
+        s.getElems.toList.flatMapM of_assert_step
+  | _ => Macro.throwError "unknown proof_sentence1"
+
+def of_proof_sentence: TSyntax `proof_sentence → MacroM (List ProofStep)
+  | `(proof_sentence| $_:clause_intro ? $s:proof_sentence1 .) =>
+      of_proof_sentence1 s
+  | _ => Macro.throwError "unknown proof_sentence"
 
 structure Block where
   step : ProofStep
@@ -227,8 +244,8 @@ def translate (top: Bool): List Block → MacroM Term
             `(have: _ := fun (_: $p) => $c; $r)
 
 def of_proof: TSyntax `proof → MacroM Term
-  | `(proof| $steps:proof_step1*) => do
-      let steps := List.flatten (← steps.toList.mapM of_proof_step1)
+  | `(proof| $steps:proof_sentence*) => do
+      let steps := List.flatten (← steps.toList.mapM of_proof_sentence)
       let blocks := infer_blocks steps
       -- dbg_trace (show_blocks blocks)
       translate True blocks

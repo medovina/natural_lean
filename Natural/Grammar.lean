@@ -15,15 +15,15 @@ sdef expr
 -- prop
 
 sdef eq_op
-  | ("=" <|> "≠" <|>
-     "<" <|> "≮" <|> "≤" <|> ">" <|> "≯" <|> "≥" <|>
-     "∈")
+  | "=" <|> "≠" <|>
+    "<" <|> "≮" <|> "≤" <|> ">" <|> "≯" <|> "≥" <|>
+    "∈"
 
 sdef _iff
-  | ("iff" <|> ("if" "and" "only" "if"))
+  | "iff" <|> ("if" "and" "only" "if")
 
 sdef _for
-  | ("for" <|> "For")
+  | "for" <|> "For"
 
 sdef_extend prop
   |:50 expr:51 eq_op expr:51
@@ -50,47 +50,60 @@ sdef eq_expr_by
   | "=" expr ("by" reason)?
 
 sdef assert_prop
- | ("by" reason)? prop
- | expr eq_expr_by eq_expr_by+
+  | prop
+  | expr eq_expr_by eq_expr_by+
 
--- proof_step
+sdef _so
+  | "hence" <|> "Hence" <|> "so" <|> "So" <|>
+    "then" <|> "Then" <|> "thus" <|> "Thus"
+
+sdef _have
+  | "Clearly" <|> ("We" "have" "shown" "that")
+
+sdef proof_prop
+  | ("by" reason)? _have ? assert_prop
 
 sdef _let
-  | ("let" <|> "Let")
+  | "let" <|> "Let"
 
 sdef _assume
   | ("assume" <|> "suppose") "that"?
 
-sdef proof_step
-  | assert_prop
-  | _assume prop
+sdef let_or_assume
   | _let ident,+ ":" ident
   | _let ident "=" expr
-  | "We" "have" "shown" "that" prop
-  | "We" "must" "show" "that" prop
+  | _assume prop
 
--- proof_step1
+sdef now
+  | "Now" <|> "Second"
 
-sdef initial
-  | ("Clearly" <|> "First" <|> "Hence" <|> "Now" <|>
-     "Second" <|> "So" <|> "Then" <|> "Thus") ","?
+sdef will_show
+  | "We" "must" "show" "that"
 
-sdef step_sep
-  | ","? ("and" <|> "so")
+sdef assert_step
+  | will_show prop
+  | _so ? proof_prop
 
-sdef proof_step1
-  | initial ? sepBy1(proof_step, "/", step_sep) "."
+sdef clause_intro
+  | ("First" <|> now) ","?
+
+sdef proof_sentence1
+  | sepBy1(let_or_assume, "/", "," ? "and")
+  | sepBy1(assert_step, "/", "," _so)
+
+sdef proof_sentence
+  | clause_intro ? proof_sentence1 "."
 
 -- proof
 
 sdef proof
-  | proof_step1+
+  | proof_sentence+
   | "By" "induction" "."
 
 -- theorem
 
 sdef _thm
-  | ("Lemma" <|> "Theorem")
+  | "Lemma" <|> "Theorem"
 
 sdef _theorem
   | _thm ident str ? "." prop "." ("Proof." proof)?
