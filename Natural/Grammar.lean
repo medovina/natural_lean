@@ -14,16 +14,12 @@ sdef expr
 
 -- prop
 
-sdef eq_op
-  | "=" <|> "≠" <|>
-    "<" <|> "≮" <|> "≤" <|> ">" <|> "≯" <|> "≥" <|>
-    "∈"
+kdef eq_op = "=" | "≠" | "<" | "≮" | "≤" | ">" | "≯" | "≥" | "∈"
 
 sdef _iff
   | "iff" <|> ("if" "and" "only" "if")
 
-sdef _for
-  | "for" <|> "For"
+kdef _for = "for"
 
 sdef_extend prop
   |:50 expr:51 eq_op expr:51
@@ -53,9 +49,7 @@ sdef assert_prop
   | prop
   | expr eq_expr_by eq_expr_by+
 
-sdef _so
-  | "hence" <|> "Hence" <|> "so" <|> "So" <|>
-    "then" <|> "Then" <|> "thus" <|> "Thus"
+kdef _so = "hence" | "so" | "then" | "thus"
 
 sdef _have
   | "Clearly" <|> ("We" "have" "shown" "that")
@@ -63,8 +57,7 @@ sdef _have
 sdef proof_prop
   | ("by" reason)? _have ? assert_prop
 
-sdef _let
-  | "let" <|> "Let"
+kdef _let = "let"
 
 sdef _assume
   | ("assume" <|> "suppose") "that"?
@@ -74,8 +67,7 @@ sdef let_or_assume
   | _let ident "=" expr
   | _assume prop
 
-sdef now
-  | "Now" <|> "Second"
+kdef _now = "now" | "second"
 
 sdef will_show
   | "We" "must" "show" "that"
@@ -85,7 +77,7 @@ sdef assert_step
   | _so ? proof_prop
 
 sdef clause_intro
-  | ("First" <|> now) ","?
+  | ("First" <|> _now) ","?
 
 sdef proof_sentence1
   | sepBy1(let_or_assume, "/", "," ? "and")
