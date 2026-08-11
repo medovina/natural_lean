@@ -1,108 +1,96 @@
-declare_syntax_cat expr
+import Natural.Util
+
+-- forward declaration
 declare_syntax_cat prop
 
 -- expr
-
-syntax num : expr
-syntax ident : expr
-
-syntax:65 expr:65 "+" expr:66 : expr
-
-syntax expr "(" expr ")" : expr
-syntax "(" expr ")" : expr
-syntax "{" ident ":" ident "|" prop "}" : expr
+sdef expr
+  | num
+  | ident
+  |:65 expr:65 "+" expr:66
+  | expr "(" expr ")"
+  | "(" expr ")"
+  | "{" ident ":" ident "|" prop "}"
 
 -- prop
 
-declare_syntax_cat eq_op
-syntax ("=" <|> "≠" <|>
-        "<" <|> "≮" <|> "≤" <|>
-        ">" <|> "≯" <|> "≥" <|>
-        "∈") : eq_op
+sdef eq_op
+  | ("=" <|> "≠" <|>
+     "<" <|> "≮" <|> "≤" <|> ">" <|> "≯" <|> "≥" <|>
+     "∈")
 
-syntax:50 expr:51 eq_op expr:51 : prop
+sdef _iff
+  | ("iff" <|> ("if" "and" "only" "if"))
 
-syntax:35 prop:36 "and" prop:35 : prop
+sdef _for
+  | ("for" <|> "For")
 
-syntax:30 prop:31 "or" prop:30 : prop
-
-syntax:25 prop:26 "implies" prop:25 : prop
-
-syntax "if" prop "then" prop : prop
-
-declare_syntax_cat _iff
-syntax ("iff" <|> ("if" "and" "only" "if")): _iff
-
-syntax:20 prop:21 _iff prop:21 : prop
-
-declare_syntax_cat _for
-syntax ("for" <|> "For") : _for
-
-syntax _for "all" ident,+ ":" ident "," prop : prop
-syntax prop _for "all" ident,+ ":" ident : prop
+sdef_extend prop
+  |:50 expr:51 eq_op expr:51
+  |:35 prop:36 "and" prop:35
+  |:30 prop:31 "or" prop:30
+  |:25 prop:26 "implies" prop:25
+  | "if" prop "then" prop
+  | :20 prop:21 _iff prop:21
+  | _for "all" ident,+ ":" ident "," prop
+  | prop _for "all" ident,+ ":" ident
 
 syntax "there" "exists" "some" Lean.binderIdent ":" ident "such" "that" prop : prop
 
 -- reason
 
-declare_syntax_cat reason
-syntax "[" tactic "]" : reason
-syntax ":" ident : reason
-syntax "induction" : reason
+sdef reason
+  | "[" tactic "]"
+  | ":" ident
+  | "induction"
 
 -- assert_prop
 
-declare_syntax_cat eq_expr_by
-syntax "=" expr ("by" reason)? : eq_expr_by
+sdef eq_expr_by
+  | "=" expr ("by" reason)?
 
-declare_syntax_cat assert_prop
-syntax ("by" reason)? prop : assert_prop
-syntax expr eq_expr_by eq_expr_by+ : assert_prop
+sdef assert_prop
+ | ("by" reason)? prop
+ | expr eq_expr_by eq_expr_by+
 
 -- proof_step
 
-declare_syntax_cat _let
-syntax ("let" <|> "Let") : _let
+sdef _let
+  | ("let" <|> "Let")
 
-declare_syntax_cat _assume
-syntax ("assume" <|> "suppose") "that"? : _assume
+sdef _assume
+  | ("assume" <|> "suppose") "that"?
 
-declare_syntax_cat proof_step
-
-syntax assert_prop : proof_step
-syntax _assume prop : proof_step
-syntax _let ident,+ ":" ident : proof_step
-syntax _let ident "=" expr : proof_step
-syntax "We" "have" "shown" "that" prop : proof_step
-syntax "We" "must" "show" "that" prop : proof_step
+sdef proof_step
+  | assert_prop
+  | _assume prop
+  | _let ident,+ ":" ident
+  | _let ident "=" expr
+  | "We" "have" "shown" "that" prop
+  | "We" "must" "show" "that" prop
 
 -- proof_step1
 
-declare_syntax_cat initial
+sdef initial
+  | ("Clearly" <|> "First" <|> "Hence" <|> "Now" <|>
+     "Second" <|> "So" <|> "Then" <|> "Thus") ","?
 
-syntax ("Clearly" <|> "First" <|> "Hence" <|> "Now" <|>
-        "Second" <|> "So" <|> "Then" <|> "Thus") ","? : initial
+sdef step_sep
+  | ","? ("and" <|> "so")
 
-declare_syntax_cat step_sep
-syntax ","? ("and" <|> "so") : step_sep
-
-declare_syntax_cat proof_step1
-
-syntax initial ? sepBy1(proof_step, "/", step_sep) "." : proof_step1
+sdef proof_step1
+  | initial ? sepBy1(proof_step, "/", step_sep) "."
 
 -- proof
 
-declare_syntax_cat proof
-
-syntax proof_step1+ : proof
-syntax "By" "induction" "." : proof
+sdef proof
+  | proof_step1+
+  | "By" "induction" "."
 
 -- theorem
 
-declare_syntax_cat _thm
+sdef _thm
+  | ("Lemma" <|> "Theorem")
 
-syntax ("Lemma" <|> "Theorem") : _thm
-
-declare_syntax_cat _theorem
-
-syntax _thm ident str ? "." prop "." ("Proof." proof)? : _theorem
+sdef _theorem
+  | _thm ident str ? "." prop "." ("Proof." proof)?

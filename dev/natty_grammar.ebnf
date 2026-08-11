@@ -1,0 +1,383 @@
+(* lexical *)
+
+digit = '0' .. '9';
+
+number = {digit}+;
+
+letter = 'a' .. 'z' | 'A' .. 'Z';
+
+sub_digit = '₀' .. '₉';
+
+var0 = letter ["'"]; 
+
+var = var0 [sub_digit];
+
+long_id = 'π' | 'σ' | 'τ' | 'Π' | 'Σ' | '𝔹' | 'ℕ' | 'ℤ' | '𝒫' |
+    'abs' | 'div' | 'egcd' | 'gcd' | 'mod';
+
+base_id = var0 | long_id;
+
+id = var | long_id;
+
+sym = digit |
+    '+' | '-' | '<' | '>' | '|' | '~' | '^' |
+    '·' | '/' | '≤' | '≥' | '≮' | '≯' | '−' |
+    '⊆' | '∪' | '∩' | '∅';
+
+id_or_sym = id | sym;
+
+word = letter {letter};
+
+adverb = word 'ly';
+
+adjective_phrase = [adverb] word;
+
+name_char = name_char;  (* ' ' or any printable char except '[', ']', ':' *)
+
+name = {name_char}+;
+
+sub_letter = 'ₐ' .. 'ₓ';
+
+sub_sym = '₊' | '₋';
+
+super_digit = '⁰' .. '⁹';
+
+sub_index = number | letter;
+
+stmt_num = sub_index {'.' sub_index};
+
+(* types *)
+
+type_op = '⨯' | '→';
+
+typ = id | typ type_op typ | 'Set' '(' typ ')' | '(' typ ')';
+
+of_type = (':' typ | '∈' id);
+
+decl_id_type = id_or_sym of_type;
+
+id_opt_type = id [of_type];
+
+decl_ids = id_or_sym {',' id_or_sym};
+
+decl_ids_type = decl_ids of_type;
+
+decl_ids_types = decl_ids_type {'and' decl_ids_type};
+
+(* terms *)
+
+parens_exprs = '(' expr {',' expr} ')';
+
+sub_term = sub_digit | sub_letter | '₍' sub_expr '₎';
+
+sub_expr = sub_term {sub_sym sub_term};
+
+super_expr = ['⁻'] super_digit;
+
+small_term = number | letter;
+
+id_sub = base_id ['_' small_term | sub_expr];
+
+unit_term =
+    id_sub ["⋯" id_sub] | parens_exprs;
+
+comprehension = '{' var of_type '|' proposition '}';
+
+if_clause = expr 'if' expr;
+
+if_block = '{' if_clause { ';' if_clause } '}';
+
+base_term = unit_term
+  | sym
+  | '⊤' | '⊥' 
+  | '|' expr '|'
+  | comprehension
+  | if_block;
+
+term = base_term [super_expr];
+
+next_term = unit_term [super_expr];
+
+terms = term {next_term};
+
+(* expressions *)
+
+binary_op = '·' | '+' | '-' | '^' | '∈' | '∉' | '|' | '∤' | '∧' | '∨' | '→' | '↔';
+
+compare_op = '=' | '<' | '≤' | '>' | '≥' | '~' | '≈' | '⊆';
+
+eq_op = compare_op | '≠' | '≮' | '≯' | '≁';
+
+expr = terms |
+    expr binary_op expr |
+    expr eq_op expr [by_reason] |
+    expr ':' typ |
+    '-' expr |
+    '¬' expr |
+    '∀' decl_ids_type '.' expr;
+
+exprs = expr { 'and' expr };
+
+predicate_target =
+    'as' expr | 'of' expr ['and' expr] | 'from' expr 'to' expr;
+
+target_predicate = ('a' | 'an' | 'the') word [word] [predicate_target];
+
+predicate =
+    ['not'] adjective_phrase | target_predicate;
+
+predicate_is_expr = target_predicate 'is' expr;
+
+atomic =
+    expr ['is true' | 'always holds' | ('is' | 'must' ['also'] 'be') predicate] |
+    expr 'and' expr 'are' adjective_phrase |
+    predicate_is_expr;
+
+(* reasons *)
+
+id_eq_term = id '=' term;
+
+theorem_ref =
+    ('Axiom' | 'Corollary' | 'Exercise' | 'Lemma' | 'Theorem') stmt_num |
+    '[' name [':' id_eq_term {',' id_eq_term}] ']';
+
+part_ref = '(' sub_index ')';
+
+reference = theorem_ref |
+    ('our' | 'the') 'assumption' ['that' small_prop] |
+    'the fact that' small_prop |
+    part_ref;
+
+reason =
+    'a similar argument' |
+    ['contradiction with'] reference |
+    'definition' | 'the definition of' term |
+    [['the'] ('inductive' | 'induction')] ('assumption' | 'hypothesis') |
+    'reductio ad absurdum' |
+    ['the'] ('substitutivity' | 'transitivity') 'of' ('equality' | '=');
+
+reasons = reason {'and' reason};
+
+by_reason = ['again'] 'by' reasons | 'as an exercise for the reader';
+
+(* so / have *)
+
+so = 'also' | 'but' ['then'] | 'consequently' | 'hence' | 'however' |
+     'so' | 'that is' | 'then' | 'therefore' | 'thus' | 'which implies' ['that'] |
+     'whence' | 'which means that';
+    
+have = 'clearly' |
+    'it' ['then'] 'follows' ['from' reference | by_reason] 'that' |
+    'it is' ('clear' | 'obvious') 'that' | 'it must be that' |
+    'likewise' [','] | 'notice that' | 'observe that' |
+    'on the other hand' [','] | 'remember that' | 'similarly' [','] |
+    'the only alternative is' | 'this means that' | 'this shows that' | 'trivially' |
+    'we conclude that' | 'we deduce that' | 'we have' ['shown that'] |
+    'we know that' | 'we may write' | 'we must have' | 'we obtain' | 'we see that';
+
+(* small propositions *)
+
+if_then_prop = 'if' small_prop [','] 'then' small_prop;
+
+with_exprs = 'with' exprs;
+
+any = 'all' | 'any' | 'every';
+
+for_all_ids = 'For' any decl_ids_types;
+
+for_all_with = for_all_ids [with_exprs] [','];
+
+for_all_prop = for_all_with small_prop;
+
+there_exists =
+    'There' ('is' | 'are' | 'exists' | 'must be' | ['must'] 'exist');
+
+exists_prop =
+    there_exists ['some' | 'an operation' | 'no' | ['a'] 'unique'] decl_ids_types [with_exprs]
+    'such that' small_prop;
+
+multi_or_prop =
+    ('At least' | 'At most' | 'Exactly' | 'Precisely')
+    'one of' ['the conditions'] small_prop 'holds';
+
+prop_op = 'and' | 'or' | 'if' | 'implies' ['that'] | 'if and only if' | 'iff' |
+          ', and' | ', or';
+
+small_prop =
+    atomic | if_then_prop | for_all_prop | exists_prop | multi_or_prop |
+    small_prop prop_op small_prop |
+    small_prop 'for' (any | 'some') decl_ids_type [with_exprs];
+
+(* propositions *)
+
+either_or_prop = 'either' small_prop;
+
+cannot_prop = 'It cannot be that' small_prop;
+
+proposition =
+    either_or_prop | cannot_prop |
+    small_prop;
+
+(* top propositions, which may include steps *)
+
+operation = ['binary' | 'unary'] ('operation' | 'relation') ['s'];
+
+an_operation = ['a' | 'an'] operation;
+
+let_decl = 'Consider any' decl_ids_types |
+    'Let' (decl_ids_types ['be' an_operation] | id 'be a type');
+
+let_step = let_decl [with_exprs];
+
+let_val_step = 'let' id_opt_type '=' expr;
+
+define_step = 'define' atomic for_all_ids;
+
+let_def_step = let_val_step | define_step;
+
+suppose = ['Also'] ('assume' | 'suppose') ['further'] ['that'] proposition
+            {[','] 'and that' proposition};
+
+assume_step = suppose;
+
+let_or_assume = let_step | let_def_step | assume_step;
+
+top_prop = {let_or_assume '.'} ['Then'] proposition;
+
+(* proposition lists *)
+
+sub_index_dot = sub_index '.';
+
+label = '[' name ']';
+
+top_sentence = top_prop '.' [label];
+
+stmt_name = '(' name ')';
+
+proposition_item = sub_index_dot top_sentence;
+
+prop_items = proposition_item+;
+
+top_prop_or_items = prop_items | top_sentence;
+
+(* axioms *)
+
+type_name = 'type' id ['(' 'the' word [word] ')'];
+
+type_decl = 'a' type_name;
+
+const_decl = ('a constant' | 'an element' | 'a function' | an_operation) decl_ids_type;
+
+axiom_decl = type_decl | const_decl;
+
+special_sym = 'the product' unit_term;
+
+special_def = special_sym ':' typ 'is defined as follows:';
+
+axiom_propositions = [for_all_with] [special_def] top_prop_or_items;
+
+axiom_exists = 
+    there_exists axiom_decl {('and' | 'with') axiom_decl}
+    ('such that' axiom_propositions | '.');
+
+axiom_group = 'Axiom' [stmt_num] [stmt_name] '.'
+    (axiom_exists | axiom_propositions);
+
+(* proofs *)
+
+because_prop = ['because' | 'from' | 'since'] proposition;
+
+ref_or_expr = reference | expr;
+
+contradiction = 
+     ('a contradiction' ['to' ref_or_expr] | 'contradicting' ref_or_expr)
+     [because_prop];
+
+which_is_contradiction =
+    ',' (['which is'] ['again' | 'also' | 'similarly']) contradiction;
+
+have_contradiction =
+    ('This is' | 'We have') contradiction |
+    'This contradicts' ref_or_expr;
+
+to_contradiction = 'this leads to a contradiction';
+
+prop_reason = proposition [by_reason];
+
+proof_prop =
+    [by_reason [',']] [have] prop_reason [because_prop] [which_is_contradiction];
+
+proof_if_prop = 'if' small_prop [','] 'then' proof_prop {',' so [','] proof_prop};
+
+and_or_so = ('and' [so] | so) [','];
+
+will_show =
+    ('We' ('must' | 'need to' | 'shall' | 'will') ['now'] |
+     'It suffices' ['then'] 'to')
+    ('deduce' | 'prove' | 'show') [by_reason] 'that';
+
+assert_step =
+    [have] proof_if_prop |
+    [so | have] because_prop [','] proof_prop |
+    will_show (to_contradiction | prop_reason) |
+    'The result follows' by_reason |
+    [and_or_so] have_contradiction |
+    [and_or_so] proof_prop;
+
+assert_steps = assert_step {',' and_or_so proof_prop};
+
+now = 'Conversely' | 'Finally' | 'Next' | 'Now' | 'Second';
+
+any_case = 'in' ('all cases' | 'any case' | 'both cases' | 'either case') ;
+
+let_or_assumes = let_or_assume {', and' let_or_assume};
+
+clause_intro = 'First' | 'To see this' | now | [so] any_case;
+
+proof_clause = [clause_intro [',']] (let_or_assumes | assert_steps);
+
+proof_sentence = proof_clause {';' proof_clause} '.' [label];
+
+proof_by =
+    ('By' reasons |
+     'Follows' ['easily' | 'immediately'] 'from' reasons |
+     'Similar to' part_ref) '.';
+
+proof_steps = proof_by | proof_sentence+;
+
+proof_item = sub_index_dot proof_steps;
+
+proofs = 'Proof.' (proof_item+ | proof_steps);
+
+(* definitions *)
+
+type_definition =
+    'The' type_name 'is defined inductively with constructors' decl_ids_types '.';
+
+explicit_definition =
+    'The' operation decl_id_type 'is defined' ['recursively'] 'such that'
+    for_all_ids ',' top_prop_or_items;
+
+def_prop = ['we write'] small_prop '.';
+
+definition_body = {let_decl '.'} [for_all_ids ','] {['Let'] def_prop}+;
+
+const_or_fun_definition = definition_body ['Justification.' proof_steps];
+
+definition =
+    'Definition' [stmt_name] '.'
+    (type_definition | explicit_definition | const_or_fun_definition);
+
+(* theorems *)
+
+theorem_group =
+    ('Corollary' | 'Exercise' | 'Lemma' | 'Theorem') [stmt_num] [stmt_name] '.'
+    {let_step '.'} top_prop_or_items [proofs];
+
+(* module *)
+
+module_name = {letter | digit | '_' }+;
+
+using = 'using' module_name {',' module_name} ';' ;
+
+module = [using] {axiom_group | definition | theorem_group};
