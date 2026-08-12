@@ -1,22 +1,32 @@
 import Lean
 
-open Lean
+open Lean hiding mkStrLit
 open Lean.Elab.Command
+open Lean.Syntax (mkStrLit)
 
 elab "kdef" name:ident "=" ks:sepBy1(str, "|") : command => do
   elabCommand (← `(declare_syntax_cat $name))
 
-  let rec mk_stx : List (TSyntax `str) → CommandElabM (TSyntax `stx)
-    | [] => panic! "no strings"
-    | [k] => `(stx| $k:str)
-    | k :: ks => do `(stx| $k:str <|> $(← mk_stx ks))
-  let all := ks.getElems.toList.flatMap (fun k =>
-      let s := k.getString
-      if s.front.isLower then [k, Lean.Syntax.mkStrLit (k.getString.capitalize)] else [k])
-  let stx ← mk_stx all
-  let c ← `(syntax ($stx) : $name)
+  let rec mk_or : List (TSyntax `stx) → CommandElabM (TSyntax `stx)
+    | [] => panic! "empty"
+    | [x] => pure x
+    | x :: xs => do `(stx| $x <|> $(← mk_or xs))
+
+  let seq (ws: List String) : CommandElabM (TSyntax `stx) :=
+    match (ws.map mkStrLit).toArray with
+      | #[ l ] => `(stx| $l:str)
+      | ls => `(stx| atomic( $[$ls:str]* ) )
+
+  let items (k: TSyntax `str): CommandElabM (List (TSyntax `stx)) := do
+      let ws := k.getString.splitOn " "
+      if ws[0]!.front.isLower then
+        pure [← seq ws, ← seq (ws[0]!.capitalize :: ws.drop 1)]
+      else pure [← seq ws]
+
+  let all ← ks.getElems.toList.flatMapM items
+  let stx ← mk_or all
+  let c ← `(syntax ($stx:stx) : $name)
   elabCommand c
-  pure ()
 
 declare_syntax_cat sdef_decl
 syntax "|" (":" num)? stx+ : sdef_decl

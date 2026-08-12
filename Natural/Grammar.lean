@@ -51,16 +51,19 @@ sdef assert_prop
 
 kdef _so = "hence" | "so" | "then" | "thus"
 
-sdef _have
-  | "Clearly" <|> ("We" "have" "shown" "that")
+kdef _have = "clearly" | "we must have" | "we have shown that"
 
 sdef proof_prop
   | ("by" reason)? _have ? assert_prop
 
 kdef _let = "let"
 
+kdef _also = "also"
+
+kdef _assume1 = "assume" | "suppose"
+
 sdef _assume
-  | ("assume" <|> "suppose") "that"?
+  | _also ? _assume1 "that"?
 
 sdef let_or_assume
   | _let ident,+ ":" ident
