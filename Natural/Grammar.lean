@@ -82,9 +82,12 @@ sdef assert_step
 sdef clause_intro
   | ("First" <|> _now) ","?
 
+sdef and_or_so
+  | ("and" _so) <|> _so
+
 sdef proof_sentence1
   | sepBy1(let_or_assume, "/", "," ? "and")
-  | sepBy1(assert_step, "/", "," _so)
+  | sepBy1(assert_step, "/", "," and_or_so)
 
 sdef proof_sentence
   | clause_intro ? proof_sentence1 "."

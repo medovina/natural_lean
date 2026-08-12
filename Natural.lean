@@ -127,7 +127,7 @@ def step_decl_vars: ProofStep → List Name
   | .let_def id _ => [id]
   | .assume _ => []
 
-def step_vars : ProofStep → List Name
+def step_free_vars : ProofStep → List Name
   | .assert p _ => eterm_free_vars p
   | .let _ _ => []
   | .let_def _ e => free_vars e
@@ -176,12 +176,18 @@ partial def show_blocks (blocks: List Block): String :=
       (indent ++ toString step) :: f (indent ++ "    ") children)
   "\n".intercalate (f "" blocks)
 
+def all_vars : List ProofStep → List Name
+  | [] => []
+  | step :: steps =>
+      (step_free_vars step ++ all_vars steps).removeAll (step_decl_vars step) |>.eraseDups
+
 partial def infer_blocks (steps: List ProofStep): List Block :=
   let rec infer (vars: List (List Name)) (steps: List ProofStep): List Block × List ProofStep :=
     match steps with
       | [] => ([], [])
       | (step :: rest) =>
-          let in_use := steps.flatMap step_vars
+          if overlap (step_decl_vars step) vars.flatten then ([], steps) else
+          let in_use := all_vars steps
           if vars.head?.all (fun vs => vs.any in_use.elem) then
             let (children, rest1) := match step with
               | .assume _ => infer vars rest
@@ -192,7 +198,7 @@ partial def infer_blocks (steps: List ProofStep): List Block :=
             (⟨step, children⟩ :: blocks, rest2)
           else ([], steps)
   let (blocks, rest) := infer [] steps
-  assert! (rest = [])
+  assert! (rest.isEmpty)
   blocks
 
 def get_info (t: Term): SourceInfo := t.raw.getInfo?.getD SourceInfo.none
@@ -237,9 +243,9 @@ def translate (top: Bool): List Block → MacroM Term
             let ids := ids.toArray.map mkIdent
             `(have: _ := fun $ids* : $(mkIdent type) => $c; $r)
         | .let_def id e =>
-            if (rest ≠ []) then
-              dbg_trace "error: rest != []"
-            `(let $(mkIdent id) := $e; $c)
+            let t := `(let $(mkIdent id) := $e; $c)
+            if rest.isEmpty then t
+            else `(have: _ := $(← t); $r)
         | .assume p =>
             `(have: _ := fun (_: $p) => $c; $r)
 

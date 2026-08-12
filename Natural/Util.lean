@@ -1,8 +1,11 @@
 import Lean
 
+import Batteries.Data.List.Basic
 open Lean hiding mkStrLit
 open Lean.Elab.Command
 open Lean.Syntax (mkStrLit)
+
+def overlap [BEq α] (xs: List α) (ys: List α): Bool := xs.inter ys != []
 
 elab "kdef" name:ident "=" ks:sepBy1(str, "|") : command => do
   elabCommand (← `(declare_syntax_cat $name))
