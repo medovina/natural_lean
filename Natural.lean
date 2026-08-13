@@ -69,7 +69,7 @@ mutual
       | `(prop| $_:_for all $x:ident,* : $t:ident, $p:prop)
       | `(prop| $p:prop $_:_for all $x:ident,* : $t:ident) => do
             `(∀ $x* : $t, $(← of_prop p))
-      | `(prop| there exists some $x:binderIdent : $t:ident such that $p:prop) => do
+      | `(prop| there $_:_exists some $x:binderIdent : $t:ident such that $p:prop) => do
             `(∃ ($x : $t), $(← of_prop p))
       | stx => Macro.throwError s!"unknown prop: {stx}"
     pure (set_info_from t prop)
@@ -80,15 +80,16 @@ inductive Reason where
   | apply (n: Name)
   | induction
 
-def of_reason: TSyntax `reason → MacroM Reason
+def of_reason: TSyntax `reason → MacroM (Option Reason)
   | `(reason| [ $t:tactic ]) => pure (Reason.tactic t)
   | `(reason| : $n:ident) => pure (Reason.apply n.getId)
   | `(reason| induction) => pure Reason.induction
+  | `(reason| the inductive hypothesis) => pure .none
   | _ => Macro.throwError "unknown reason"
 
 def of_eq_expr_by: TSyntax `eq_expr_by → MacroM (Term × Option Reason)
   | `(eq_expr_by| = $e:expr $[ by $r:reason ]?) =>
-        do pure ((← of_expr e), (← r.mapM of_reason))
+        do pure ((← of_expr e), (← r.bindM of_reason))
   | _ => Macro.throwError "unknown eq_expr_by"
 
 inductive ETerm where
@@ -112,7 +113,7 @@ def of_proof_prop: TSyntax `proof_prop → MacroM (ETerm × List (Option Reason)
   | `(proof_prop| $[by $r:reason]? $[$_:_have]? $p:assert_prop) => do
         let (e, rs) ← of_assert_prop p
         match e with
-          | .term _ => do pure (e, [← r.mapM of_reason])
+          | .term _ => do pure (e, [← r.bindM of_reason])
           | .eq_chain _ => pure (e, rs)
   | _ => Macro.throwError "unknown proof_prop"
 

@@ -31,7 +31,11 @@ sdef_extend prop
   | _for "all" ident,+ ":" ident "," prop
   | prop _for "all" ident,+ ":" ident
 
-syntax "there" "exists" "some" Lean.binderIdent ":" ident "such" "that" prop : prop
+sdef _exists
+  | "exists" <|> "is"
+
+syntax "there" _exists "some" Lean.binderIdent ":" ident
+         "such" "that" prop : prop
 
 -- reason
 
@@ -39,6 +43,7 @@ sdef reason
   | "[" tactic "]"
   | ":" ident
   | "induction"
+  | "the" "inductive" "hypothesis"
 
 -- assert_prop
 
@@ -51,7 +56,7 @@ sdef assert_prop
 
 kdef _so = "hence" | "so" | "then" | "thus"
 
-kdef _have = "clearly" | "we must have" | "we have shown that"
+kdef _have = "clearly" | "we have shown that" | "we have" | "we must have"
 
 sdef proof_prop
   | ("by" reason)? _have ? assert_prop
