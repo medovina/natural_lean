@@ -34,7 +34,7 @@ sdef_extend prop
 sdef _exists
   | "exists" <|> "is"
 
-syntax "there" _exists "some" Lean.binderIdent ":" ident
+syntax "there" _exists "some" ident ":" ident
          "such" "that" prop : prop
 
 -- reason

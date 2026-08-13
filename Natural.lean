@@ -69,8 +69,8 @@ mutual
       | `(prop| $_:_for all $x:ident,* : $t:ident, $p:prop)
       | `(prop| $p:prop $_:_for all $x:ident,* : $t:ident) => do
             `(∀ $x* : $t, $(← of_prop p))
-      | `(prop| there $_:_exists some $x:binderIdent : $t:ident such that $p:prop) => do
-            `(∃ ($x : $t), $(← of_prop p))
+      | `(prop| there $_:_exists some $x:ident : $t:ident such that $p:prop) => do
+            `(∃ $x:ident : $t, $(← of_prop p))
       | stx => Macro.throwError s!"unknown prop: {stx}"
     pure (set_info_from t prop)
 end
@@ -122,18 +122,21 @@ inductive ProofStep where
   | let (ids: List Name) (type: Name)
   | let_def (id: Name) (e: Term)
   | assume (p: Term)
+  | is_some (id: Name) (type: Name) (p: Term) (reason: Option Reason)
 
 def step_decl_vars: ProofStep → List Name
   | .assert .. => []
   | .let ids _ => ids
   | .let_def id _ => [id]
   | .assume _ => []
+  | .is_some id .. => [id]
 
 def step_free_vars : ProofStep → List Name
   | .assert p _ => eterm_free_vars p
   | .let _ _ => []
   | .let_def _ e => free_vars e
   | .assume p => free_vars p
+  | .is_some id _ p _ => (free_vars p).erase id
 
 instance: ToString ProofStep where
   toString
@@ -141,6 +144,7 @@ instance: ToString ProofStep where
     | .let ids _ => s!"let {ids}"
     | .let_def id _e => s!"let_def {id}"
     | .assume _p => "assume"
+    | .is_some id .. => s!"is_some {id}"
 
 def of_let_or_assume: TSyntax `let_or_assume → MacroM ProofStep
   | `(let_or_assume| $_:_let $ids:ident,* : $type) =>
@@ -152,8 +156,13 @@ def of_let_or_assume: TSyntax `let_or_assume → MacroM ProofStep
 
 def of_assert_step: TSyntax `assert_step → MacroM (List ProofStep)
   | `(assert_step| $_:will_show $_p:prop) => pure []
-  | `(assert_step| $_:_so ? $p:proof_prop) =>
-        do pure [(Function.uncurry .assert) (← of_proof_prop p)]
+  | `(assert_step| $_:_so ? $p:proof_prop) => do
+        let (e, rs) ← of_proof_prop p
+        pure $ .singleton $ match e with
+          | .term t => match t with
+              | `(∃ $x:ident : $type:ident, $p) => .is_some x.getId type.getId p rs[0]!
+              | _ => .assert e rs
+          | _ => .assert e rs
   | _ => Macro.throwError "unknown assert_step"
 
 def of_proof_sentence1: TSyntax `proof_sentence1 → MacroM (List ProofStep)
@@ -250,6 +259,12 @@ def translate (top: Bool): List Block → MacroM Term
             else `(have: _ := $(← t); $r)
         | .assume p =>
             `(have: _ := fun (_: $p) => $c; $r)
+        | .is_some id type p reason =>
+            let b := with_info (← tactic reason) p
+            let i := mkIdent id
+            let t := `(have ⟨$i, _⟩ : (∃ $i:ident : $(mkIdent type), $p) := $b; $c)
+            if rest.isEmpty then t
+            else `(have: _ := $(← t); $r)
 
 def of_proof: TSyntax `proof → MacroM Term
   | `(proof| $steps:proof_sentence*) => do
