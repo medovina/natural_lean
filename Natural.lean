@@ -1,5 +1,6 @@
 import Aesop
 import Mathlib.Data.Set.Defs
+import Mathlib.Data.Set.Operations
 
 import Natural.Grammar
 
