@@ -239,15 +239,24 @@ def produces_let : ProofStep → Bool
   | .let_def .. | .is_some .. => true
   | _ => false
 
-def translate (top: Bool): List Block → MacroM Term
-  | [] => if top then `(by default) else `(this)
+def translate (top: Bool) (parent_ex: List Name) (prev: Term): List Block → MacroM (Term × Term)
+  | [] => do
+      let t ← if top then `(by default) else
+        if overlap parent_ex (free_vars prev) then
+          let ids := (parent_ex.map Lean.mkIdent).toArray
+          `(show ∃ $[$ids:ident]*, $prev by default)
+        else `(this)
+      pure (t, prev)
   | ⟨step, children⟩ :: rest => do
-      let c ← translate (top && rest.isEmpty && produces_let step) children
-      let r ← translate top rest
-      match step with
-        | .assert (.term p) rs =>
+      let ex_decl := match step with
+        | .is_some id .. => [id]
+        | _ => []
+      let (c, child_concl) ←
+        translate (top && rest.isEmpty && produces_let step) ex_decl (← `(())) children
+      let (f, prop) ← match step with
+        | .assert (.term p) rs => do
               let b := with_info (← tactic rs[0]!) p
-              `(have: $p := $b; $r)
+              pure $ (fun r => `(have: $p := $b; $r), p)
         | .assert (.eq_chain ts) reasons => do
             let tactics ← reasons.mapM tactic
             let mk_step t tactic :=
@@ -255,30 +264,42 @@ def translate (top: Bool): List Block → MacroM Term
               `(calcStep| _ = $t := $b)
             let steps ← (ts.drop 2).zipWithM mk_step (tactics.drop 1)
             let b := with_info2 tactics[0]! ts[1]!
-            `(have: _ := calc $(ts[0]!) = $(ts[1]!) := $b
-                         $(steps.toArray)* ; $r)
+            pure $ (fun r => `(have: _ := calc $(ts[0]!) = $(ts[1]!) := $b
+                               $(steps.toArray)* ; $r),
+                    ← `($(ts.head!) = $(ts.getLast!)))
         | .let ids type =>
             let ids := ids.toArray.map mkIdent
-            `(have: _ := fun $ids* : $(mkIdent type) => $c; $r)
+            pure $ (fun r => `(have: _ := fun $ids* : $(mkIdent type) => $c; $r),
+                    ← `(∀ $ids:ident* : $(mkIdent type), _))
         | .let_def id e =>
             let t := `(let $(mkIdent id) := $e; $c)
-            if rest.isEmpty then t
-            else `(have: _ := $(← t); $r)
-        | .assume p =>
-            `(have: _ := fun (_: $p) => $c; $r)
-        | .is_some id type p reason =>
+            pure $ (
+              fun r => do
+                if rest.isEmpty then t
+                else `(have: _ := $(← t); $r),
+              child_concl)
+        | .assume p => do
+            pure $ (fun r => `(have: _ := fun (_: $p) => $c; $r),
+                    ← `($p → _))
+        | .is_some id type p reason => do
             let b := with_info (← tactic reason) p
             let i := mkIdent id
             let t := `(have ⟨$i, _⟩ : (∃ $i:ident : $(mkIdent type), $p) := $b; $c)
-            if rest.isEmpty then t
-            else `(have: _ := $(← t); $r)
+            pure $ (
+              fun r => do
+                if rest.isEmpty then t
+                else `(have: _ := $(← t); $r),
+                child_concl)
+      let (r, rest_concl) ← translate top parent_ex prop rest
+      let t ← f r
+      pure (t, rest_concl)
 
 def of_proof: TSyntax `proof → MacroM Term
   | `(proof| $steps:proof_sentence*) => do
       let steps := List.flatten (← steps.toList.mapM of_proof_sentence)
       let blocks := infer_blocks steps
       -- dbg_trace (show_blocks blocks)
-      translate True blocks
+      Prod.fst <$> translate True [] (← `(())) blocks
   | `(proof| By induction .) => `(by intro x ; induction x <;> default)
   | _ => Macro.throwError "unknown proof"
 
