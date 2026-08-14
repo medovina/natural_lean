@@ -2,7 +2,8 @@ import Lean
 
 import Batteries.Data.List.Basic
 open Lean hiding mkStrLit
-open Lean.Elab.Command
+open Elab Tactic Meta
+open Elab.Command
 open Lean.Syntax (mkStrLit)
 
 def overlap [BEq α] (xs: List α) (ys: List α): Bool := xs.inter ys != []
@@ -46,3 +47,31 @@ elab "sdef" name:ident decls:sdef_decl+ : command => do
 
 elab "sdef_extend" name:ident decls:sdef_decl+ : command => do
   decls.forM (elab_decl name)
+
+def rapply (goal : MVarId) (e : Expr) : MetaM (List MVarId) := do
+  goal.checkNotAssigned `myApply
+  goal.withContext do
+    let target ← goal.getType
+    let type ← inferType e
+    let (args, _, conclusion) ← forallMetaTelescopeReducing type
+    let extra ← if ← isDefEq target conclusion then do
+      goal.assign (mkAppN e args)
+      pure []
+    else match conclusion.getAppFnArgs with
+      | (`Or, #[p, q]) =>
+          if ← isDefEq target q then do
+            let not_p ← mkFreshExprMVar (Lean.mkNot p) MetavarKind.syntheticOpaque
+            goal.assign (← mkAppM `Or.resolve_left #[mkAppN e args, not_p])
+            pure [not_p]
+          else throwTacticEx `rapply goal "could not resolve"
+      | _ => throwTacticEx `rapply goal m!"{e} is not applicable to goal with target {target}"
+
+    let unassigned (var: MVarId) : MetaM Bool := do
+      let a ← var.isAssignedOrDelayedAssigned
+      pure (! a)
+    let newGoals ← ((args ++ extra).map Expr.mvarId!).filterM unassigned
+    return newGoals.toList
+
+elab "rapply" e:term : tactic => do
+  let e ← Term.elabTerm e none
+  Tactic.liftMetaTactic (rapply · e)

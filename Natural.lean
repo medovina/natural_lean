@@ -11,6 +11,9 @@ infix:50 "≯" => fun x y => ¬(x > y)
 
 macro "default" : tactic => `(tactic| first | trivial | aesop)
 
+macro "default_apply" t:ident : tactic =>
+  `(tactic| first | apply $t | aesop (add safe (by rapply t)))
+
 def range_info (s: TSyntax α) := match s.raw.getRange? with
     | .some ⟨pos, endPos⟩ => SourceInfo.synthetic pos endPos
     | .none => SourceInfo.none
@@ -228,14 +231,18 @@ def with_info2 (t: Term) (source: Term): Term :=
 
 def tactic : Option Reason → MacroM Term
   | .some (.tactic t) => `(by { $t })
-  | .some (.apply n) => `(by apply $(mkIdent n))
+  | .some (.apply n) => `(by default_apply $(mkIdent n))
   | .some (.induction) => `(by intro x ; induction x <;> default)
   | .none => `(by default)
+
+def produces_let : ProofStep → Bool
+  | .let_def .. | .is_some .. => true
+  | _ => false
 
 def translate (top: Bool): List Block → MacroM Term
   | [] => if top then `(by default) else `(this)
   | ⟨step, children⟩ :: rest => do
-      let c ← translate False children
+      let c ← translate (top && rest.isEmpty && produces_let step) children
       let r ← translate top rest
       match step with
         | .assert (.term p) rs =>
