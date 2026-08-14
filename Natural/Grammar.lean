@@ -52,14 +52,14 @@ sdef eq_expr_by
 
 sdef assert_prop
   | prop
-  | expr eq_expr_by eq_expr_by+
+  | atomic(expr eq_expr_by eq_expr_by+)
 
 kdef _so = "hence" | "so" | "then" | "thus"
 
 kdef _have = "clearly" | "we have shown that" | "we have" | "we must have"
 
 sdef proof_prop
-  | ("by" reason)? _have ? assert_prop
+  | ("by" reason)? _have ? assert_prop ("by" reason)?
 
 kdef _let = "let"
 
