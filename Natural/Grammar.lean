@@ -54,7 +54,7 @@ sdef assert_prop
   | prop
   | atomic(expr eq_expr_by eq_expr_by+)
 
-kdef _so = "hence" | "so" | "then" | "thus"
+kdef _so = "hence" | "so" | "then" | "therefore" | "thus"
 
 kdef _have = "clearly" | "we have shown that" | "we have" | "we must have"
 
@@ -80,9 +80,15 @@ kdef _now = "now" | "second"
 sdef will_show
   | "We" "must" "show" "that"
 
+kdef _otherwise = "otherwise"
+
+kdef _any_case = "in any case" | "in either case"
+
 sdef assert_step
   | will_show prop
   | _so ? proof_prop
+  | _otherwise prop
+  | _any_case prop
 
 sdef clause_intro
   | ("First" <|> _now) ","?

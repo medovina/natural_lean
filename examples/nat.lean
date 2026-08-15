@@ -3,6 +3,8 @@ import Natural
 abbrev ℕ := Nat
 abbrev S := Nat.succ
 
+attribute [-simp] Nat.exists_eq_add_one
+
 -- successor
 
 Theorem n1_1.  For all x : ℕ, x = 0 or there exists some y : ℕ such that x = S(y).
@@ -63,3 +65,19 @@ Proof.  Let y : ℕ.  Let
 Theorem n3_5 "Cancellation Law for Addition".  For all x, y, z: ℕ,
 
   x + z = y + z implies x = y.
+
+Theorem n4_0. For all x, y: Nat, if x ≤ y then there exists some z: Nat such that x + z = y.
+
+Proof.  Let B =
+
+    { y : Nat | for all x : ℕ, if x ≤ y then there exists some z: Nat such that x + z = y }.
+
+Let y = 0 .  Let x : ℕ, and suppose that x ≤ y.  Then we must have x = 0, and so x + 0 = y.  Thus 0 ∈ B.
+
+Now let y : Nat and assume that y ∈ B.  Let x : ℕ, and suppose that x ≤ S(y).  Suppose that x = 0 .  Then x + S(y) = S(y).
+
+Otherwise x ≠ 0 .  Then by :n1_1 there is some x' : Nat such that x = S(x').  Then S(x') ≤ S(y), so x' ≤ y.  So by the inductive hypothesis there is some z : ℕ such that x' + z = y.  Then we have S(x') + z = S(y) by :n3_3, so x + z = S(y).
+
+In either case there is some z : ℕ such that x + z = S(y).  Therefore S(y) ∈ B.
+
+Hence by induction y ∈ B for all y: Nat.
