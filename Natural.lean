@@ -85,7 +85,8 @@ inductive Reason where
 
 def of_reason: TSyntax `reason → MacroM (Option Reason)
   | `(reason| [ $t:tactic ]) => pure (Reason.tactic t)
-  | `(reason| : $n:ident) => pure (Reason.apply n.getId)
+  | `(reason| : $n:ident)
+  | `(reason| $_:_thm $n:ident) => pure (Reason.apply n.getId)
   | `(reason| induction) => pure Reason.induction
   | `(reason| the inductive hypothesis) => pure .none
   | _ => Macro.throwError "unknown reason"

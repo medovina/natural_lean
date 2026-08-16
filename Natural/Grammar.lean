@@ -39,9 +39,13 @@ syntax "there" _exists "some" ident ":" ident
 
 -- reason
 
+sdef _thm
+  | "Lemma" <|> "Theorem"
+
 sdef reason
   | "[" tactic "]"
   | ":" ident
+  | _thm ident
   | "induction"
   | "the" "inductive" "hypothesis"
 
@@ -110,9 +114,6 @@ sdef proof
   | "By" "induction" "."
 
 -- theorem
-
-sdef _thm
-  | "Lemma" <|> "Theorem"
 
 sdef _theorem
   | _thm ident str ? "." prop "." ("Proof." proof)?
