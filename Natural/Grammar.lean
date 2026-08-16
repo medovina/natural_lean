@@ -111,7 +111,7 @@ sdef proof_sentence
 
 sdef proof
   | proof_sentence+
-  | "By" "induction" "."
+  | "By" reason "."
 
 -- theorem
 

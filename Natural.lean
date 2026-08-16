@@ -343,7 +343,7 @@ def of_proof: TSyntax `proof → MacroM Term
       let blocks := infer_blocks steps
       -- dbg_trace (show_blocks blocks)
       Prod.fst <$> translate True [] (← `(())) none blocks
-  | `(proof| By induction .) => `(by intro x ; induction x <;> default)
+  | `(proof| By $r:reason .) => tactic =<< of_reason r
   | _ => Macro.throwError "unknown proof"
 
 -- theorem
