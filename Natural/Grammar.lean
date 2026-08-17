@@ -60,10 +60,13 @@ sdef assert_prop
 
 kdef _so = "hence" | "so" | "then" | "therefore" | "thus"
 
-kdef _have = "clearly" | "we have shown that" | "we have" | "we must have"
+kdef _have =
+  "clearly" | "it follows that" | "we have shown that" | "we have" | "we must have"
+
+kdef _by = "by"
 
 sdef proof_prop
-  | ("by" reason)? _have ? assert_prop ("by" reason)?
+  | (_by reason)? _have ? assert_prop ("by" reason)?
 
 kdef _let = "let"
 

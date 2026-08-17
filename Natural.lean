@@ -114,7 +114,7 @@ def of_assert_prop: TSyntax `assert_prop → MacroM (ETerm × List (Option Reaso
   | _ => Macro.throwError "unknown assert_prop"
 
 def of_proof_prop: TSyntax `proof_prop → MacroM (ETerm × List (Option Reason))
-  | `(proof_prop| $[by $r:reason]? $[$_:_have]? $p:assert_prop $[by $r2:reason]?) => do
+  | `(proof_prop| $[$_:_by $r:reason]? $[$_:_have]? $p:assert_prop $[by $r2:reason]?) => do
         let (e, rs) ← of_assert_prop p
         match e with
           | .term _ => do pure (e, [(← r.bindM of_reason) <|> (← r2.bindM of_reason)])
