@@ -61,7 +61,8 @@ sdef assert_prop
 kdef _so = "hence" | "so" | "then" | "therefore" | "thus"
 
 kdef _have =
-  "clearly" | "it follows that" | "we have shown that" | "we have" | "we must have"
+  "clearly" | "it follows that" |
+  "we have shown that" | "we have" | "we know that" | "we must have"
 
 kdef _by = "by"
 
