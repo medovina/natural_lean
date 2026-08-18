@@ -109,3 +109,23 @@ Proof.  Let x, y : ℕ.  Let
   First, x + 0 = y + 0 implies x = y, so 0 ∈ A.
 
   Second, let z : ℕ and assume z ∈ A.  Then x + z = y + z implies x = y.  Now assume x + S(z) = y + S(z).  Then S(x + z) = S(y + z).  Therefore x + z = y + z.  Hence by the inductive hypothesis x = y.  Thus we have shown that x + S(z) = y + S(z) implies x = y, so S(z) ∈ A.  Therefore z ∈ A implies S(z) ∈ A.  By induction z ∈ A for all z : ℕ.
+
+Theorem n3_6.  For all x, y : ℕ, y ≠ S(x) + y.
+
+Proof.  Let x : ℕ.  Let
+
+    A = { y : ℕ | y ≠ S(x) + y }.
+
+  Clearly 0 ∈ A.  Now let y : ℕ, and assume that y ∈ A.  Then y ≠ S(x) + y.  Hence S(y) ≠ S(S(x) + y).  But S(S(x) + y) = S(x) + S(y).  Hence S(y) ≠ S(x) + S(y), so S(y) ∈ A.  Thus we have shown that for all y : ℕ, y ∈ A implies S(y) ∈ A.  By induction y ∈ A for all y : ℕ.
+
+-- ordering: definition
+
+@[implicit_reducible]
+def ℕ.lt (x y: ℕ) := ∃z : ℕ, x + S z = y
+
+instance instLT_ℕ : LT ℕ where
+  lt := ℕ.lt
+
+Theorem n4_1a.  For all x : ℕ, x ≮ x.
+
+Proof.  Let x : ℕ, and suppose that x < x.  Then there is some z : ℕ such that x + S(z) = x.  But x + S(z) ≠ x by :n3_6 and :n3_4.  Contradiction.

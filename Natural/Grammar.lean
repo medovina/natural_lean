@@ -40,12 +40,11 @@ syntax "there" _exists "some" ident ":" ident
 -- reason
 
 sdef _thm
-  | "Lemma" <|> "Theorem"
+  | "Lemma" <|> "Theorem" <|> ":"
 
 sdef reason
   | "[" tactic "]"
-  | ":" ident
-  | _thm ident
+  | sepBy1(_thm ident, "and")
   | "induction"
   | "the" "inductive" "hypothesis"
 
@@ -58,7 +57,7 @@ sdef assert_prop
   | prop
   | atomic(expr eq_expr_by eq_expr_by+)
 
-kdef _so = "hence" | "so" | "then" | "therefore" | "thus"
+kdef _so = "but" | "hence" | "so" | "then" | "therefore" | "thus"
 
 kdef _have =
   "clearly" | "it follows that" |
@@ -92,11 +91,14 @@ kdef _otherwise = "otherwise"
 
 kdef _any_case = "in any case" | "in either case"
 
+kdef have_contradiction = "contradiction"
+
 sdef assert_step
   | will_show prop
   | _so ? proof_prop
   | _otherwise prop
   | _any_case prop
+  | have_contradiction
 
 sdef clause_intro
   | ("First" <|> _now) ","?

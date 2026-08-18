@@ -9,10 +9,10 @@ open Lean
 infix:50 "≮" => fun x y => ¬(x < y)
 infix:50 "≯" => fun x y => ¬(x > y)
 
-macro "default" : tactic => `(tactic| first | trivial | aesop)
+macro "default" : tactic => `(tactic| first | trivial | grind | aesop )
 
-macro "default_apply" t:ident : tactic =>
-  `(tactic| first | apply $t | aesop (add safe (by rapply $t)))
+macro "default_apply" t:ident+ : tactic =>
+  `(tactic| first | grind [$[$t:ident],*] | aesop)
 
 def range_info (s: TSyntax α) := match s.raw.getRange? with
     | .some ⟨pos, endPos⟩ => SourceInfo.synthetic pos endPos
@@ -80,13 +80,13 @@ end
 
 inductive Reason where
   | tactic (t: Syntax.Tactic)
-  | apply (n: Name)
+  | apply (ns: List Name)
   | induction
 
 def of_reason: TSyntax `reason → MacroM (Option Reason)
   | `(reason| [ $t:tactic ]) => pure (Reason.tactic t)
-  | `(reason| : $n:ident)
-  | `(reason| $_:_thm $n:ident) => pure (Reason.apply n.getId)
+  | `(reason| $[$_:_thm $n:ident] and*) =>
+        pure (Reason.apply (n.toList.map TSyntax.getId))
   | `(reason| induction) => pure Reason.induction
   | `(reason| the inductive hypothesis) => pure .none
   | _ => Macro.throwError "unknown reason"
@@ -179,6 +179,8 @@ def of_assert_step: TSyntax `assert_step → MacroM (List ProofStep)
         pure $ [.otherwise (← of_prop p)]
   | `(assert_step| $_:_any_case $p:prop) => do
         pure $ [.any_case (← of_prop p) false]
+  | `(assert_step| $_:have_contradiction) => do
+        pure $ [.assert (.term (mkIdent ``False)) [none]]
   | _ => Macro.throwError "unknown assert_step"
 
 def of_proof_sentence1: TSyntax `proof_sentence1 → MacroM (List ProofStep)
@@ -216,15 +218,24 @@ def adjust_cases : List Block → List Block
         | _, _ => panic! "adjust_cases: unexpected"
   | blocks => blocks
 
+def is_break : ProofStep → Bool
+  | .otherwise _
+  | .any_case .. => true
+  | _ => false
+
+def is_assert_false : ProofStep → Bool
+  | .assert (.term t) _ => Syntax.getId t == ``False
+  | _ => false
+
 partial def infer_blocks (steps: List ProofStep): List Block :=
   let rec infer (vars: List (List Name)) (steps: List ProofStep): List Block × List ProofStep :=
     match steps with
       | [] => ([], [])
       | (step :: rest) =>
-          if step matches (.otherwise _) || step matches (.any_case _ false) ||
-             overlap (step_decl_vars step) vars.flatten then ([], steps) else
+          if is_break step || overlap (step_decl_vars step) vars.flatten
+             then ([], steps) else
           let in_use := all_vars steps
-          if vars.head?.all (fun vs => vs.any in_use.elem) then
+          if is_assert_false step || vars.head?.all (fun vs => vs.any in_use.elem) then
             let (children, rest1) := match step with
               | .assume p =>
                   let (children, rest1) := infer vars rest
@@ -260,7 +271,7 @@ def with_info2 (t: Term) (source: Term): Term :=
 
 def tactic : Option Reason → MacroM Term
   | .some (.tactic t) => `(by { $t })
-  | .some (.apply n) => `(by default_apply $(mkIdent n))
+  | .some (.apply ns) => `(by default_apply $(ns.toArray.map mkIdent)*)
   | .some (.induction) => `(by intro x ; induction x <;> default)
   | .none => `(by default)
 
