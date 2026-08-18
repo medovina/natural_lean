@@ -23,7 +23,7 @@ def set_info_from (s: TSyntax α) (t: TSyntax β): Term :=
 
 partial def syntax_free_vars (s: Syntax): List Name := match s with
   | `(∀ $x:ident* : $_typ, $t) => (syntax_free_vars t).removeAll (x.toList.map TSyntax.getId)
-  | `(Exists (fun $x:ident : $_typ => $t)) => (syntax_free_vars t).erase (x.getId)
+  | `(∃ $[$x:ident]* : $_typ, $t) => (syntax_free_vars t).removeAll (x.toList.map TSyntax.getId)
   | `({($x:ident) : $_typ | $t}) => (syntax_free_vars t).erase (x.getId)
   | _ => match s with
     | .missing => []
@@ -72,8 +72,8 @@ mutual
       | `(prop| $_:_for all $x:ident,* : $t:ident, $p:prop)
       | `(prop| $p:prop $_:_for all $x:ident,* : $t:ident) => do
             `(∀ $x* : $t, $(← of_prop p))
-      | `(prop| there $_:_exists some $x:ident : $t:ident such that $p:prop) => do
-            `(∃ $x:ident : $t, $(← of_prop p))
+      | `(prop| there $_:_exists some $x:ident,* : $t:ident such that $p:prop) => do
+            `(∃ $[$x:ident]* : $t, $(← of_prop p))
       | stx => Macro.throwError s!"unknown prop: {stx}"
     pure (set_info_from t prop)
 end
@@ -126,7 +126,7 @@ inductive ProofStep where
   | let (ids: List Name) (type: Name)
   | let_def (id: Name) (e: Term)
   | assume (p: Term)
-  | is_some (id: Name) (type: Name) (p: Term) (reason: Option Reason)
+  | is_some (ids: List Name) (type: Name) (p: Term) (reason: Option Reason)
   | otherwise (p: Term)
   | any_case (p: Term) (matched: Bool)
 
@@ -135,7 +135,7 @@ def step_decl_vars: ProofStep → List Name
   | .let ids _ => ids
   | .let_def id _ => [id]
   | .assume _ => []
-  | .is_some id .. => [id]
+  | .is_some ids .. => ids
   | .otherwise _ => []
   | .any_case .. => []
 
@@ -144,7 +144,7 @@ def step_free_vars : ProofStep → List Name
   | .let _ _ => []
   | .let_def _ e => free_vars e
   | .assume p => free_vars p
-  | .is_some id _ p _ => (free_vars p).erase id
+  | .is_some ids _ p _ => (free_vars p).removeAll ids
   | .otherwise p => free_vars p
   | .any_case p _ => free_vars p
 
@@ -172,7 +172,8 @@ def of_assert_step: TSyntax `assert_step → MacroM (List ProofStep)
         let (e, rs) ← of_proof_prop p
         pure $ .singleton $ match e with
           | .term t => match t with
-              | `(∃ $x:ident : $type:ident, $p) => .is_some x.getId type.getId p rs[0]!
+              | `(∃ $[$x:ident]* : $type:ident, $p) =>
+                    .is_some (x.toList.map TSyntax.getId) type.getId p rs[0]!
               | _ => .assert e rs
           | _ => .assert e rs
   | `(assert_step| $_:_otherwise $p:prop) => do
@@ -279,6 +280,14 @@ def produces_let : ProofStep → Bool
   | .let_def .. | .is_some .. => true
   | _ => false
 
+-- Given a list of ids such as [x, y, z], produce an existential
+-- binding pattern such as `( ⟨x, ⟨y, ⟨z, _⟩⟩⟩ ).
+def ex_pattern : List Ident → MacroM Term
+  | [] => `(_)
+  | x :: xs => do
+      let p ← ex_pattern xs
+      `(⟨$x, $p⟩)
+
 partial def translate (top: Bool) (parent_ex: List Name) (prev: Term) (concl: Option Term)
       : List Block → MacroM (Term × Term)
   | [] => match concl with
@@ -292,7 +301,7 @@ partial def translate (top: Bool) (parent_ex: List Name) (prev: Term) (concl: Op
         pure (t, prev)
   | ⟨step, children⟩ :: rest => do
       let ex_decl := match step with
-        | .is_some id .. => [id]
+        | .is_some ids .. => ids
         | _ => []
       let unit ← `(())
       let (c, child_concl) ← if step matches (.any_case ..) then pure (unit, unit) else
@@ -325,10 +334,12 @@ partial def translate (top: Bool) (parent_ex: List Name) (prev: Term) (concl: Op
         | .assume p =>
             pure (fun r => `(have: _ := fun (_: $p) => $c; $r),
                     ← `($p → _))
-        | .is_some id type p reason => do
+        | .is_some ids type p reason => do
             let b := with_info (← tactic reason) p
-            let i := mkIdent id
-            let t := `(have ⟨$i, _⟩ : (∃ $i:ident : $(mkIdent type), $p) := $b; $c)
+            let ids := ids.map mkIdent
+            let vars ← ex_pattern ids
+            let a := ids.toArray
+            let t := `(have $vars:term : (∃ $[$a:ident]* : $(mkIdent type), $p) := $b; $c)
             pure (
               fun r => do
                 if rest.isEmpty then t

@@ -21,6 +21,8 @@ sdef _iff
 
 kdef _for = "for"
 
+kdef _exists = "exist" | "exists" | "is"
+
 sdef_extend prop
   |:50 expr:51 eq_op expr:51
   |:35 prop:36 "and" prop:35
@@ -30,12 +32,7 @@ sdef_extend prop
   | :20 prop:21 _iff prop:21
   | _for "all" ident,+ ":" ident "," prop
   | prop _for "all" ident,+ ":" ident
-
-sdef _exists
-  | "exists" <|> "is"
-
-syntax "there" _exists "some" ident ":" ident
-         "such" "that" prop : prop
+  | "there" _exists "some" ident,+ ":" ident "such" "that" prop
 
 -- reason
 
