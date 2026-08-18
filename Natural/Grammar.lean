@@ -91,7 +91,7 @@ kdef _otherwise = "otherwise"
 
 kdef _any_case = "in any case" | "in either case"
 
-kdef have_contradiction = "contradiction"
+kdef have_contradiction = "this is a contradiction"
 
 sdef assert_step
   | will_show prop

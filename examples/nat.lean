@@ -128,4 +128,4 @@ instance instLT_ℕ : LT ℕ where
 
 Theorem n4_1a.  For all x : ℕ, x ≮ x.
 
-Proof.  Let x : ℕ, and suppose that x < x.  Then there is some z : ℕ such that x + S(z) = x.  But x + S(z) ≠ x by :n3_6 and :n3_4.  Contradiction.
+Proof.  Let x : ℕ, and suppose that x < x.  Then there is some z : ℕ such that x + S(z) = x.  But x + S(z) ≠ x by :n3_6 and :n3_4.  This is a contradiction.

@@ -9,17 +9,19 @@ open Lean.Syntax (mkStrLit)
 def overlap [BEq α] (xs: List α) (ys: List α): Bool := xs.inter ys != []
 
 elab "kdef" name:ident "=" ks:sepBy1(str, "|") : command => do
-  elabCommand (← `(declare_syntax_cat $name))
-
   let rec mk_or : List (TSyntax `stx) → CommandElabM (TSyntax `stx)
     | [] => panic! "empty"
     | [x] => pure x
     | x :: xs => do `(stx| $x <|> $(← mk_or xs))
 
-  let seq (ws: List String) : CommandElabM (TSyntax `stx) :=
-    match (ws.map mkStrLit).toArray with
-      | #[ l ] => `(stx| $l:str)
-      | ls => `(stx| atomic( $[$ls:str]* ) )
+  let mk_stx (s: String) : CommandElabM (TSyntax `stx) :=
+    let i := mkStrLit s
+    if s.length == 1 || s == "this" then `(stx| &$i:str) else `(stx| $i:str)
+
+  let seq (ws: List String) : CommandElabM (TSyntax `stx) := do
+    match ← (ws.toArray.mapM mk_stx) with
+      | #[ l ] => pure l
+      | ls => `(stx| atomic( $[$ls:stx]* ) )
 
   let items (k: TSyntax `str): CommandElabM (List (TSyntax `stx)) := do
       let ws := k.getString.splitOn " "
@@ -29,7 +31,7 @@ elab "kdef" name:ident "=" ks:sepBy1(str, "|") : command => do
 
   let all ← ks.getElems.toList.flatMapM items
   let stx ← mk_or all
-  let c ← `(syntax ($stx:stx) : $name)
+  let c ← `(syntax $name := ($stx:stx))
   elabCommand c
 
 declare_syntax_cat sdef_decl
