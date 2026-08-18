@@ -32,7 +32,7 @@ sdef_extend prop
   | :20 prop:21 _iff prop:21
   | _for "all" ident,+ ":" ident "," prop
   | prop _for "all" ident,+ ":" ident
-  | "there" _exists "some" ident,+ ":" ident "such" "that" prop
+  | "there" _exists "some" ? ident,+ ":" ident "such" "that" prop
 
 -- reason
 

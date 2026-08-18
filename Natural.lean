@@ -72,7 +72,7 @@ mutual
       | `(prop| $_:_for all $x:ident,* : $t:ident, $p:prop)
       | `(prop| $p:prop $_:_for all $x:ident,* : $t:ident) => do
             `(∀ $x* : $t, $(← of_prop p))
-      | `(prop| there $_:_exists some $x:ident,* : $t:ident such that $p:prop) => do
+      | `(prop| there $_:_exists $[some]? $x:ident,* : $t:ident such that $p:prop) => do
             `(∃ $[$x:ident]* : $t, $(← of_prop p))
       | stx => Macro.throwError s!"unknown prop: {stx}"
     pure (set_info_from t prop)

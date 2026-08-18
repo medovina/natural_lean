@@ -123,9 +123,22 @@ Proof.  Let x : ℕ.  Let
 @[implicit_reducible]
 def ℕ.lt (x y: ℕ) := ∃z : ℕ, x + S z = y
 
+@[method_specs]
 instance instLT_ℕ : LT ℕ where
   lt := ℕ.lt
+
+attribute [grind =] instLT_ℕ.lt_spec
 
 Theorem n4_1a.  For all x : ℕ, x ≮ x.
 
 Proof.  Let x : ℕ, and suppose that x < x.  Then there is some z : ℕ such that x + S(z) = x.  But x + S(z) ≠ x by :n3_6 and :n3_4.  This is a contradiction.
+
+Theorem n4_1b.  For all x, y, z: ℕ, x < y and y < z implies x < z.
+
+Proof.  Let x, y, z : ℕ.  Suppose that x < y and y < z.  Then there exist some u, v : ℕ such that x + S(u) = y and y + S(v) = z.  Then
+
+    z = (x + S(u)) + S(v)
+      = x + (S(u) + S(v)) by :n3_2
+      = x + S(u + S(v)) by :n3_3b.
+
+Then x < z by :ℕ.lt.
