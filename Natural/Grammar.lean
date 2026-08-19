@@ -76,7 +76,7 @@ sdef assert_prop
   | prop
   | atomic(expr eq_expr_by eq_expr_by+)
 
-kdef _so = "but" | "hence" | "so" | "then" | "therefore" | "thus"
+kdef _so = "but" | "hence" | "so" | "that is" | "then" | "therefore" | "thus"
 
 kdef _have =
   "clearly" | "it follows that" |
@@ -107,13 +107,13 @@ sdef let_or_assume
 kdef _now = "now" | "second"
 
 sdef proof_if_prop
-  | _if prop "then" proof_prop
+  | _if prop ","? "then" sepBy1(proof_prop, "/", "," _so)
 
 kdef will_show = "we must show that" | "we will now prove that"
 
 kdef _otherwise = "otherwise"
 
-kdef _any_case = "in any case" | "in either case"
+kdef _any_case = "in all cases" | "in any case" | "in either case"
 
 kdef have_contradiction = "this is a contradiction"
 
@@ -122,6 +122,7 @@ sdef assert_step
   | will_show prop
   | _so ? proof_prop
   | _otherwise prop
+  | "Case" num ":" prop
   | _any_case prop
   | have_contradiction
 
