@@ -6,7 +6,15 @@ open Elab Tactic Meta
 open Elab.Command
 open Lean.Syntax (mkStrLit)
 
+-- lists
+
 def overlap [BEq α] (xs: List α) (ys: List α): Bool := xs.inter ys != []
+
+def all_pairs : List α → List (α × α)
+  | [] => []
+  | x :: xs => xs.map (fun y => (x, y)) ++ all_pairs xs
+
+-- syntax
 
 elab "kdef" name:ident "=" ks:sepBy1(str, "|") : command => do
   let rec mk_or : List (TSyntax `stx) → CommandElabM (TSyntax `stx)
@@ -16,7 +24,8 @@ elab "kdef" name:ident "=" ks:sepBy1(str, "|") : command => do
 
   let mk_stx (s: String) : CommandElabM (TSyntax `stx) :=
     let i := mkStrLit s
-    if s.length == 1 || s == "this" then `(stx| &$i:str) else `(stx| $i:str)
+    if s.length == 1 || ["this", "true"].elem s
+      then `(stx| &$i:str) else `(stx| $i:str)
 
   let seq (ws: List String) : CommandElabM (TSyntax `stx) := do
     match ← (ws.toArray.mapM mk_stx) with
@@ -49,6 +58,8 @@ elab "sdef" name:ident decls:sdef_decl+ : command => do
 
 elab "sdef_extend" name:ident decls:sdef_decl+ : command => do
   decls.forM (elab_decl name)
+
+-- tactics
 
 def rapply (goal : MVarId) (e : Expr) : MetaM (List MVarId) := do
   goal.checkNotAssigned `myApply

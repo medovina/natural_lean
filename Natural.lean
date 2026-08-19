@@ -21,6 +21,13 @@ def range_info (s: TSyntax α) := match s.raw.getRange? with
 def set_info_from (s: TSyntax α) (t: TSyntax β): Term :=
   ⟨s.raw.setInfo (range_info t)⟩
 
+def multi_and : List Term → MacroM Term
+  | [t] => pure t
+  | t :: ts => do
+      let a ← multi_and ts
+      `($t ∧ $a)
+  | _ => panic! "multi_and"
+
 partial def syntax_free_vars (s: Syntax): List Name := match s with
   | `(∀ $x:ident* : $_typ, $t) => (syntax_free_vars t).removeAll (x.toList.map TSyntax.getId)
   | `(∃ $[$x:ident]* : $_typ, $t) => (syntax_free_vars t).removeAll (x.toList.map TSyntax.getId)
@@ -53,17 +60,32 @@ mutual
     -- "variable not referenced" errors.
     pure (if expr matches `(expr| $_:ident) then t else set_info_from t expr)
 
+  partial def of_eq_prop (prop: TSyntax `eq_prop): MacroM Term := do
+    let t ← match prop with
+      | `(eq_prop| $a:expr = $b:expr) => do `($(← of_expr a) = $(← of_expr b))
+      | `(eq_prop| $a:expr ≠ $b:expr) => do `($(← of_expr a) ≠ $(← of_expr b))
+      | `(eq_prop| $a:expr < $b:expr) => do `($(← of_expr a) < $(← of_expr b))
+      | `(eq_prop| $a:expr ≮ $b:expr) => do `($(← of_expr a) ≮ $(← of_expr b))
+      | `(eq_prop| $a:expr ≤ $b:expr) => do `($(← of_expr a) ≤ $(← of_expr b))
+      | `(eq_prop| $a:expr > $b:expr) => do `($(← of_expr a) > $(← of_expr b))
+      | `(eq_prop| $a:expr ≥ $b:expr) => do `($(← of_expr a) ≥ $(← of_expr b))
+      | `(eq_prop| $a:expr ≯ $b:expr) => do `($(← of_expr a) ≯ $(← of_expr b))
+      | `(eq_prop| $a:expr ∈ $b:expr) => do `($(← of_expr a) ∈ $(← of_expr b))
+      | _ => Macro.throwError "unknown eq_prop"
+    pure (set_info_from t prop)
+
+  partial def of_multi_or (prop: TSyntax `multi_or): MacroM Term := do
+    let t ← match prop with
+      | `(multi_or| $_:_at_most one of $es,* is true) =>
+          let pair (e: TSyntax `eq_prop) (f: TSyntax `eq_prop) := do
+            `(¬($(← of_eq_prop e) ∧ $(← of_eq_prop f)))
+          ((all_pairs es.getElems.toList).mapM pair.uncurry) >>= multi_and
+      | _ => Macro.throwError "unknown multi_or"
+    pure (set_info_from t prop)
+
   partial def of_prop (prop: TProp): MacroM Term := do
     let t ← match prop with
-      | `(prop| $a:expr = $b:expr) => do `($(← of_expr a) = $(← of_expr b))
-      | `(prop| $a:expr ≠ $b:expr) => do `($(← of_expr a) ≠ $(← of_expr b))
-      | `(prop| $a:expr < $b:expr) => do `($(← of_expr a) < $(← of_expr b))
-      | `(prop| $a:expr ≮ $b:expr) => do `($(← of_expr a) ≮ $(← of_expr b))
-      | `(prop| $a:expr ≤ $b:expr) => do `($(← of_expr a) ≤ $(← of_expr b))
-      | `(prop| $a:expr > $b:expr) => do `($(← of_expr a) > $(← of_expr b))
-      | `(prop| $a:expr ≥ $b:expr) => do `($(← of_expr a) ≥ $(← of_expr b))
-      | `(prop| $a:expr ≯ $b:expr) => do `($(← of_expr a) ≯ $(← of_expr b))
-      | `(prop| $a:expr ∈ $b:expr) => do `($(← of_expr a) ∈ $(← of_expr b))
+      | `(prop| $e:eq_prop) => of_eq_prop e
       | `(prop| $p:prop and $q:prop) => do `($(← of_prop p) ∧ $(← of_prop q))
       | `(prop| $p:prop or $q:prop) => do `($(← of_prop p) ∨ $(← of_prop q))
       | `(prop| $p:prop implies $q:prop)
@@ -74,6 +96,7 @@ mutual
             `(∀ $x* : $t, $(← of_prop p))
       | `(prop| there $_:_exists $[some]? $x:ident,* : $t:ident such that $p:prop) => do
             `(∃ $[$x:ident]* : $t, $(← of_prop p))
+      | `(prop| $m:multi_or) => of_multi_or m
       | stx => Macro.throwError s!"unknown prop: {stx}"
     pure (set_info_from t prop)
 end
@@ -104,23 +127,6 @@ def eterm_free_vars : ETerm → List Name
   | .term t => free_vars t
   | .eq_chain ts => ts.flatMap free_vars
 
-def of_assert_prop: TSyntax `assert_prop → MacroM (ETerm × List (Option Reason))
-  | `(assert_prop| $p:prop) =>
-        do pure (.term (← of_prop p), [none])
-  | `(assert_prop| $e:expr $eb:eq_expr_by $ebs:eq_expr_by*) => do
-        let (e1, by1) ← of_eq_expr_by eb
-        let (es, bys) := (← ebs.toList.mapM of_eq_expr_by).unzip
-        pure (.eq_chain ((← of_expr e) :: e1 :: es), by1 :: bys)
-  | _ => Macro.throwError "unknown assert_prop"
-
-def of_proof_prop: TSyntax `proof_prop → MacroM (ETerm × List (Option Reason))
-  | `(proof_prop| $[$_:_by $r:reason]? $[$_:_have]? $p:assert_prop $[by $r2:reason]?) => do
-        let (e, rs) ← of_assert_prop p
-        match e with
-          | .term _ => do pure (e, [(← r.bindM of_reason) <|> (← r2.bindM of_reason)])
-          | .eq_chain _ => pure (e, rs)
-  | _ => Macro.throwError "unknown proof_prop"
-
 inductive ProofStep where
   | assert (p: ETerm) (reason: List (Option Reason))
   | let (ids: List Name) (type: Name)
@@ -129,6 +135,7 @@ inductive ProofStep where
   | is_some (ids: List Name) (type: Name) (p: Term) (reason: Option Reason)
   | otherwise (p: Term)
   | any_case (p: Term) (matched: Bool)
+  | group (steps: List ProofStep)
 
 def step_decl_vars: ProofStep → List Name
   | .assert .. => []
@@ -138,6 +145,7 @@ def step_decl_vars: ProofStep → List Name
   | .is_some ids .. => ids
   | .otherwise _ => []
   | .any_case .. => []
+  | .group steps => (steps.flatMap step_decl_vars).eraseDups
 
 def step_free_vars : ProofStep → List Name
   | .assert p _ => eterm_free_vars p
@@ -147,6 +155,7 @@ def step_free_vars : ProofStep → List Name
   | .is_some ids _ p _ => (free_vars p).removeAll ids
   | .otherwise p => free_vars p
   | .any_case p _ => free_vars p
+  | .group steps => (steps.flatMap step_free_vars).eraseDups
 
 instance: ToString ProofStep where
   toString
@@ -157,6 +166,41 @@ instance: ToString ProofStep where
     | .is_some id .. => s!"is_some {id}"
     | .otherwise _ => "otherwise"
     | .any_case _ matched => s!"any_case, matched = {matched}"
+    | .group _ => "group"
+
+def of_assert_prop: TSyntax `assert_prop → MacroM (ETerm × List (Option Reason))
+  | `(assert_prop| $p:prop) =>
+        do pure (.term (← of_prop p), [none])
+  | `(assert_prop| $e:expr $eb:eq_expr_by $ebs:eq_expr_by*) => do
+        let (e1, by1) ← of_eq_expr_by eb
+        let (es, bys) := (← ebs.toList.mapM of_eq_expr_by).unzip
+        pure (.eq_chain ((← of_expr e) :: e1 :: es), by1 :: bys)
+  | _ => Macro.throwError "unknown assert_prop"
+
+def mk_false : Term := mkIdent ``False
+
+def assert_step (t: Term) (r: Option Reason): ProofStep :=
+  .assert (.term t) [r]
+
+def of_which_is_contradiction: TSyntax `which_is_contradiction → MacroM ProofStep
+  | `(which_is_contradiction| , contradicting $_:_thm $i:ident) => do
+        pure $ assert_step mk_false (.some (.apply [i.getId]))
+  | _ => Macro.throwError "unknown which_is_contradiction"
+
+def mk_step (t: Term) (r: Option Reason): ProofStep := match t with
+  | `(∃ $[$x:ident]* : $type:ident, $p) =>
+        .is_some (x.toList.map TSyntax.getId) type.getId p r
+  | _ => assert_step t r
+
+def of_proof_prop: TSyntax `proof_prop → MacroM (List ProofStep)
+  | `(proof_prop| $[$_:_by $r:reason]? $[$_:_have]? $p:assert_prop
+          $[by $r2:reason]? $w:which_is_contradiction ?) => do
+        let (e, rs) ← of_assert_prop p
+        let s := match e with
+          | .term t => do pure $ mk_step t ((← r.bindM of_reason) <|> (← r2.bindM of_reason))
+          | .eq_chain _ => pure (.assert e rs)
+        List.cons <$> s <*> w.toList.mapM of_which_is_contradiction
+  | _ => Macro.throwError "unknown proof_prop"
 
 def of_let_or_assume: TSyntax `let_or_assume → MacroM ProofStep
   | `(let_or_assume| $_:_let $ids:ident,* : $type) =>
@@ -166,22 +210,21 @@ def of_let_or_assume: TSyntax `let_or_assume → MacroM ProofStep
   | `(let_or_assume| $_:_assume $p:prop) => do pure $ .assume (← of_prop p)
   | _ => Macro.throwError "unknown let_or_assume"
 
+def of_proof_if_prop: TSyntax `proof_if_prop → MacroM ProofStep
+  | `(proof_if_prop| $_:_if $p:prop then $q:proof_prop) => do
+        pure $ .group (.assume (← of_prop p) :: (← of_proof_prop q))
+  | _ => Macro.throwError "unknown proof_if_prop"
+
 def of_assert_step: TSyntax `assert_step → MacroM (List ProofStep)
+  | `(assert_step| $p:proof_if_prop) => .singleton <$> of_proof_if_prop p
   | `(assert_step| $_:will_show $_p:prop) => pure []
-  | `(assert_step| $_:_so ? $p:proof_prop) => do
-        let (e, rs) ← of_proof_prop p
-        pure $ .singleton $ match e with
-          | .term t => match t with
-              | `(∃ $[$x:ident]* : $type:ident, $p) =>
-                    .is_some (x.toList.map TSyntax.getId) type.getId p rs[0]!
-              | _ => .assert e rs
-          | _ => .assert e rs
+  | `(assert_step| $_:_so ? $p:proof_prop) => of_proof_prop p
   | `(assert_step| $_:_otherwise $p:prop) => do
         pure $ [.otherwise (← of_prop p)]
   | `(assert_step| $_:_any_case $p:prop) => do
         pure $ [.any_case (← of_prop p) false]
   | `(assert_step| $_:have_contradiction) => do
-        pure $ [.assert (.term (mkIdent ``False)) [none]]
+        pure $ [assert_step mk_false none]
   | _ => Macro.throwError "unknown assert_step"
 
 def of_proof_sentence1: TSyntax `proof_sentence1 → MacroM (List ProofStep)
@@ -237,20 +280,31 @@ partial def infer_blocks (steps: List ProofStep): List Block :=
              then ([], steps) else
           let in_use := all_vars steps
           if is_assert_false step || vars.head?.all (fun vs => vs.any in_use.elem) then
-            let (children, rest1) := match step with
-              | .assume p =>
-                  let (children, rest1) := infer vars rest
-                  (children, match rest1 with
-                    | .otherwise q :: rest1 =>
-                        .assume (Syntax.mkCApp `Not #[p]) :: .assert (.term q) [.none] :: rest1
-                    | .any_case q false :: rest1 =>
-                        .any_case q true :: rest1
-                    | rest1 => rest1)
-              | _ => match step_decl_vars step with
-                | [] => ([], rest)
-                | step_vars => infer (step_vars :: vars) rest
-            let (blocks, rest2) := infer vars rest1
-            (adjust_cases (⟨step, children⟩ :: blocks), rest2)
+            match step with
+              | .group steps =>
+                  let rec group_blocks steps : List Block := match steps with
+                    | [] => []
+                    | steps =>
+                        let (blocks, rest) := infer [] steps
+                        blocks ++ group_blocks rest
+                  let blocks := group_blocks steps
+                  let (blocks2, rest2) := infer vars rest
+                  (blocks ++ blocks2, rest2)
+              | _ =>
+                  let (children, rest1) := match step with
+                    | .assume p =>
+                        let (children, rest1) := infer vars rest
+                        (children, match rest1 with
+                          | .otherwise q :: rest1 =>
+                              .assume (Syntax.mkCApp ``Not #[p]) :: assert_step q none :: rest1
+                          | .any_case q false :: rest1 =>
+                              .any_case q true :: rest1
+                          | rest1 => rest1)
+                    | _ => match step_decl_vars step with
+                      | [] => ([], rest)
+                      | step_vars => infer (step_vars :: vars) rest
+                  let (blocks, rest2) := infer vars rest1
+                  (adjust_cases (⟨step, children⟩ :: blocks), rest2)
           else ([], steps)
   let (blocks, rest) := infer [] steps
   assert! (rest.isEmpty)
@@ -355,6 +409,7 @@ partial def translate (top: Bool) (parent_ex: List Name) (prev: Term) (concl: Op
               pure (fun r => `(have: _ := Classical.byCases $(ts[0]!) $(ts[1]!); $r),
                     p)
         | .any_case _ false => panic! "any_case not matched"
+        | .group _ => panic! "group unexpected"
       let (r, rest_concl) ← translate top parent_ex prop concl rest
       let t ← f r
       pure (t, rest_concl)

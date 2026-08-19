@@ -16,6 +16,11 @@ sdef expr
 
 kdef eq_op = "=" | "≠" | "<" | "≮" | "≤" | ">" | "≯" | "≥" | "∈"
 
+sdef eq_prop
+  |:50 expr:51 eq_op expr:51
+
+kdef _if = "if"
+
 sdef _iff
   | "iff" <|> ("if" "and" "only" "if")
 
@@ -23,8 +28,13 @@ kdef _for = "for"
 
 kdef _exists = "exist" | "exists" | "is"
 
+kdef _at_most = "at most"
+
+sdef multi_or
+  | _at_most "one" "of" eq_prop,+ "is" &"true"
+
 sdef_extend prop
-  |:50 expr:51 eq_op expr:51
+  | eq_prop
   |:35 prop:36 "and" prop:35
   |:30 prop:31 "or" prop:30
   |:25 prop:26 "implies" prop:25
@@ -33,6 +43,7 @@ sdef_extend prop
   | _for "all" ident,+ ":" ident "," prop
   | prop _for "all" ident,+ ":" ident
   | "there" _exists "some" ? ident,+ ":" ident "such" "that" prop
+  | multi_or
 
 -- reason
 
@@ -62,8 +73,11 @@ kdef _have =
 
 kdef _by = "by"
 
+sdef which_is_contradiction
+  | atomic("," "contradicting") _thm ident
+
 sdef proof_prop
-  | (_by reason)? _have ? assert_prop ("by" reason)?
+  | (_by reason)? _have ? assert_prop ("by" reason)? which_is_contradiction ?
 
 kdef _let = "let"
 
@@ -81,6 +95,9 @@ sdef let_or_assume
 
 kdef _now = "now" | "second"
 
+sdef proof_if_prop
+  | _if prop "then" proof_prop
+
 sdef will_show
   | "We" "must" "show" "that"
 
@@ -91,6 +108,7 @@ kdef _any_case = "in any case" | "in either case"
 kdef have_contradiction = "this is a contradiction"
 
 sdef assert_step
+  | proof_if_prop
   | will_show prop
   | _so ? proof_prop
   | _otherwise prop
