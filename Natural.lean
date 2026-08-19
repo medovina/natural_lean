@@ -12,7 +12,7 @@ infix:50 "≯" => fun x y => ¬(x > y)
 macro "default" : tactic => `(tactic| first | trivial | grind | aesop )
 
 macro "default_apply" t:ident+ : tactic =>
-  `(tactic| first | grind [$[$t:ident],*] | aesop)
+  `(tactic| first | (apply_rules [$[$t:ident],*] ; done) | grind [$[$t:ident],*] | aesop)
 
 def range_info (s: TSyntax α) := match s.raw.getRange? with
     | .some ⟨pos, endPos⟩ => SourceInfo.synthetic pos endPos
@@ -103,8 +103,10 @@ mutual
       | `(prop| $_:_for all $x:ident,* : $t:ident, $p:prop)
       | `(prop| $p:prop $_:_for all $x:ident,* : $t:ident) => do
             `(∀ $x* : $t, $(← of_prop p))
-      | `(prop| there $_:_exists $[some]? $x:ident,* : $t:ident such that $p:prop) => do
+      | `(prop| there $_:_exists $[some]? $x:ident,* : $t:ident such that $p:prop)
+      | `(prop| $p:prop $_:_for some $x:ident,* : $t:ident) => do
             `(∃ $[$x:ident]* : $t, $(← of_prop p))
+      | `(prop| $_:_either $p:prop , or $q:prop) => do `($(← of_prop p) ∨ $(← of_prop q))
       | `(prop| $m:multi_or) => of_multi_or m
       | stx => Macro.throwError s!"unknown prop: {stx}"
     pure (set_info_from t prop)

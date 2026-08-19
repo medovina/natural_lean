@@ -40,16 +40,20 @@ sdef multi_specifier
 sdef multi_or
   | multi_specifier "one" "of" eq_prop,+ "is" &"true"
 
+kdef _either = "either"
+
 sdef_extend prop
   | eq_prop
   |:35 prop:36 "and" prop:35
   |:30 prop:31 "or" prop:30
   |:25 prop:26 "implies" prop:25
   | "if" prop "then" prop
-  | :20 prop:21 _iff prop:21
+  |:20 prop:21 _iff prop:21
   | _for "all" ident,+ ":" ident "," prop
   | prop _for "all" ident,+ ":" ident
   | "there" _exists "some" ? ident,+ ":" ident "such" "that" prop
+  | prop _for "some" ident,+ ":" ident
+  | _either prop "," "or" prop
   | multi_or
 
 -- reason
@@ -105,8 +109,7 @@ kdef _now = "now" | "second"
 sdef proof_if_prop
   | _if prop "then" proof_prop
 
-sdef will_show
-  | "We" "must" "show" "that"
+kdef will_show = "we must show that" | "we will now prove that"
 
 kdef _otherwise = "otherwise"
 
