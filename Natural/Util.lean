@@ -14,6 +14,13 @@ def all_pairs : List α → List (α × α)
   | [] => []
   | x :: xs => xs.map (fun y => (x, y)) ++ all_pairs xs
 
+def foldr1M [Monad m] [Inhabited α] (f: α → α → m α) (xs: List α) : m α := match xs with
+  | [x] => pure x
+  | x :: xs => do
+      let r ← foldr1M f xs
+      f x r
+  | _ => panic! "foldr1M"
+
 -- syntax
 
 elab "kdef" name:ident "=" ks:sepBy1(str, "|") : command => do

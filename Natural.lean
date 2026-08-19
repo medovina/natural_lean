@@ -21,12 +21,17 @@ def range_info (s: TSyntax α) := match s.raw.getRange? with
 def set_info_from (s: TSyntax α) (t: TSyntax β): Term :=
   ⟨s.raw.setInfo (range_info t)⟩
 
-def multi_and : List Term → MacroM Term
-  | [t] => pure t
-  | t :: ts => do
-      let a ← multi_and ts
-      `($t ∧ $a)
-  | _ => panic! "multi_and"
+def multi_and : List Term → MacroM Term := foldr1M (fun t a => `($t ∧ $a))
+
+def multi_or : List Term → MacroM Term := foldr1M (fun t a => `($t ∨ $a))
+
+def at_most (ts: List Term) : MacroM (List Term) :=
+  let pair (t: Term) (u: Term) := do
+    `(¬($t ∧ $u))
+  (all_pairs ts).mapM pair.uncurry
+
+def precisely_one (ts: List Term) : MacroM (List Term) :=
+  List.cons <$> multi_or ts <*> at_most ts
 
 partial def syntax_free_vars (s: Syntax): List Name := match s with
   | `(∀ $x:ident* : $_typ, $t) => (syntax_free_vars t).removeAll (x.toList.map TSyntax.getId)
@@ -44,6 +49,12 @@ def free_vars (t: Term): List Name := syntax_free_vars (t.raw)
 
 abbrev TExpr := TSyntax `expr
 abbrev TProp := TSyntax `prop
+
+def of_multi_specifier : TSyntax `multi_specifier → List Term → MacroM (List Term)
+  | `(multi_specifier| $_:_at_least) => fun ts => List.singleton <$> multi_or ts
+  | `(multi_specifier| $_:_at_most) => at_most
+  | `(multi_specifier| $_:_exactly) => precisely_one
+  | _ => fun _ => Macro.throwError "unknown multi_specifier"
 
 mutual
   partial def of_expr (expr: TExpr): MacroM Term := do
@@ -76,10 +87,8 @@ mutual
 
   partial def of_multi_or (prop: TSyntax `multi_or): MacroM Term := do
     let t ← match prop with
-      | `(multi_or| $_:_at_most one of $es,* is true) =>
-          let pair (e: TSyntax `eq_prop) (f: TSyntax `eq_prop) := do
-            `(¬($(← of_eq_prop e) ∧ $(← of_eq_prop f)))
-          ((all_pairs es.getElems.toList).mapM pair.uncurry) >>= multi_and
+      | `(multi_or| $s:multi_specifier one of $es,* is true) =>
+            of_multi_specifier s (← es.getElems.toList.mapM of_eq_prop) >>= multi_and
       | _ => Macro.throwError "unknown multi_or"
     pure (set_info_from t prop)
 
@@ -183,7 +192,7 @@ def assert_step (t: Term) (r: Option Reason): ProofStep :=
   .assert (.term t) [r]
 
 def of_which_is_contradiction: TSyntax `which_is_contradiction → MacroM ProofStep
-  | `(which_is_contradiction| , contradicting $_:_thm $i:ident) => do
+  | `(which_is_contradiction| , $[again]? contradicting $_:_thm $i:ident) => do
         pure $ assert_step mk_false (.some (.apply [i.getId]))
   | _ => Macro.throwError "unknown which_is_contradiction"
 

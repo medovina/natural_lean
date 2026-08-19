@@ -28,10 +28,17 @@ kdef _for = "for"
 
 kdef _exists = "exist" | "exists" | "is"
 
+kdef _at_least = "at least"
 kdef _at_most = "at most"
+kdef _exactly = "exactly"
+
+sdef multi_specifier
+  | _at_least
+  | _at_most
+  | _exactly
 
 sdef multi_or
-  | _at_most "one" "of" eq_prop,+ "is" &"true"
+  | multi_specifier "one" "of" eq_prop,+ "is" &"true"
 
 sdef_extend prop
   | eq_prop
@@ -74,7 +81,7 @@ kdef _have =
 kdef _by = "by"
 
 sdef which_is_contradiction
-  | atomic("," "contradicting") _thm ident
+  | atomic("," "again"? "contradicting") _thm ident
 
 sdef proof_prop
   | (_by reason)? _have ? assert_prop ("by" reason)? which_is_contradiction ?
