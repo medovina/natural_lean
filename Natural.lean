@@ -149,24 +149,36 @@ inductive ProofStep where
   | let_def (id: Name) (e: Term)
   | assume (p: Term)
   | is_some (ids: List Name) (type: Name) (p: Term) (reason: Option Reason)
+  | if_otherwise (p: Term) (if_true: List ProofStep) (if_false: List ProofStep) (concl: Term)
   | group (steps: List ProofStep)
 deriving Nonempty
 
-def step_decl_vars: ProofStep → List Name
-  | .assert .. => []
-  | .let ids _ => ids
-  | .let_def id _ => [id]
-  | .assume p => ex_vars p |>.map TSyntax.getId
-  | .is_some ids .. => ids
-  | .group steps => (steps.flatMap step_decl_vars).eraseDups
+partial def step_decl_vars (step: ProofStep): List Name :=
+  let of_steps (steps: List ProofStep) := (steps.flatMap step_decl_vars).eraseDups
+  match step with
+    | .assert .. => []
+    | .let ids _ => ids
+    | .let_def id _ => [id]
+    | .assume p => ex_vars p |>.map TSyntax.getId
+    | .is_some ids .. => ids
+    | .if_otherwise _p t f _q => of_steps (t ++ f)
+    | .group steps => of_steps steps
 
-def step_free_vars : ProofStep → List Name
+mutual
+partial def step_free_vars : ProofStep → List Name
   | .assert p _ => eterm_free_vars p
   | .let _ _ => []
   | .let_def _ e => free_vars e
   | .assume p => free_vars p
   | .is_some ids _ p _ => (free_vars p).removeAll ids
-  | .group steps => (steps.flatMap step_free_vars).eraseDups
+  | .if_otherwise p t f q => ([p, q].flatMap free_vars ++ [t, f].flatMap all_free_vars).eraseDups
+  | .group steps => all_free_vars steps
+
+partial def all_free_vars : List ProofStep → List Name
+  | [] => []
+  | step :: steps =>
+      (step_free_vars step ++ all_free_vars steps).removeAll (step_decl_vars step) |>.eraseDups
+end
 
 instance: ToString ProofStep where
   toString
@@ -175,6 +187,7 @@ instance: ToString ProofStep where
     | .let_def id _e => s!"let_def {id}"
     | .assume _ => s!"assume"
     | .is_some id .. => s!"is_some {id}"
+    | .if_otherwise .. => "if_otherwise"
     | .group _ => "group"
 
 def of_assert_prop: TSyntax `assert_prop → MacroM (ETerm × List (Option Reason))
@@ -244,6 +257,14 @@ def of_proof_sentence: TSyntax `proof_sentence → MacroM (List ProofStep)
       of_proof_sentence1 s
   | _ => Macro.throwError "unknown proof_sentence"
 
+partial def of_proof_unit: TSyntax `proof_unit → MacroM (List ProofStep)
+  | `(proof_unit| $_:_assume $p:prop . $ts:proof_unit* $_:_otherwise $fs:proof_unit*
+                  $_:_any_case $q:prop .) => do
+      pure [ProofStep.if_otherwise (← of_prop p) (← ts.toList.flatMapM of_proof_unit)
+                    (← fs.toList.flatMapM of_proof_unit) (← of_prop q)]
+  | `(proof_unit| $s:proof_sentence) => of_proof_sentence s
+  | _ => Macro.throwError "unknown proof_unit"
+
 structure Block where
   step : ProofStep
   blocks: List Block
@@ -254,11 +275,6 @@ partial def show_blocks (blocks: List Block): String :=
     blocks.flatMap (fun ⟨step, children⟩ =>
       (indent ++ toString step) :: f (indent ++ "    ") children)
   "\n".intercalate (f "" blocks)
-
-def all_vars : List ProofStep → List Name
-  | [] => []
-  | step :: steps =>
-      (step_free_vars step ++ all_vars steps).removeAll (step_decl_vars step) |>.eraseDups
 
 def is_assert_false : ProofStep → Bool
   | .assert (.term t) _ => Syntax.getId t == ``False
@@ -271,18 +287,16 @@ partial def infer_blocks (steps: List ProofStep): List Block :=
       | (step :: rest) =>
           if overlap (step_decl_vars step) vars.flatten
              then ([], steps) else
-          let in_use := all_vars steps
+          let in_use := all_free_vars steps
           if (!is_assert_false step && !vars.head?.all (fun vs => vs.any in_use.elem))
             then ([], steps)
             else let (blocks, rest) := match step with
               | .assert .. => ([⟨step, []⟩], rest)
-              | .group steps =>
-                  let rec group_blocks steps : List Block := match steps with
-                    | [] => []
-                    | steps =>
-                        let (blocks, rest) := infer [] steps
-                        blocks ++ group_blocks rest
-                  (group_blocks steps, rest)
+              | .if_otherwise p ts fs q =>
+                  let tb := ⟨.assume p, infer_blocks ts⟩
+                  let fb := ⟨.assume (Syntax.mkCApp ``Not #[p]), infer_blocks fs⟩
+                  ([⟨.if_otherwise p [] [] q, [tb, fb]⟩], rest)
+              | .group steps => (infer_blocks steps, rest)
               | _ =>
                   let vars := if step matches (.assume _) then vars
                     else step_decl_vars step :: vars
@@ -342,7 +356,7 @@ partial def translate (top: Bool) (parent_ex: List Name) (prev: Term) (concl: Op
         | .is_some ids .. => ids
         | _ => []
       let unit ← `(())
-      let (c, child_concl) ←
+      let (c, child_concl) ← if step matches (.if_otherwise ..) then pure (unit, unit) else
         translate (top && rest.isEmpty && produces_let step) ex_decl unit none children
       let (f, prop) ← match step with
         | .assert (.term p) rs => do
@@ -385,16 +399,24 @@ partial def translate (top: Bool) (parent_ex: List Name) (prev: Term) (concl: Op
                 if rest.isEmpty then t
                 else `(have: _ := $(← t); $r),
                 child_concl)
+        | .if_otherwise _ _ _ q => do
+              let ts ← List.toArray <$> children.mapM (fun
+                | ⟨.assume p, bs⟩ => do
+                    let (c, _) ← translate false [] unit (.some q) bs
+                    `(fun (_: $p) => $c)
+                | _ => panic! "no assume")
+              pure (fun r => `(have: _ := Classical.byCases $ts*; $r),
+                    q)
         | .group _ => panic! "group unexpected"
       let (r, rest_concl) ← translate top parent_ex prop concl rest
       let t ← f r
       pure (t, rest_concl)
 
 def of_proof: TSyntax `proof → MacroM Term
-  | `(proof| $steps:proof_sentence*) => do
-      let steps := List.flatten (← steps.toList.mapM of_proof_sentence)
+  | `(proof| $steps:proof_unit*) => do
+      let steps := List.flatten (← steps.toList.mapM of_proof_unit)
       let blocks := infer_blocks steps
-      dbg_trace (show_blocks blocks)
+      -- dbg_trace (show_blocks blocks)
       Prod.fst <$> translate True [] (← `(())) none blocks
   | `(proof| By $r:reason .) => tactic =<< of_reason r
   | _ => Macro.throwError "unknown proof"

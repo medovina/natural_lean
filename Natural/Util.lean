@@ -31,7 +31,7 @@ elab "kdef" name:ident "=" ks:sepBy1(str, "|") : command => do
 
   let mk_stx (s: String) : CommandElabM (TSyntax `stx) :=
     let i := mkStrLit s
-    if s.length == 1 || ["case", "this", "true"].elem s
+    if s.length == 1 || ["case", "otherwise", "this", "true"].elem s
       then `(stx| &$i:str) else `(stx| $i:str)
 
   let seq (ws: List String) : CommandElabM (TSyntax `stx) := do

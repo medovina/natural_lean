@@ -121,9 +121,6 @@ sdef assert_step
   | proof_if_prop
   | will_show prop
   | _so ? proof_prop
-  | _otherwise prop
-  | "Case" num ":" prop
-  | _any_case prop
   | have_contradiction
 
 sdef clause_intro
@@ -139,10 +136,14 @@ sdef proof_sentence1
 sdef proof_sentence
   | clause_intro ? proof_sentence1 "."
 
+sdef proof_unit
+  | atomic(_assume prop "." proof_unit+ _otherwise) proof_unit+ _any_case prop "."
+  | proof_sentence
+
 -- proof
 
 sdef proof
-  | proof_sentence+
+  | proof_unit+
   | "By" reason "."
 
 -- theorem
