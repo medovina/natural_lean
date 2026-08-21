@@ -116,7 +116,7 @@ Proof.  Let x : ℕ.  Let
 
     A = { y : ℕ | y ≠ S(x) + y }.
 
-  Clearly 0 ∈ A.  Now let y : ℕ, and assume that y ∈ A.  Then y ≠ S(x) + y.  Hence S(y) ≠ S(S(x) + y).  But S(S(x) + y) = S(x) + S(y).  Hence S(y) ≠ S(x) + S(y), so S(y) ∈ A.  Thus we have shown that for all y : ℕ, y ∈ A implies S(y) ∈ A.  By induction y ∈ A for all y : ℕ.
+  0 ≠ S(x), so 0 ∈ A.  Now let y : ℕ, and assume that y ∈ A.  Then y ≠ S(x) + y.  Hence S(y) ≠ S(S(x) + y).  But S(S(x) + y) = S(x) + S(y).  Hence S(y) ≠ S(x) + S(y), so S(y) ∈ A.  Thus we have shown that for all y : ℕ, y ∈ A implies S(y) ∈ A.  By induction y ∈ A for all y : ℕ.
 
 -- ordering: definition
 
