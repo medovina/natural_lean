@@ -109,7 +109,8 @@ kdef _now = "now" | "second"
 sdef proof_if_prop
   | _if prop ","? "then" sepBy1(proof_prop, "/", "," _so)
 
-kdef will_show = "we must show that" | "we will now prove that"
+kdef will_show =
+  "we must show that" | "we will now prove that" | "we will prove that"
 
 kdef _otherwise = "otherwise"
 
@@ -140,10 +141,16 @@ sdef proof_unit
   | atomic(_assume prop "." proof_unit+ _otherwise) proof_unit+ _any_case prop "."
   | proof_sentence
 
+syntax case := "Case" num ":" prop "." proof_unit+
+
+sdef case_unit
+  | case+ _any_case prop "."
+  | proof_unit
+
 -- proof
 
 sdef proof
-  | proof_unit+
+  | case_unit+
   | "By" reason "."
 
 -- theorem

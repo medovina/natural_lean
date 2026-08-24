@@ -150,6 +150,7 @@ inductive ProofStep where
   | assume (p: Term)
   | is_some (ids: List Name) (type: Name) (p: Term) (reason: Option Reason)
   | if_otherwise (p: Term) (if_true: List ProofStep) (if_false: List ProofStep) (concl: Term)
+  | case (cases: List (Term × List ProofStep)) (concl: Term)
   | group (steps: List ProofStep)
 deriving Nonempty
 
@@ -162,6 +163,7 @@ partial def step_decl_vars (step: ProofStep): List Name :=
     | .assume p => ex_vars p |>.map TSyntax.getId
     | .is_some ids .. => ids
     | .if_otherwise _p t f _q => of_steps (t ++ f)
+    | .case cases _ => of_steps (cases.map Prod.snd).flatten
     | .group steps => of_steps steps
 
 mutual
@@ -172,6 +174,9 @@ partial def step_free_vars : ProofStep → List Name
   | .assume p => free_vars p
   | .is_some ids _ p _ => (free_vars p).removeAll ids
   | .if_otherwise p t f q => ([p, q].flatMap free_vars ++ [t, f].flatMap all_free_vars).eraseDups
+  | .case cases concl =>
+      let (ts, steps) := cases.unzip
+      (concl :: ts).flatMap free_vars ++ steps.flatMap all_free_vars
   | .group steps => all_free_vars steps
 
 partial def all_free_vars : List ProofStep → List Name
@@ -188,6 +193,7 @@ instance: ToString ProofStep where
     | .assume _ => s!"assume"
     | .is_some id .. => s!"is_some {id}"
     | .if_otherwise .. => "if_otherwise"
+    | .case _ _ => "case"
     | .group _ => "group"
 
 def of_assert_prop: TSyntax `assert_prop → MacroM (ETerm × List (Option Reason))
@@ -265,6 +271,20 @@ partial def of_proof_unit: TSyntax `proof_unit → MacroM (List ProofStep)
   | `(proof_unit| $s:proof_sentence) => of_proof_sentence s
   | _ => Macro.throwError "unknown proof_unit"
 
+def of_case: TSyntax `case → MacroM (Nat × Term × List ProofStep)
+  | `(case| Case $n:num : $p:prop . $ts:proof_unit*) => do
+      pure (n.getNat, (← of_prop p), (← ts.toList.flatMapM of_proof_unit))
+  | _ => Macro.throwError "unknown case"
+
+def of_case_unit: TSyntax `case_unit → MacroM (List ProofStep)
+  | `(case_unit| $cs:case* $_:_any_case $p:prop .) => do
+      let (nums, cases) ← List.unzip <$> cs.toList.mapM of_case
+      match (nums.zipIdx 1).find? (fun (n, i) => n != i) with
+        | .some (n, _i) => Macro.throwError s!"case number {n} is unexpected"
+        | .none => pure [ProofStep.case cases (← of_prop p)]
+  | `(case_unit| $u:proof_unit) => of_proof_unit u
+  | _ => Macro.throwError "unknown case_unit"
+
 structure Block where
   step : ProofStep
   blocks: List Block
@@ -292,16 +312,22 @@ partial def infer_blocks (steps: List ProofStep): List Block :=
             then ([], steps)
             else let (blocks, rest) := match step with
               | .assert .. => ([⟨step, []⟩], rest)
-              | .if_otherwise p ts fs q =>
-                  let tb := ⟨.assume p, infer_blocks ts⟩
-                  let fb := ⟨.assume (Syntax.mkCApp ``Not #[p]), infer_blocks fs⟩
-                  ([⟨.if_otherwise p [] [] q, [tb, fb]⟩], rest)
-              | .group steps => (infer_blocks steps, rest)
-              | _ =>
+              | .let .. | .let_def .. | .assume _ | .is_some .. =>
                   let vars := if step matches (.assume _) then vars
                     else step_decl_vars step :: vars
                   let (children, rest) := infer vars rest
                   ([⟨step, children⟩], rest)
+              | .if_otherwise p ts fs q =>
+                  let tb := ⟨.assume p, infer_blocks ts⟩
+                  let fb := ⟨.assume (Syntax.mkCApp ``Not #[p]), infer_blocks fs⟩
+                  let block := ⟨.if_otherwise p [] [] q, [tb, fb]⟩
+                  ([block], rest)
+              | .case cases concl =>
+                  let bs := cases.map (fun (p, steps) => ⟨.assume p, infer_blocks steps⟩)
+                  let ts := cases.map (fun (p, _steps) => (p, []))
+                  let block := ⟨.case ts concl, bs⟩
+                  ([block], rest)
+              | .group steps => (infer_blocks steps, rest)
             let (blocks2, rest) := infer vars rest
             (blocks ++ blocks2, rest)
   let (blocks, rest) := infer [] steps
@@ -356,8 +382,14 @@ partial def translate (top: Bool) (parent_ex: List Name) (prev: Term) (concl: Op
         | .is_some ids .. => ids
         | _ => []
       let unit ← `(())
-      let (c, child_concl) ← if step matches (.if_otherwise ..) then pure (unit, unit) else
+      let (c, child_concl) ←
+        if step matches (.if_otherwise ..) || step matches (.case ..) then pure (unit, unit) else
         translate (top && rest.isEmpty && produces_let step) ex_decl unit none children
+      let translate_case (concl: Term) : Block → MacroM Term
+        | ⟨.assume p, bs⟩ => do
+            let (c, _) ← translate false [] unit (.some concl) bs
+            `(fun (_: $p) => $c)
+        | _ => panic! "no assume"
       let (f, prop) ← match step with
         | .assert (.term p) rs => do
               let b := with_info (← tactic rs[0]!) p
@@ -380,7 +412,7 @@ partial def translate (top: Bool) (parent_ex: List Name) (prev: Term) (concl: Op
             let t := `(let $(mkIdent id) := $e; $c)
             pure (
               fun r => do
-                if rest.isEmpty then t
+                if rest.isEmpty && concl == none then t
                 else `(have: _ := $(← t); $r),
               child_concl)
         | .assume p =>
@@ -396,25 +428,30 @@ partial def translate (top: Bool) (parent_ex: List Name) (prev: Term) (concl: Op
             let t := `(have $vars:term : (∃ $[$a:ident]* : $(mkIdent type), $p) := $b; $c)
             pure (
               fun r => do
-                if rest.isEmpty then t
+                if rest.isEmpty && concl == none then t
                 else `(have: _ := $(← t); $r),
                 child_concl)
         | .if_otherwise _ _ _ q => do
-              let ts ← List.toArray <$> children.mapM (fun
-                | ⟨.assume p, bs⟩ => do
-                    let (c, _) ← translate false [] unit (.some q) bs
-                    `(fun (_: $p) => $c)
-                | _ => panic! "no assume")
-              pure (fun r => `(have: _ := Classical.byCases $ts*; $r),
-                    q)
+            let ts ← List.toArray <$> children.mapM (translate_case q)
+            pure (fun r => `(have: _ := Classical.byCases $ts*; $r), q)
+        | .case cases concl =>
+            let ts ← List.toArray <$> children.mapM (translate_case concl)
+            let d ← multi_or (cases.map Prod.fst)
+            let f := Lean.mkIdent $ match ts.size with
+              | 2 => `Or.elim
+              | 3 => `Or.elim3
+              | _ => panic! "unimplemented"
+            let t ← `($f (show $d by default) $ts*)
+            pure (fun r => `(have: _ := $t; $r),
+                  concl)
         | .group _ => panic! "group unexpected"
       let (r, rest_concl) ← translate top parent_ex prop concl rest
       let t ← f r
       pure (t, rest_concl)
 
 def of_proof: TSyntax `proof → MacroM Term
-  | `(proof| $steps:proof_unit*) => do
-      let steps := List.flatten (← steps.toList.mapM of_proof_unit)
+  | `(proof| $steps:case_unit*) => do
+      let steps := List.flatten (← steps.toList.mapM of_case_unit)
       let blocks := infer_blocks steps
       -- dbg_trace (show_blocks blocks)
       Prod.fst <$> translate True [] (← `(())) none blocks
