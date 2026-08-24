@@ -142,3 +142,24 @@ Proof.  Let x, y, z : ℕ.  Suppose that x < y and y < z.  Then there exist some
       = x + S(u + S(v)) by :n3_3b.
 
 Then x < z by :ℕ.lt.
+
+Theorem n4_1c.  For all x, y : ℕ, exactly one of x < y, x = y, y < x is true.
+
+Proof.  Let x, y : ℕ.  If x < y and x = y then x < x, contradicting :n4_1a.  If x = y and y < x then x < x, again contradicting :n4_1a.  If x < y and y < x then by :n4_1b x < x, contradicting :n4_1a.  So at most one of x < y, x = y, y < x is true.
+
+Let x, y : ℕ.  Let A = { x : ℕ | x < y or x = y or y < x }.  First, by :n1_1 we have either y = 0, or y = S(u) for some u : ℕ.  Hence by :n3_3a either y = 0, or 0 + S(u) = y for some u : ℕ.  So y = 0 or 0 < y.  Thus 0 ∈ A.
+
+Now let v : ℕ, and assume that v ∈ A.  Then v < y or v = y or y < v.
+
+Case 1: v < y.  Then v + S(z) = y for some z : ℕ.  By :n1_1 either z = 0, or z = S(u) for some u : ℕ.  Suppose that z = 0 .  Then v + S(0) = y, that is S(v) = y.  Otherwise z = S(u) for some u : ℕ.  Then
+
+  S(v) + S(u) = v + S(S(u)) by :n3_3b
+              = v + S(z) = y.
+
+  So S(v) < y.  In either case S(v) < y or S(v) = y.
+
+Case 2: v = y.  Then S(v) = S(y) = y + S(0).  So y < S(v).
+
+Case 3: y < v.  Then v = y + S(u) for some u : ℕ.  Hence S(v) = S(y + S(u)) = y + S(S(u)).  Thus y < S(v).
+
+In all cases S(v) < y or S(v) = y or y < S(v).  Hence S(v) ∈ A.  We have shown that for all v : ℕ, v ∈ A implies S(v) ∈ A.  By induction x ∈ A for all x : ℕ.  So at least one of x < y, x = y, y < x is true.
