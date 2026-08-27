@@ -16,13 +16,10 @@ Proof.  By induction.
 
 -- addition: definition
 
-@[implicit_reducible]
-def ℕ.add : ℕ → ℕ → ℕ
-  | x, 0 => x
-  | x, S y => S (ℕ.add x y)
+Definition.  The binary operation + on ℕ is defined recursively such that for all x, y : ℕ,
 
-instance instAdd_ℕ : Add ℕ where
-  add := ℕ.add
+  a.  x + 0 = x.
+  b.  x + S(y) = S(x + y).
 
 -- addition: theorems
 
@@ -113,7 +110,6 @@ Proof.  Let x : ℕ.  Let
 
 -- ordering: definition
 
-@[implicit_reducible]
 def ℕ.lt (x y: ℕ) := ∃z : ℕ, x + S z = y
 
 @[method_specs]

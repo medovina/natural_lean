@@ -166,9 +166,24 @@ sdef proof
 
 syntax constructor := const ":" type
 
+syntax type_def :=
+  "The" &"type" ident "is" "defined" "inductively"
+  "with" "constructors" sepBy1(constructor, "and") "."
+
+syntax prop_item := ident "." prop "."
+
+kdef binary_op = "+"
+
+syntax binary_def :=
+  "The" "binary" "operation" binary_op "on" ident
+  "is" "defined" "recursively" "such" "that" "for" "all" ident,+ ":" ident ","
+  prop_item+
+
 sdef definition
-  | "Definition." "The" &"type" ident "is" "defined" "inductively"
-    "with" "constructors" sepBy1(constructor, "and") "."
+  | type_def
+  | binary_def
+
+syntax definition_stmt := "Definition." definition
 
 sdef _theorem
   | _thm ident str ? "." prop "." ("Proof." proof)?

@@ -7,6 +7,8 @@ import Natural.Grammar
 
 open Lean
 open Lean.Parser.Command
+open Lean.Parser.Term
+open Lean.Syntax
 
 infix:50 "≮" => fun x y => ¬(x < y)
 infix:50 "≯" => fun x y => ¬(x > y)
@@ -35,6 +37,30 @@ def at_most (ts: List Term) : MacroM (List Term) :=
 def precisely_one (ts: List Term) : MacroM (List Term) :=
   List.cons <$> multi_or ts <*> at_most ts
 
+def parse_infix_opt : Syntax → Option (Syntax × String × Syntax)
+  | .node _ _ #[x, .atom _ op, y] => .some (x, op, y)
+  | _ => .none
+
+def parse_infix (t: Term): MacroM (Term × String × Term) :=
+  match parse_infix_opt t.raw with
+    | .some (x, op, y) => pure (⟨x⟩, op, ⟨y⟩)
+    | .none => Macro.throwError "infix expression expected"
+
+partial def syntax_replace_infix (op: String) (name: Name) :=
+  let rec repl (t: Syntax): Syntax :=
+    let recurse (t: Syntax): Syntax := match t with
+      | .node i k args => .node i k (args.map repl)
+      | t => t
+    match parse_infix_opt t with
+      | .some (x, op', y) =>
+          if op == op' then (mkApp (mkIdent name) #[⟨repl x⟩, ⟨repl y⟩]).raw
+          else recurse t
+      | _ => recurse t
+  repl
+
+def replace_infix (op: String) (name: Name) (t: Term) : Term :=
+  ⟨syntax_replace_infix op name t.raw⟩
+
 partial def syntax_free_vars (s: Syntax): List Name := match s with
   | `(∀ $x:ident* : $_typ, $t) => (syntax_free_vars t).removeAll (x.toList.map TSyntax.getId)
   | `(∃ $[$x:ident]* : $_typ, $t) => (syntax_free_vars t).removeAll (x.toList.map TSyntax.getId)
@@ -61,9 +87,6 @@ partial def of_type : TSyntax `type → MacroM Term
   | `(type| $t:type → $u:type) => do `($(← of_type t) → $(← of_type u))
   | _ => Macro.throwError "unknown multi_specifier"
 
-abbrev TExpr := TSyntax `expr
-abbrev TProp := TSyntax `prop
-
 def of_multi_specifier : TSyntax `multi_specifier → List Term → MacroM (List Term)
   | `(multi_specifier| $_:_at_least) => fun ts => List.singleton <$> multi_or ts
   | `(multi_specifier| $_:_at_most) => at_most
@@ -71,7 +94,7 @@ def of_multi_specifier : TSyntax `multi_specifier → List Term → MacroM (List
   | _ => fun _ => Macro.throwError "unknown multi_specifier"
 
 mutual
-  partial def of_expr (expr: TExpr): MacroM Term := do
+  partial def of_expr (expr: TSyntax `expr): MacroM Term := do
     let t ← match expr with
       | `(expr| $n:num) => `($n)
       | `(expr| $i:ident) => `($i)
@@ -106,7 +129,7 @@ mutual
       | _ => Macro.throwError "unknown multi_or"
     pure (set_info_from t prop)
 
-  partial def of_prop (prop: TProp): MacroM Term := do
+  partial def of_prop (prop: TSyntax `prop): MacroM Term := do
     let t ← match prop with
       | `(prop| $e:eq_prop) => of_eq_prop e
       | `(prop| $p:prop and $q:prop) => do `($(← of_prop p) ∧ $(← of_prop q))
@@ -482,7 +505,7 @@ def to_ident: Term → Ident
   | `($i:ident) => i
   | _ => panic! "to_ident: unknown"
 
-def aux_ctor_def (typ:Ident) (t: Term): MacroM (TSyntax `command) :=
+def aux_ctor_def (typ:Ident) (t: Term): MacroM Command :=
   let dot (i: Ident) := mkIdent (typ.getId ++ i.getId)
   match t with
     | `($_:num) =>
@@ -491,9 +514,9 @@ def aux_ctor_def (typ:Ident) (t: Term): MacroM (TSyntax `command) :=
     | `($i:ident) => `(abbrev $i := $(dot i))
     | _ => Macro.throwError "aux_ctor_def: unknown"
 
-macro d:definition : command => match d with
-  | `(definition| Definition. The type $i:ident is defined inductively
-                  with constructors $cs:constructor and* .) => do
+def of_type_def : TSyntax `type_def → MacroM Command
+  | `(type_def| The type $i:ident is defined inductively
+                with constructors $cs:constructor and* .) => do
       let ctors ← cs.getElems.mapM of_constructor
       let mk_def | (n, t) => `(ctor| | $(to_ident n):ident : $t)
       let ctor_defs ← ctors.mapM mk_def
@@ -502,6 +525,54 @@ macro d:definition : command => match d with
       let commands := #[ind_decl] ++ aux
       pure $ .mk (mkNullNode commands)
   | _ => Macro.throwError "unknown definition"
+
+def of_prop_item : TSyntax `prop_item → MacroM Term
+  | `(prop_item| $_:ident . $p:prop .) => of_prop p
+  | _ => Macro.throwError "unknown prop_item"
+
+def of_binary_op : TSyntax `binary_op → MacroM String
+  | `(binary_op| +) => pure "+"
+  | _ => Macro.throwError "unknown binary_op"
+
+def op_map := [("+", `add)]
+
+def eq_to_alt_expr (op: String) (fname: Name) : Term → MacroM (TSyntax ``matchAltExpr)
+  | `($l = $r) => do
+      let (a, op', b) ← parse_infix l
+      if op == op' then
+        `(matchAltExpr| | $a, $b => $(replace_infix op fname r))
+      else Macro.throwError "wrong infix op"
+  | _ => Macro.throwError "equation expected"
+
+def of_binary_def : TSyntax `binary_def → MacroM Command
+  | `(binary_def| The binary operation $op:binary_op on $i:ident is defined recursively
+                    such that for all $_xs:ident,* : $_typ:ident , $items:prop_item*) => do
+      let op ← of_binary_op op
+      let op_name := (op_map.lookup op).get!
+      let fname := i.getId ++ op_name
+      let cl := op_name.toString.capitalize
+      let eqs ← items.mapM of_prop_item
+      let alts ← eqs.mapM (eq_to_alt_expr op fname)
+      let d ← `(def $(mkIdent fname) : $i → $i → $i
+                 $alts:matchAlt*)
+
+      let instName := Name.mkSimple ("inst" ++ cl ++ i.getId.toString)
+      let i ← `(
+        instance $(mkIdent instName):ident : $(mkIdent (Name.mkSimple cl)) $i where
+          $(mkIdent op_name):ident := $(mkIdent fname)
+      )
+      `($d:command
+        $i:command)
+  | _ => Macro.throwError "unknown binary_def"
+
+def of_definition : TSyntax `definition → MacroM Command
+  | `(definition| $d:type_def) => of_type_def d
+  | `(definition| $e:binary_def) => of_binary_def e
+  | _ => Macro.throwError "unknown definition"
+
+macro d:definition_stmt : command => match d with
+  | `(definition_stmt| Definition. $d) => of_definition d
+  | _ => Macro.throwError "unknown definition_stmt"
 
 macro t:_theorem : command => do
   match t with
