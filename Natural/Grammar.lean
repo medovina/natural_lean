@@ -1,9 +1,18 @@
 import Natural.Util
 
+sdef const
+  | ident
+  | num
+
+sdef type
+  | ident
+  | type "→" type
+
 -- forward declaration
 declare_syntax_cat prop
 
 -- expr
+
 sdef expr
   | num
   | ident
@@ -153,7 +162,13 @@ sdef proof
   | case_unit+
   | "By" reason "."
 
--- theorem
+-- statements
+
+syntax constructor := const ":" type
+
+sdef definition
+  | "Definition." "The" &"type" ident "is" "defined" "inductively"
+    "with" "constructors" sepBy1(constructor, "and") "."
 
 sdef _theorem
   | _thm ident str ? "." prop "." ("Proof." proof)?

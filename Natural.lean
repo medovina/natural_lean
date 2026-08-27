@@ -6,6 +6,7 @@ import Mathlib.Logic.Basic
 import Natural.Grammar
 
 open Lean
+open Lean.Parser.Command
 
 infix:50 "≮" => fun x y => ¬(x < y)
 infix:50 "≯" => fun x y => ¬(x > y)
@@ -46,7 +47,19 @@ partial def syntax_free_vars (s: Syntax): List Name := match s with
 
 def free_vars (t: Term): List Name := syntax_free_vars (t.raw)
 
--- expr/prop translation
+partial def result_type : Term → Term
+  | `($_t → $u) => result_type u
+  | t => t
+
+partial def of_const : TSyntax `const → MacroM Term
+  | `(const| $i:ident) => `($i)
+  | `(const| $n:num) => `($n)
+  | _ => Macro.throwError "unknown const"
+
+partial def of_type : TSyntax `type → MacroM Term
+  | `(type| $i:ident) => `($i)
+  | `(type| $t:type → $u:type) => do `($(← of_type t) → $(← of_type u))
+  | _ => Macro.throwError "unknown multi_specifier"
 
 abbrev TExpr := TSyntax `expr
 abbrev TProp := TSyntax `prop
@@ -458,7 +471,37 @@ def of_proof: TSyntax `proof → MacroM Term
   | `(proof| By $r:reason .) => tactic =<< of_reason r
   | _ => Macro.throwError "unknown proof"
 
--- theorem
+-- statements
+
+def of_constructor: TSyntax `constructor → MacroM (Term × Term)
+  | `(constructor| $c:const : $t:type) => do pure (← of_const c, ← of_type t)
+  | _ => Macro.throwError "unknown constructor"
+
+def to_ident: Term → Ident
+  | `($n:num) => mkIdent (Name.mkSimple s!"n{n.getNat}")
+  | `($i:ident) => i
+  | _ => panic! "to_ident: unknown"
+
+def aux_ctor_def (typ:Ident) (t: Term): MacroM (TSyntax `command) :=
+  let dot (i: Ident) := mkIdent (typ.getId ++ i.getId)
+  match t with
+    | `($_:num) =>
+        `(instance: $(mkIdent ``OfNat) $typ $t where
+            $(mkIdent `ofNat):ident := $(dot (to_ident t)))
+    | `($i:ident) => `(abbrev $i := $(dot i))
+    | _ => Macro.throwError "aux_ctor_def: unknown"
+
+macro d:definition : command => match d with
+  | `(definition| Definition. The type $i:ident is defined inductively
+                  with constructors $cs:constructor and* .) => do
+      let ctors ← cs.getElems.mapM of_constructor
+      let mk_def | (n, t) => `(ctor| | $(to_ident n):ident : $t)
+      let ctor_defs ← ctors.mapM mk_def
+      let ind_decl ← `(inductive $i:ident $ctor_defs:ctor*)
+      let aux ← (ctors.map (·.1)).mapM (aux_ctor_def i)
+      let commands := #[ind_decl] ++ aux
+      pure $ .mk (mkNullNode commands)
+  | _ => Macro.throwError "unknown definition"
 
 macro t:_theorem : command => do
   match t with

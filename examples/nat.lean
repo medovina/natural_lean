@@ -2,14 +2,7 @@ import Natural
 
 -- definition of natural numbers
 
-inductive ℕ
-  | zero
-  | succ (n: ℕ)
-
-instance: OfNat ℕ 0 where
-  ofNat := ℕ.zero
-
-abbrev S := ℕ.succ
+Definition.  The type ℕ is defined inductively with constructors 0 : ℕ and S : ℕ → ℕ.
 
 -- theorems about successor function
 
@@ -26,7 +19,7 @@ Proof.  By induction.
 @[implicit_reducible]
 def ℕ.add : ℕ → ℕ → ℕ
   | x, 0 => x
-  | x, ℕ.succ y => ℕ.succ (ℕ.add x y)
+  | x, S y => S (ℕ.add x y)
 
 instance instAdd_ℕ : Add ℕ where
   add := ℕ.add

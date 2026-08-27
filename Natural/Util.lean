@@ -23,23 +23,23 @@ def foldr1M [Monad m] [Inhabited α] (f: α → α → m α) (xs: List α) : m �
 
 -- syntax
 
-elab "kdef" name:ident "=" ks:sepBy1(str, "|") : command => do
-  let rec mk_or : List (TSyntax `stx) → CommandElabM (TSyntax `stx)
+macro "kdef" name:ident "=" ks:sepBy1(str, "|") : command => do
+  let rec mk_or : List (TSyntax `stx) → MacroM (TSyntax `stx)
     | [] => panic! "empty"
     | [x] => pure x
     | x :: xs => do `(stx| $x <|> $(← mk_or xs))
 
-  let mk_stx (s: String) : CommandElabM (TSyntax `stx) :=
+  let mk_stx (s: String) : MacroM (TSyntax `stx) :=
     let i := mkStrLit s
-    if s.length == 1 || ["case", "cases", "otherwise", "this", "true"].elem s
+    if s.length == 1 || ["case", "cases", "otherwise", "this", "true", "type"].elem s
       then `(stx| &$i:str) else `(stx| $i:str)
 
-  let seq (ws: List String) : CommandElabM (TSyntax `stx) := do
+  let seq (ws: List String) : MacroM (TSyntax `stx) := do
     match ← (ws.toArray.mapM mk_stx) with
       | #[ l ] => pure l
       | ls => `(stx| atomic( $[$ls:stx]* ) )
 
-  let items (k: TSyntax `str): CommandElabM (List (TSyntax `stx)) := do
+  let items (k: TSyntax `str): MacroM (List (TSyntax `stx)) := do
       let ws := k.getString.splitOn " "
       if ws[0]!.front.isLower then
         pure [← seq ws, ← seq (ws[0]!.capitalize :: ws.drop 1)]
@@ -47,8 +47,7 @@ elab "kdef" name:ident "=" ks:sepBy1(str, "|") : command => do
 
   let all ← ks.getElems.toList.flatMapM items
   let stx ← mk_or all
-  let c ← `(syntax $name := ($stx:stx))
-  elabCommand c
+  `(syntax $name := ($stx:stx))
 
 declare_syntax_cat sdef_decl
 syntax "|" (":" num)? stx+ : sdef_decl
