@@ -116,9 +116,16 @@ mutual
     pure (if expr matches `(expr| $_:ident) then t else set_info_from t expr)
 
   partial def of_rel_prop (prop: TSyntax `rel_prop): MacroM Term := do
+    let rec build : List Term → List String → List Term
+      | _, [] => []
+      | t :: u :: ts, op :: ops =>
+          build_infix t op u :: build (u :: ts) ops
+      | _, _ => panic! "of_rel_prop"
     let t ← match prop with
-      | `(rel_prop| $a:expr $op:rel_op $b:expr) => do
-            pure $ build_infix (← of_expr a) (syntax_atom op) (← of_expr b)
+      | `(rel_prop| $a:expr $[$ops:rel_op $bs:expr]*) => do
+            let ts ← (a :: bs.toList).mapM of_expr
+            let ops := ops.toList.map syntax_atom
+            multi_and (build ts ops)
       | _ => Macro.throwError "unknown rel_prop"
     pure (set_info_from t prop)
 

@@ -42,16 +42,7 @@ Proof. Let x, y : ℕ.  Let
 
 Lemma n3_3a.  For all x : ℕ, 0 + x = x.
 
-Proof.  Let
-
-    A = { x : ℕ | 0 + x = x }.
-
-  Then 0 ∈ A.  Let x : ℕ, and suppose that x ∈ A.  Then
-
-    0 + S(x) = S(0 + x)
-             = S(x).
-
-  Hence S(x) ∈ A.  So by induction x ∈ A for all x : ℕ.
+Proof.  By induction.
 
 Lemma n3_3b.  For all x, y: ℕ, S(x) + y = S(x + y).
 
@@ -148,3 +139,9 @@ Case 2: v = y.  Then S(v) = S(y) = y + S(0).  So y < S(v).
 Case 3: y < v.  Then v = y + S(u) for some u : ℕ.  Hence S(v) = S(y + S(u)) = y + S(S(u)).  Thus y < S(v).
 
 In all cases S(v) < y or S(v) = y or y < S(v).  Hence S(v) ∈ A.  We have shown that for all v : ℕ, v ∈ A implies S(v) ∈ A.  By induction x ∈ A for all x : ℕ.  So at least one of x < y, x = y, y < x is true.
+
+Theorem n4_2a.  For all x : ℕ, x < S(x).
+
+Proof.  Let x : ℕ.   x + S(0) = S(x).  Therefore x < S(x).
+
+Theorem n4_2b.  For all x : ℕ, there is no y : ℕ such that x < y < S(x).
