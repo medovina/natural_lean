@@ -53,6 +53,8 @@ sdef multi_or
 
 kdef _either = "either"
 
+syntax some_or_no := "some" <|> "no"
+
 sdef_extend prop
   | eq_prop
   |:35 prop:36 "and" prop:35
@@ -62,7 +64,7 @@ sdef_extend prop
   |:20 prop:21 _iff prop:21
   | _for_all ident,+ ":" ident "," prop
   | prop _for_all ident,+ ":" ident
-  | "there" _exists "some" ? ident,+ ":" ident "such" "that" prop
+  | "there" _exists some_or_no ? ident,+ ":" ident "such" "that" prop
   | prop _for "some" ident,+ ":" ident
   | _either prop "," "or" prop
   | multi_or

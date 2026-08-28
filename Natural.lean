@@ -129,6 +129,11 @@ mutual
       | _ => Macro.throwError "unknown multi_or"
     pure (set_info_from t prop)
 
+  partial def of_some_or_no : TSyntax `some_or_no → MacroM Bool
+    | `(some_or_no| some) => pure true
+    | `(some_or_no| no) => pure false
+    | _ => Macro.throwError "unknown some_or_no"
+
   partial def of_prop (prop: TSyntax `prop): MacroM Term := do
     let t ← match prop with
       | `(prop| $e:eq_prop) => of_eq_prop e
@@ -140,7 +145,10 @@ mutual
       | `(prop| $_:_for_all $x:ident,* : $t:ident, $p:prop)
       | `(prop| $p:prop $_:_for_all $x:ident,* : $t:ident) => do
             `(∀ $x* : $t, $(← of_prop p))
-      | `(prop| there $_:_exists $[some]? $x:ident,* : $t:ident such that $p:prop)
+      | `(prop| there $_:_exists $s:some_or_no ? $x:ident,* : $t:ident such that $p:prop) => do
+            let b ← s.elim (pure true) of_some_or_no
+            let t ← `(∃ $[$x:ident]* : $t, $(← of_prop p))
+            if b then pure t else `(¬ $t)
       | `(prop| $p:prop $_:_for some $x:ident,* : $t:ident) => do
             `(∃ $[$x:ident]* : $t, $(← of_prop p))
       | `(prop| $_:_either $p:prop , or $q:prop) => do `($(← of_prop p) ∨ $(← of_prop q))
