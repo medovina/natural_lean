@@ -15,8 +15,10 @@ infix:50 "≯" => fun x y => ¬(x > y)
 
 macro "default" : tactic => `(tactic| first | trivial | grind | aesop )
 
-macro "default_apply" t:ident+ : tactic =>
-  `(tactic| first | (apply_rules [$[$t:ident],*] ; done) | grind [$[$t:ident],*] | aesop)
+macro "default_apply" ts:ident+ : tactic => do
+  let aesop_rules ← ts.mapM (fun i => `(Aesop.rule_expr| safe (by rapply $i)))
+  `(tactic| first | (apply_rules [$[$ts:ident],*] ; done) | grind [$[$ts:ident],*] |
+                    aesop (add $aesop_rules,*))
 
 def range_info (s: TSyntax α) := match s.raw.getRange? with
     | .some ⟨pos, endPos⟩ => SourceInfo.synthetic pos endPos
@@ -323,13 +325,29 @@ def of_proof_sentence: TSyntax `proof_sentence → MacroM (List ProofStep)
       of_proof_sentence1 s
   | _ => Macro.throwError "unknown proof_sentence"
 
+mutual
+partial def of_otherwise_intro: TSyntax `otherwise_intro → MacroM (Term × List ProofStep)
+  | `(otherwise_intro| $_:_assume $p:prop . $ts:proof_unit*) => do
+      pure (← of_prop p, ← ts.toList.flatMapM of_proof_unit)
+  | `(otherwise_intro| $pip:proof_if_prop .) => match pip with
+    | `(proof_if_prop| $_:_if $p:prop $[,]? then $[$qs:proof_prop]/*) => do
+        pure (← of_prop p, ← qs.toList.flatMapM of_proof_prop)
+    | _ => Macro.throwError "unknown otherwise_intro"
+  | _ => Macro.throwError "unknown otherwise_intro"
+
+partial def of_otherwise_unit: TSyntax `otherwise_unit → MacroM ProofStep
+  | `(otherwise_unit| $intro:otherwise_intro $_:_otherwise $fs:proof_unit*
+                     $_:_any_case $q:prop .) => do
+      let (p, ts) ← of_otherwise_intro intro
+      pure $ ProofStep.if_otherwise p ts (← fs.toList.flatMapM of_proof_unit) (← of_prop q)
+  | _ => Macro.throwError "unknown otherwise_unit"
+
 partial def of_proof_unit: TSyntax `proof_unit → MacroM (List ProofStep)
-  | `(proof_unit| $_:_assume $p:prop . $ts:proof_unit* $_:_otherwise $fs:proof_unit*
-                  $_:_any_case $q:prop .) => do
-      pure [ProofStep.if_otherwise (← of_prop p) (← ts.toList.flatMapM of_proof_unit)
-                    (← fs.toList.flatMapM of_proof_unit) (← of_prop q)]
+  | `(proof_unit| $o:otherwise_unit) =>
+      List.singleton <$> of_otherwise_unit o
   | `(proof_unit| $s:proof_sentence) => of_proof_sentence s
   | _ => Macro.throwError "unknown proof_unit"
+end
 
 def of_case: TSyntax `case → MacroM (Nat × Term × List ProofStep)
   | `(case| Case $n:num : $p:prop . $ts:proof_unit*) => do
@@ -483,7 +501,7 @@ partial def translate (top: Bool) (parent_ex: List Name) (prev: Term) (concl: Op
         | .is_some ids type p reason => do
             let b := with_info (← tactic reason) p
             let ids := ids.map mkIdent
-            let vars ← ex_pattern ids
+            let vars ← if children.isEmpty then `(this) else ex_pattern ids
             let a := ids.toArray
             let t := `(have $vars:term : (∃ $[$a:ident]* : $(mkIdent type), $p) := $b; $c)
             pure (
@@ -559,7 +577,7 @@ def of_binary_op : TSyntax `binary_op → MacroM String
   | `(binary_op| <) => pure "<"
   | _ => Macro.throwError "unknown binary_op"
 
-def op_map := [("+", `add, `Add), ("<", `lt, `LT)]
+def op_map := [("+", `add, `Add), ("<", `lt, `LT), ("≤", `le, `LE)]
 
 def parse_def_eq : Term → MacroM (String × Term × Term × Term)
   | `($l = $r)

@@ -127,8 +127,6 @@ sdef let_or_assume
   | _let ident "=" expr
   | _assume prop
 
-kdef _now = "now" | "second"
-
 sdef proof_if_prop
   | _if prop ","? "then" sepBy1(proof_prop, "/", "," _so)
 
@@ -145,7 +143,7 @@ sdef assert_step
   | _so ? proof_prop
 
 sdef clause_intro
-  | ("First" <|> _now) ","?
+  | ("First" <|> "Now" <|> "Second") ","?
 
 sdef and_or_so
   | ("and" _so) <|> _so
@@ -157,8 +155,17 @@ sdef proof_sentence1
 sdef proof_sentence
   | clause_intro ? proof_sentence1 "."
 
-sdef proof_unit
-  | atomic(_assume prop "." proof_unit+ _otherwise) proof_unit+ _any_case prop "."
+declare_syntax_cat proof_unit
+
+sdef otherwise_intro
+  | _assume prop "." proof_unit+
+  | proof_if_prop "."
+
+syntax otherwise_unit :=
+  atomic(otherwise_intro _otherwise) proof_unit+ _any_case prop "."
+
+sdef_extend proof_unit
+  | otherwise_unit
   | proof_sentence
 
 syntax case := "Case" num ":" prop "." proof_unit+
