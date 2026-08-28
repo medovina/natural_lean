@@ -23,10 +23,10 @@ sdef expr
 
 -- prop
 
-kdef eq_op = "=" | "≠" | "<" | "≮" | "≤" | ">" | "≯" | "≥" | "∈"
+kdef rel_op = "=" | "≠" | "<" | "≮" | "≤" | ">" | "≯" | "≥" | "∈"
 
-sdef eq_prop
-  |:50 expr:51 eq_op expr:51
+sdef rel_prop
+  |:50 expr:51 rel_op expr:51
 
 kdef _if = "if"
 
@@ -49,14 +49,14 @@ sdef multi_specifier
   | _exactly
 
 sdef multi_or
-  | multi_specifier "one" "of" eq_prop,+ "is" &"true"
+  | multi_specifier "one" "of" rel_prop,+ "is" &"true"
 
 kdef _either = "either"
 
 syntax some_or_no := "some" <|> "no"
 
 sdef_extend prop
-  | eq_prop
+  | rel_prop
   |:35 prop:36 "and" prop:35
   |:30 prop:31 "or" prop:30
   |:25 prop:26 "implies" prop:25

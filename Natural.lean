@@ -46,6 +46,9 @@ def parse_infix (t: Term): MacroM (Term × String × Term) :=
     | .some (x, op, y) => pure (⟨x⟩, op, ⟨y⟩)
     | .none => Macro.throwError "infix expression expected"
 
+def build_infix (t: Term) (op: String) (u: Term) : Term :=
+  ⟨mkNode (.mkSimple s!"term_{op}_") #[t, mkAtom op, u]⟩
+
 partial def syntax_replace_infix (op: String) (name: Ident) :=
   let rec repl (t: Syntax): Syntax :=
     let recurse (t: Syntax): Syntax := match t with
@@ -93,6 +96,10 @@ def of_multi_specifier : TSyntax `multi_specifier → List Term → MacroM (List
   | `(multi_specifier| $_:_exactly) => precisely_one
   | _ => fun _ => Macro.throwError "unknown multi_specifier"
 
+def syntax_atom (t: TSyntax α): String := match t.raw with
+  | .node _ _ #[.node _ _ #[a]] => a.getAtomVal
+  | _ => panic! "syntax_atom"
+
 mutual
   partial def of_expr (expr: TSyntax `expr): MacroM Term := do
     let t ← match expr with
@@ -108,24 +115,17 @@ mutual
     -- "variable not referenced" errors.
     pure (if expr matches `(expr| $_:ident) then t else set_info_from t expr)
 
-  partial def of_eq_prop (prop: TSyntax `eq_prop): MacroM Term := do
+  partial def of_rel_prop (prop: TSyntax `rel_prop): MacroM Term := do
     let t ← match prop with
-      | `(eq_prop| $a:expr = $b:expr) => do `($(← of_expr a) = $(← of_expr b))
-      | `(eq_prop| $a:expr ≠ $b:expr) => do `($(← of_expr a) ≠ $(← of_expr b))
-      | `(eq_prop| $a:expr < $b:expr) => do `($(← of_expr a) < $(← of_expr b))
-      | `(eq_prop| $a:expr ≮ $b:expr) => do `($(← of_expr a) ≮ $(← of_expr b))
-      | `(eq_prop| $a:expr ≤ $b:expr) => do `($(← of_expr a) ≤ $(← of_expr b))
-      | `(eq_prop| $a:expr > $b:expr) => do `($(← of_expr a) > $(← of_expr b))
-      | `(eq_prop| $a:expr ≥ $b:expr) => do `($(← of_expr a) ≥ $(← of_expr b))
-      | `(eq_prop| $a:expr ≯ $b:expr) => do `($(← of_expr a) ≯ $(← of_expr b))
-      | `(eq_prop| $a:expr ∈ $b:expr) => do `($(← of_expr a) ∈ $(← of_expr b))
-      | _ => Macro.throwError "unknown eq_prop"
+      | `(rel_prop| $a:expr $op:rel_op $b:expr) => do
+            pure $ build_infix (← of_expr a) (syntax_atom op) (← of_expr b)
+      | _ => Macro.throwError "unknown rel_prop"
     pure (set_info_from t prop)
 
   partial def of_multi_or (prop: TSyntax `multi_or): MacroM Term := do
     let t ← match prop with
       | `(multi_or| $s:multi_specifier one of $es,* is true) =>
-            of_multi_specifier s (← es.getElems.toList.mapM of_eq_prop) >>= multi_and
+            of_multi_specifier s (← es.getElems.toList.mapM of_rel_prop) >>= multi_and
       | _ => Macro.throwError "unknown multi_or"
     pure (set_info_from t prop)
 
@@ -136,7 +136,7 @@ mutual
 
   partial def of_prop (prop: TSyntax `prop): MacroM Term := do
     let t ← match prop with
-      | `(prop| $e:eq_prop) => of_eq_prop e
+      | `(prop| $e:rel_prop) => of_rel_prop e
       | `(prop| $p:prop and $q:prop) => do `($(← of_prop p) ∧ $(← of_prop q))
       | `(prop| $p:prop or $q:prop) => do `($(← of_prop p) ∨ $(← of_prop q))
       | `(prop| $p:prop implies $q:prop)
