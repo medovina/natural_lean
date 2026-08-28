@@ -46,19 +46,19 @@ def parse_infix (t: Term): MacroM (Term × String × Term) :=
     | .some (x, op, y) => pure (⟨x⟩, op, ⟨y⟩)
     | .none => Macro.throwError "infix expression expected"
 
-partial def syntax_replace_infix (op: String) (name: Name) :=
+partial def syntax_replace_infix (op: String) (name: Ident) :=
   let rec repl (t: Syntax): Syntax :=
     let recurse (t: Syntax): Syntax := match t with
       | .node i k args => .node i k (args.map repl)
       | t => t
     match parse_infix_opt t with
       | .some (x, op', y) =>
-          if op == op' then (mkApp (mkIdent name) #[⟨repl x⟩, ⟨repl y⟩]).raw
+          if op == op' then (mkApp name #[⟨repl x⟩, ⟨repl y⟩]).raw
           else recurse t
       | _ => recurse t
   repl
 
-def replace_infix (op: String) (name: Name) (t: Term) : Term :=
+def replace_infix (op: String) (name: Ident) (t: Term) : Term :=
   ⟨syntax_replace_infix op name t.raw⟩
 
 partial def syntax_free_vars (s: Syntax): List Name := match s with
@@ -137,8 +137,8 @@ mutual
       | `(prop| $p:prop implies $q:prop)
       | `(prop| if $p:prop then $q:prop) => do `($(← of_prop p) → $(← of_prop q))
       | `(prop| $p:prop $_:_iff $q:prop) => do `($(← of_prop p) ↔ $(← of_prop q))
-      | `(prop| $_:_for all $x:ident,* : $t:ident, $p:prop)
-      | `(prop| $p:prop $_:_for all $x:ident,* : $t:ident) => do
+      | `(prop| $_:_for_all $x:ident,* : $t:ident, $p:prop)
+      | `(prop| $p:prop $_:_for_all $x:ident,* : $t:ident) => do
             `(∀ $x* : $t, $(← of_prop p))
       | `(prop| there $_:_exists $[some]? $x:ident,* : $t:ident such that $p:prop)
       | `(prop| $p:prop $_:_for some $x:ident,* : $t:ident) => do
@@ -532,42 +532,73 @@ def of_prop_item : TSyntax `prop_item → MacroM Term
 
 def of_binary_op : TSyntax `binary_op → MacroM String
   | `(binary_op| +) => pure "+"
+  | `(binary_op| <) => pure "<"
   | _ => Macro.throwError "unknown binary_op"
 
-def op_map := [("+", `add)]
+def op_map := [("+", `add, `Add), ("<", `lt, `LT)]
 
-def eq_to_alt_expr (op: String) (fname: Name) : Term → MacroM (TSyntax ``matchAltExpr)
-  | `($l = $r) => do
-      let (a, op', b) ← parse_infix l
-      if op == op' then
-        `(matchAltExpr| | $a, $b => $(replace_infix op fname r))
-      else Macro.throwError "wrong infix op"
+def parse_def_eq : Term → MacroM (String × Term × Term × Term)
+  | `($l = $r)
+  | `($l ↔ $r) => do
+      let (a, op, b) ← parse_infix l
+      pure (op, a, b, r)
   | _ => Macro.throwError "equation expected"
 
-def of_binary_def : TSyntax `binary_def → MacroM Command
-  | `(binary_def| The binary operation $op:binary_op on $i:ident is defined recursively
-                    such that for all $_xs:ident,* : $_typ:ident , $items:prop_item*) => do
-      let op ← of_binary_op op
-      let op_name := (op_map.lookup op).get!
-      let fname := i.getId ++ op_name
-      let cl := op_name.toString.capitalize
-      let eqs ← items.mapM of_prop_item
-      let alts ← eqs.mapM (eq_to_alt_expr op fname)
-      let d ← `(def $(mkIdent fname) : $i → $i → $i
-                 $alts:matchAlt*)
+def eq_to_alt_expr (op: String) (fname: Ident) (t: Term): MacroM (TSyntax ``matchAltExpr) := do
+  let (op', a, b, r) ← parse_def_eq t
+  if op == op' then
+    `(matchAltExpr| | $a, $b => $(replace_infix op fname r))
+  else Macro.throwError "wrong infix op"
 
-      let instName := Name.mkSimple ("inst" ++ cl ++ i.getId.toString)
-      let i ← `(
-        instance $(mkIdent instName):ident : $(mkIdent (Name.mkSimple cl)) $i where
-          $(mkIdent op_name):ident := $(mkIdent fname)
-      )
-      `($d:command
-        $i:command)
-  | _ => Macro.throwError "unknown binary_def"
+def as_ident (t: Term): MacroM Ident := match t.raw with
+  | .ident _ _ name _ => pure (mkIdent name)
+  | _ => Macro.throwError "identifier expected"
+
+def generate_def (op: String) (_args: Array Ident) (type: Ident) (eqs: Array Term)
+    : MacroM Command := do
+  let (op_name, cl) := (op_map.lookup op).get!
+  let fname := mkIdent (type.getId ++ op_name)
+  let d ← match eqs with
+    | #[eq] =>  -- direct definition
+        let (_op, x, y, r) ← parse_def_eq eq
+        let ix ← as_ident x
+        let iy ← as_ident y
+        `(def $fname ($ix $iy : $type) := $r)
+    | _ =>  -- by cases
+        let alts ← eqs.mapM (eq_to_alt_expr op fname)
+        `(def $fname : $type → $type → $type
+            $alts:matchAlt*)
+
+  let instName := Name.mkSimple ("inst" ++ cl.toString ++ type.getId.toString)
+  let i ← `(
+    @[method_specs]
+    instance $(mkIdent instName):ident : $(mkIdent cl) $type where
+      $(mkIdent op_name):ident := $fname
+  )
+  let spec := instName ++ Name.mkSimple (op_name.toString ++ "_spec")
+  let a ← `(attribute [grind =] $(mkIdent spec))
+  `($d:command
+    $i:command
+    $a:command)
+
+def of_cases_def : TSyntax `cases_def → MacroM Command
+  | `(cases_def| The binary operation $op:binary_op on $type:ident is defined recursively
+                    such that for all $xs:ident,* : $_type:ident , $items:prop_item*) => do
+      let eqs ← items.mapM of_prop_item
+      generate_def (← of_binary_op op) xs type eqs
+  | _ => Macro.throwError "unknown cases_def"
+
+def of_direct_def : TSyntax `direct_def → MacroM Command
+  | `(direct_def| $_:_for_all $args:ident,* : $type:ident , $p:prop .) => do
+      let eq ← of_prop p
+      let (op, _, _, _) ← parse_def_eq eq
+      generate_def op args type #[eq]
+  | _ => Macro.throwError "unknown direct_def"
 
 def of_definition : TSyntax `definition → MacroM Command
   | `(definition| $d:type_def) => of_type_def d
-  | `(definition| $e:binary_def) => of_binary_def e
+  | `(definition| $e:cases_def) => of_cases_def e
+  | `(definition| $d:direct_def) => of_direct_def d
   | _ => Macro.throwError "unknown definition"
 
 macro d:definition_stmt : command => match d with

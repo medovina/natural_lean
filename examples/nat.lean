@@ -110,13 +110,9 @@ Proof.  Let x : ℕ.  Let
 
 -- ordering: definition
 
-def ℕ.lt (x y: ℕ) := ∃z : ℕ, x + S z = y
+Definition.  For all x, y : ℕ, x < y iff there is some z : ℕ such that x + S(z) = y.
 
-@[method_specs]
-instance instLT_ℕ : LT ℕ where
-  lt := ℕ.lt
-
-attribute [grind =] instLT_ℕ.lt_spec
+-- ordering: theorems
 
 Theorem n4_1a.  For all x : ℕ, x ≮ x.
 

@@ -35,6 +35,8 @@ sdef _iff
 
 kdef _for = "for"
 
+syntax _for_all := _for "all"
+
 kdef _exists = "exist" | "exists" | "is"
 
 kdef _at_least = "at least"
@@ -58,8 +60,8 @@ sdef_extend prop
   |:25 prop:26 "implies" prop:25
   | "if" prop "then" prop
   |:20 prop:21 _iff prop:21
-  | _for "all" ident,+ ":" ident "," prop
-  | prop _for "all" ident,+ ":" ident
+  | _for_all ident,+ ":" ident "," prop
+  | prop _for_all ident,+ ":" ident
   | "there" _exists "some" ? ident,+ ":" ident "such" "that" prop
   | prop _for "some" ident,+ ":" ident
   | _either prop "," "or" prop
@@ -172,16 +174,20 @@ syntax type_def :=
 
 syntax prop_item := ident "." prop "."
 
-kdef binary_op = "+"
+kdef binary_op = "+" | "<"
 
-syntax binary_def :=
+syntax cases_def :=
   "The" "binary" "operation" binary_op "on" ident
   "is" "defined" "recursively" "such" "that" "for" "all" ident,+ ":" ident ","
   prop_item+
 
+syntax direct_def :=
+  _for_all ident,+ ":" ident "," prop "."
+
 sdef definition
   | type_def
-  | binary_def
+  | cases_def
+  | direct_def
 
 syntax definition_stmt := "Definition." definition
 
