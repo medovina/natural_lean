@@ -55,6 +55,10 @@ kdef _either = "either"
 
 syntax some_or_no := "some" <|> "no"
 
+kdef _is_have = "this is" | "we have"
+
+syntax have_contradiction := _is_have &"a" "contradiction"
+
 sdef_extend prop
   | rel_prop
   |:35 prop:36 "and" prop:35
@@ -68,6 +72,7 @@ sdef_extend prop
   | prop _for "some" ident,+ ":" ident
   | _either prop "," "or" prop
   | multi_or
+  | have_contradiction
 
 -- reason
 
@@ -95,13 +100,18 @@ kdef _have =
   "clearly" | "it follows that" |
   "we have shown that" | "we have" | "we know that" | "we must have"
 
+kdef _since = "since"
+
+syntax because_prop := _since prop
+
 kdef _by = "by"
 
 sdef which_is_contradiction
-  | atomic("," "again"? "contradicting") _thm ident
+  | atomic("," "again"? "contradicting") _thm ident because_prop ?
 
 sdef proof_prop
-  | (_by reason)? _have ? assert_prop ("by" reason)? which_is_contradiction ?
+  | because_prop ? (_by reason)? _have ? assert_prop
+    ("by" reason)? which_is_contradiction ?
 
 kdef _let = "let"
 
@@ -129,13 +139,10 @@ kdef _otherwise = "otherwise"
 
 kdef _any_case = "in all cases" | "in any case" | "in either case"
 
-kdef have_contradiction = "this is a contradiction"
-
 sdef assert_step
   | proof_if_prop
   | will_show prop
   | _so ? proof_prop
-  | have_contradiction
 
 sdef clause_intro
   | ("First" <|> _now) ","?

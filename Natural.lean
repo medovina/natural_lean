@@ -100,6 +100,8 @@ def syntax_atom (t: TSyntax α): String := match t.raw with
   | .node _ _ #[.node _ _ #[a]] => a.getAtomVal
   | _ => panic! "syntax_atom"
 
+def mk_false : Term := mkIdent ``False
+
 mutual
   partial def of_expr (expr: TSyntax `expr): MacroM Term := do
     let t ← match expr with
@@ -160,6 +162,7 @@ mutual
             `(∃ $[$x:ident]* : $t, $(← of_prop p))
       | `(prop| $_:_either $p:prop , or $q:prop) => do `($(← of_prop p) ∨ $(← of_prop q))
       | `(prop| $m:multi_or) => of_multi_or m
+      | `(prop| $_:have_contradiction) => pure mk_false
       | stx => Macro.throwError s!"unknown prop: {stx}"
     pure (set_info_from t prop)
 end
@@ -256,14 +259,20 @@ def of_assert_prop: TSyntax `assert_prop → MacroM (ETerm × List (Option Reaso
         pure (.eq_chain ((← of_expr e) :: e1 :: es), by1 :: bys)
   | _ => Macro.throwError "unknown assert_prop"
 
-def mk_false : Term := mkIdent ``False
-
 def assert_step (t: Term) (r: Option Reason): ProofStep :=
   .assert (.term t) [r]
 
-def of_which_is_contradiction: TSyntax `which_is_contradiction → MacroM ProofStep
-  | `(which_is_contradiction| , $[again]? contradicting $_:_thm $i:ident) => do
-        pure $ assert_step mk_false (.some (.apply [i.getId]))
+def of_because_prop : TSyntax `because_prop → MacroM ProofStep
+  | `(because_prop| $_:_since $p:prop) => do
+       pure $ .assert (.term (← of_prop p)) [none]
+  | _ => Macro.throwError "unknown because_prop"
+
+def of_which_is_contradiction: TSyntax `which_is_contradiction → MacroM (List ProofStep)
+  | `(which_is_contradiction|
+          , $[again]? contradicting $_:_thm $i:ident $b:because_prop ?) => do
+        let because ← b.toList.mapM of_because_prop
+        let s := assert_step mk_false (.some (.apply [i.getId]))
+        pure (because ++ [s])
   | _ => Macro.throwError "unknown which_is_contradiction"
 
 def mk_step (t: Term) (r: Option Reason): ProofStep := match t with
@@ -272,13 +281,15 @@ def mk_step (t: Term) (r: Option Reason): ProofStep := match t with
   | _ => assert_step t r
 
 def of_proof_prop: TSyntax `proof_prop → MacroM (List ProofStep)
-  | `(proof_prop| $[$_:_by $r:reason]? $[$_:_have]? $p:assert_prop
+  | `(proof_prop| $b:because_prop ? $[$_:_by $r:reason]? $[$_:_have]? $p:assert_prop
           $[by $r2:reason]? $w:which_is_contradiction ?) => do
+        let because ← b.toList.mapM of_because_prop
         let (e, rs) ← of_assert_prop p
-        let s := match e with
+        let s ← match e with
           | .term t => do pure $ mk_step t ((← r.bindM of_reason) <|> (← r2.bindM of_reason))
           | .eq_chain _ => pure (.assert e rs)
-        List.cons <$> s <*> w.toList.mapM of_which_is_contradiction
+        let contra ← w.toList.flatMapM of_which_is_contradiction
+        pure (because ++ [s] ++ contra)
   | _ => Macro.throwError "unknown proof_prop"
 
 def of_let_or_assume: TSyntax `let_or_assume → MacroM ProofStep
@@ -298,8 +309,6 @@ def of_assert_step: TSyntax `assert_step → MacroM (List ProofStep)
   | `(assert_step| $p:proof_if_prop) => .singleton <$> of_proof_if_prop p
   | `(assert_step| $_:will_show $_p:prop) => pure []
   | `(assert_step| $_:_so ? $p:proof_prop) => of_proof_prop p
-  | `(assert_step| $_:have_contradiction) => do
-        pure $ [assert_step mk_false none]
   | _ => Macro.throwError "unknown assert_step"
 
 def of_proof_sentence1: TSyntax `proof_sentence1 → MacroM (List ProofStep)

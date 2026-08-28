@@ -145,3 +145,5 @@ Theorem n4_2a.  For all x : ℕ, x < S(x).
 Proof.  Let x : ℕ.   x + S(0) = S(x).  Therefore x < S(x).
 
 Theorem n4_2b.  For all x : ℕ, there is no y : ℕ such that x < y < S(x).
+
+Proof.  Let x : ℕ, and assume there is some y : ℕ such that x < y < S(x).  Since x < y there is some z : ℕ such that x + S(z) = y.  By :n1_1 either z = 0, or z = S(u) for some u : ℕ.  Suppose that z = 0 .  Then S(x) = x + S(0) = x + S(z) = y, contradicting :n4_1c since y < S(x).  Otherwise z = S(u) for some u : ℕ.  Then S(x) + S(u) = x + S(S(u)) by :n3_3b = x + S(z) = y.  Thus S(x) < y, contradicting :n4_1c since y < S(x).  In either case we have a contradiction.
