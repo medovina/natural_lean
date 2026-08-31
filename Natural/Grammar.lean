@@ -180,6 +180,10 @@ sdef proof
   | case_unit+
   | "By" reason "."
 
+syntax proof_item := ident "." proof
+
+syntax proof_items := proof_item+
+
 -- statements
 
 syntax constructor := const ":" type
@@ -207,5 +211,9 @@ sdef definition
 
 syntax definition_stmt := "Definition." definition
 
+sdef props_proofs
+  | prop "." ("Proof." proof)?
+  | prop_item+ ("Proof." proof_items)?
+
 sdef _theorem
-  | _thm ident str ? "." prop "." ("Proof." proof)?
+  | _thm ident str ? "." props_proofs

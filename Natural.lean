@@ -536,6 +536,14 @@ def of_proof: TSyntax `proof → MacroM Term
   | `(proof| By $r:reason .) => tactic =<< of_reason r
   | _ => Macro.throwError "unknown proof"
 
+def of_proof_item: TSyntax `proof_item → MacroM (Name × Term)
+  | `(proof_item| $i:ident . $p:proof) => do pure (i.getId, ← of_proof p)
+  | _ => Macro.throwError "unknown proof_item"
+
+def of_proof_items: TSyntax `proof_items → MacroM (List (Name × Term))
+  | `(proof_items| $ps:proof_item*) => ps.toList.mapM of_proof_item
+  | _ => Macro.throwError "unknown proof_items"
+
 -- statements
 
 def of_constructor: TSyntax `constructor → MacroM (Term × Term)
@@ -568,8 +576,8 @@ def of_type_def : TSyntax `type_def → MacroM Command
       pure $ .mk (mkNullNode commands)
   | _ => Macro.throwError "unknown definition"
 
-def of_prop_item : TSyntax `prop_item → MacroM Term
-  | `(prop_item| $_:ident . $p:prop .) => of_prop p
+def of_prop_item : TSyntax `prop_item → MacroM (Name × Term)
+  | `(prop_item| $i:ident . $p:prop .) => do pure (i.getId, ← of_prop p)
   | _ => Macro.throwError "unknown prop_item"
 
 def of_binary_op : TSyntax `binary_op → MacroM String
@@ -626,7 +634,7 @@ def generate_def (op: String) (_args: Array Ident) (type: Ident) (eqs: Array Ter
 def of_cases_def : TSyntax `cases_def → MacroM Command
   | `(cases_def| The binary operation $op:binary_op on $type:ident is defined recursively
                     such that for all $xs:ident,* : $_type:ident , $items:prop_item*) => do
-      let eqs ← items.mapM of_prop_item
+      let eqs ← Array.map (·.2) <$> items.mapM of_prop_item
       generate_def (← of_binary_op op) xs type eqs
   | _ => Macro.throwError "unknown cases_def"
 
@@ -647,9 +655,32 @@ macro d:definition_stmt : command => match d with
   | `(definition_stmt| Definition. $d) => of_definition d
   | _ => Macro.throwError "unknown definition_stmt"
 
+def match_proofs : List (Name × Term) → List (Name × Term) →
+      MacroM (List (Option Name × Term × Option Term))
+  | [], [] => pure []
+  | (i, thm) :: ts, (j, proof) :: ps =>
+      if i == j then .cons (.some i, thm, .some proof) <$> match_proofs ts ps
+      else .cons (.some i, thm, .none) <$> match_proofs ts ((j, proof) :: ps)
+  | (i, thm) :: ts, [] => .cons (.some i, thm, .none) <$> match_proofs ts []
+  | [], (j, _) :: _ => Macro.throwError s!"unmatched proof label: {j}"
+
+def of_props_proofs : TSyntax `props_proofs → MacroM (List (Option Name × Term × Option Term))
+  | `(props_proofs| $p:prop . $[ Proof. $proof:proof ]?) => do
+      pure [ (none, ← of_prop p, ← proof.mapM of_proof) ]
+  | `(props_proofs| $ps:prop_item* $[ Proof. $pis:proof_items ]?) => do
+      let ps ← ps.toList.mapM of_prop_item
+      let pis := (← pis.mapM of_proof_items).getD []
+      match_proofs ps pis
+  | _ => Macro.throwError "unknown prop_or_items"
+
 macro t:_theorem : command => do
   match t with
-    | `(_theorem| $_:_thm $id:ident $[ $_:str ]? . $p:prop . $[ Proof. $proof:proof ]?) =>
-        let pr ← (proof.map of_proof).getD `(by default)
-        `(theorem $id : $(← of_prop p) := $pr)
+    | `(_theorem| $_:_thm $id:ident $[ $_:str ]? . $ps:props_proofs) => do
+        let id := id.getId
+        let thms_proofs ← of_props_proofs ps
+        let commands ← thms_proofs.toArray.mapM (fun (i, thm, proof) => do
+          let proof := proof.getD (← `(by default))
+          let name := i.elim id (id ++ ·)
+          `(theorem $(mkIdent name) : $thm := $proof))
+        pure $ .mk (mkNullNode commands)
     | _ => Macro.throwError "unknown theorem"
