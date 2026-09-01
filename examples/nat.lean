@@ -6,7 +6,7 @@ Definition.  The type ℕ is defined inductively with constructors 0 : ℕ and S
 
 -- theorems about successor function
 
-Theorem n1_1.  For all x : ℕ, x = 0 or there exists some y : ℕ such that x = S(y).
+Theorem.  For all x : ℕ, x = 0 or there exists some y : ℕ such that x = S(y).  [n1_1]
 
 Proof.  By induction.
 

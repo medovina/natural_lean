@@ -196,7 +196,9 @@ syntax type_def :=
   "The" &"type" ident "is" "defined" "inductively"
   "with" "constructors" sepBy1(constructor, "and") "."
 
-syntax prop_item := ident "." prop "."
+syntax top_sentence := prop "." ("[" ident "]")?
+
+syntax prop_item := ident "." top_sentence
 
 kdef binary_op = "+" | "<"
 
@@ -216,8 +218,8 @@ sdef definition
 syntax definition_stmt := "Definition." definition
 
 sdef props_proofs
-  | prop "." ("Proof." proof)?
+  | top_sentence ("Proof." proof)?
   | prop_item+ ("Proof." proof_items)?
 
 sdef _theorem
-  | _thm ident str ? "." (let_step ".")? props_proofs
+  | _thm ident ? str ? "." (let_step ".")? props_proofs
