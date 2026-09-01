@@ -122,8 +122,10 @@ kdef _assume1 = "assume" | "suppose"
 sdef _assume
   | _also ? _assume1 "that"?
 
+syntax let_step := _let ident,+ ":" ident
+
 sdef let_or_assume
-  | _let ident,+ ":" ident
+  | let_step
   | _let ident "=" expr
   | _assume prop
 
@@ -216,4 +218,4 @@ sdef props_proofs
   | prop_item+ ("Proof." proof_items)?
 
 sdef _theorem
-  | _thm ident str ? "." props_proofs
+  | _thm ident str ? "." (let_step ".")? props_proofs

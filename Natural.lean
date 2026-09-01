@@ -294,9 +294,15 @@ def of_proof_prop: TSyntax `proof_prop → MacroM (List ProofStep)
         pure (because ++ [s] ++ contra)
   | _ => Macro.throwError "unknown proof_prop"
 
+def of_let_step: TSyntax `let_step → MacroM (List Name × Name)
+  | `(let_step| $_:_let $ids:ident,* : $type) =>
+        pure (ids.getElems.toList.map TSyntax.getId, type.getId)
+  | _ => Macro.throwError "unknown let_step"
+
 def of_let_or_assume: TSyntax `let_or_assume → MacroM ProofStep
-  | `(let_or_assume| $_:_let $ids:ident,* : $type) =>
-        pure $ .let (ids.getElems.toList.map TSyntax.getId) type.getId
+  | `(let_or_assume| $ls:let_step) => do
+        let (ids, type) ← of_let_step ls
+        pure $ .let ids type
   | `(let_or_assume| $_:_let $id = $e) =>
         do pure $ .let_def id.getId (← of_expr e)
   | `(let_or_assume| $_:_assume $p:prop) => do pure $ .assume (← of_prop p)
@@ -664,20 +670,29 @@ def match_proofs : List (Name × Term) → List (Name × Term) →
   | (i, thm) :: ts, [] => .cons (.some i, thm, .none) <$> match_proofs ts []
   | [], (j, _) :: _ => Macro.throwError s!"unmatched proof label: {j}"
 
-def of_props_proofs : TSyntax `props_proofs → MacroM (List (Option Name × Term × Option Term))
+def generalize (lets: Option (List Name × Name)) (t: Term) : MacroM Term := match lets with
+  | .none => pure t
+  | .some (ids, type) =>
+      let ids := (ids.inter (free_vars t)).toArray.map mkIdent
+      if ids == #[] then pure t else `(∀ $ids:ident* : $(mkIdent type), $t)
+
+def of_props_proofs (lets: Option (List Name × Name)) : TSyntax `props_proofs →
+        MacroM (List (Option Name × Term × Option Term))
   | `(props_proofs| $p:prop . $[ Proof. $proof:proof ]?) => do
-      pure [ (none, ← of_prop p, ← proof.mapM of_proof) ]
+      pure [ (none, ← (of_prop p >>= generalize lets), ← proof.mapM of_proof) ]
   | `(props_proofs| $ps:prop_item* $[ Proof. $pis:proof_items ]?) => do
-      let ps ← ps.toList.mapM of_prop_item
-      let pis := (← pis.mapM of_proof_items).getD []
-      match_proofs ps pis
+      let thms ← ps.toList.mapM of_prop_item
+      let thms ← thms.mapM (mapM_snd (generalize lets))
+      let proofs := (← pis.mapM of_proof_items).getD []
+      match_proofs thms proofs
   | _ => Macro.throwError "unknown prop_or_items"
 
 macro t:_theorem : command => do
   match t with
-    | `(_theorem| $_:_thm $id:ident $[ $_:str ]? . $ps:props_proofs) => do
+    | `(_theorem| $_:_thm $id:ident $_:str ? .
+            $[$ls:let_step .]? $ps:props_proofs) => do
         let id := id.getId
-        let thms_proofs ← of_props_proofs ps
+        let thms_proofs ← of_props_proofs (← ls.mapM of_let_step) ps
         let commands ← thms_proofs.toArray.mapM (fun (i, thm, proof) => do
           let proof := proof.getD (← `(by default))
           let name := i.elim id (id ++ ·)

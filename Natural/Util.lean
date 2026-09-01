@@ -6,6 +6,17 @@ open Elab Tactic Meta
 open Elab.Command
 open Lean.Syntax (mkStrLit)
 
+-- pairs
+
+def map_fst (f : α → γ) (pair : Prod α β) := pair.map f id
+def map_snd (f : β → γ) (pair : Prod α β) := pair.map id f
+
+def mapM_fst [Monad m] (f : α → m γ) : Prod α β → m (Prod γ β)
+  | (x, y) => do pure (← f x, y)
+
+def mapM_snd [Monad m] (f : β → m γ) : Prod α β → m (Prod α γ)
+  | (x, y) => do pure (x, ← f y)
+
 -- lists
 
 def overlap [BEq α] (xs: List α) (ys: List α): Bool := xs.inter ys != []

@@ -40,10 +40,10 @@ Proof. Let x, y : ℕ.  Let
 
   Thus S(z) ∈ A.  We have shown that z ∈ A implies S(z) ∈ A.  Hence by induction z ∈ A for all z: ℕ.
 
-Lemma n3_3.
+Lemma n3_3.  Let x, y : ℕ.
 
-  a. For all x : ℕ, 0 + x = x.
-  b. For all x, y : ℕ, S(x) + y = S(x + y).
+  a. 0 + x = x.
+  b. S(x) + y = S(x + y).
 
 Proof.
 
