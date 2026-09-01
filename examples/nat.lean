@@ -115,9 +115,9 @@ Theorem n4_1.  Let x, y, z : ℕ.
 
 Proof.
 
-  a. Let x : ℕ, and suppose that x < x.  Then there is some z : ℕ such that x + S(z) = x.  But x + S(z) ≠ x by :n3_6 and :n3_4.  This is a contradiction.
+  a. Suppose that x < x.  Then there is some z : ℕ such that x + S(z) = x.  But x + S(z) ≠ x by :n3_6 and :n3_4.  This is a contradiction.
 
-  b. Let x, y, z : ℕ.  Suppose that x < y and y < z.  Then there exist some u, v : ℕ such that x + S(u) = y and y + S(v) = z.  Then
+  b. Suppose that x < y and y < z.  Then there exist some u, v : ℕ such that x + S(u) = y and y + S(v) = z.  Then
 
     z = (x + S(u)) + S(v)
       = x + (S(u) + S(v)) by :n3_2
@@ -153,9 +153,9 @@ Theorem n4_2.  Let x : ℕ.
 
 Proof.
 
-  a. Let x : ℕ.   x + S(0) = S(x).  Therefore x < S(x).
+  a. x + S(0) = S(x).  Therefore x < S(x).
 
-  b. Let x : ℕ, and assume there is some y : ℕ such that x < y < S(x).  Since x < y there is some z : ℕ such that x + S(z) = y.  By :n1_1 either z = 0, or z = S(u) for some u : ℕ.  Suppose that z = 0 .  Then S(x) = x + S(0) = x + S(z) = y, contradicting :n4_1c since y < S(x).  Otherwise z = S(u) for some u : ℕ.  Then S(x) + S(u) = x + S(S(u)) by :n3_3.b = x + S(z) = y.  Thus S(x) < y, contradicting :n4_1c since y < S(x).  In either case we have a contradiction.
+  b. Assume there is some y : ℕ such that x < y < S(x).  Since x < y there is some z : ℕ such that x + S(z) = y.  By :n1_1 either z = 0, or z = S(u) for some u : ℕ.  Suppose that z = 0 .  Then S(x) = x + S(0) = x + S(z) = y, contradicting :n4_1c since y < S(x).  Otherwise z = S(u) for some u : ℕ.  Then S(x) + S(u) = x + S(S(u)) by :n3_3.b = x + S(z) = y.  Thus S(x) < y, contradicting :n4_1c since y < S(x).  In either case we have a contradiction.
 
 Definition.  For all x, y : ℕ, x ≤ y iff x < y or x = y.
 
@@ -173,6 +173,6 @@ Theorem n4_3.  Let x, y, z : ℕ.
 
 Proof.
 
-  b. Let x, y, z : ℕ.  Suppose that x < y ≤ z.  We know that y = z or y < z.  If y = z, then x < z.  If y < z, then x < z by :n4_1.b.
+  b. Suppose that x < y ≤ z.  We know that y = z or y < z.  If y = z, then x < z.  If y < z, then x < z by :n4_1.b.
 
-  c. Let x, y, z : ℕ.  Suppose that x ≤ y and y < z.  We know that x = y or x < y.  If x = y, then y < z.  If x < y, then x < z by :n4_1.b.
+  c. Suppose that x ≤ y and y < z.  We know that x = y or x < y.  If x = y, then y < z.  If x < y, then x < z by :n4_1.b.

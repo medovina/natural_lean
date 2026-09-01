@@ -294,15 +294,13 @@ def of_proof_prop: TSyntax `proof_prop → MacroM (List ProofStep)
         pure (because ++ [s] ++ contra)
   | _ => Macro.throwError "unknown proof_prop"
 
-def of_let_step: TSyntax `let_step → MacroM (List Name × Name)
+def of_let_step: TSyntax `let_step → MacroM ProofStep
   | `(let_step| $_:_let $ids:ident,* : $type) =>
-        pure (ids.getElems.toList.map TSyntax.getId, type.getId)
+        pure $ .let (ids.getElems.toList.map TSyntax.getId) type.getId
   | _ => Macro.throwError "unknown let_step"
 
 def of_let_or_assume: TSyntax `let_or_assume → MacroM ProofStep
-  | `(let_or_assume| $ls:let_step) => do
-        let (ids, type) ← of_let_step ls
-        pure $ .let ids type
+  | `(let_or_assume| $ls:let_step) => of_let_step ls
   | `(let_or_assume| $_:_let $id = $e) =>
         do pure $ .let_def id.getId (← of_expr e)
   | `(let_or_assume| $_:_assume $p:prop) => do pure $ .assume (← of_prop p)
@@ -533,20 +531,36 @@ partial def translate (top: Bool) (parent_ex: List Name) (prev: Term) (concl: Op
       let t ← f r
       pure (t, rest_concl)
 
-def of_proof: TSyntax `proof → MacroM Term
-  | `(proof| $steps:case_unit*) => do
-      let steps := List.flatten (← steps.toList.mapM of_case_unit)
+inductive Proof where
+  | steps (l: List ProofStep)
+  | proof_by (r: Option Reason)
+
+def translate_proof (lets: Option ProofStep) (thm: Term): Proof → MacroM Term
+  | .steps steps => do
+      let steps ← match lets with
+        | .none => pure steps
+        | .some (.let ids type) => match steps with
+          | .let .. :: _ => pure steps
+          | _ =>
+            let vars := ids.inter (free_vars thm)
+            pure $ .let vars type :: steps
+        | _ => Macro.throwError "of_proof: unexpected step"
       let blocks := infer_blocks steps
       -- dbg_trace (show_blocks blocks)
       Prod.fst <$> translate True [] (← `(())) none blocks
-  | `(proof| By $r:reason .) => tactic =<< of_reason r
+  | .proof_by r => tactic r
+
+def of_proof: TSyntax `proof → MacroM Proof
+  | `(proof| $steps:case_unit*) => do
+        pure $ .steps $ List.flatten (← steps.toList.mapM of_case_unit)
+  | `(proof| By $r:reason .) => do pure $ .proof_by (← of_reason r)
   | _ => Macro.throwError "unknown proof"
 
-def of_proof_item: TSyntax `proof_item → MacroM (Name × Term)
-  | `(proof_item| $i:ident . $p:proof) => do pure (i.getId, ← of_proof p)
+def of_proof_item: TSyntax `proof_item → MacroM (Name × Proof)
+  | `(proof_item| $i:ident . $p:proof) => do pure (i.getId, (← of_proof p))
   | _ => Macro.throwError "unknown proof_item"
 
-def of_proof_items: TSyntax `proof_items → MacroM (List (Name × Term))
+def of_proof_items: TSyntax `proof_items → MacroM (List (Name × Proof))
   | `(proof_items| $ps:proof_item*) => ps.toList.mapM of_proof_item
   | _ => Macro.throwError "unknown proof_items"
 
@@ -661,8 +675,8 @@ macro d:definition_stmt : command => match d with
   | `(definition_stmt| Definition. $d) => of_definition d
   | _ => Macro.throwError "unknown definition_stmt"
 
-def match_proofs : List (Name × Term) → List (Name × Term) →
-      MacroM (List (Option Name × Term × Option Term))
+def match_proofs : List (Name × Term) → List (Name × Proof) →
+      MacroM (List (Option Name × Term × Option Proof))
   | [], [] => pure []
   | (i, thm) :: ts, (j, proof) :: ps =>
       if i == j then .cons (.some i, thm, .some proof) <$> match_proofs ts ps
@@ -670,21 +684,25 @@ def match_proofs : List (Name × Term) → List (Name × Term) →
   | (i, thm) :: ts, [] => .cons (.some i, thm, .none) <$> match_proofs ts []
   | [], (j, _) :: _ => Macro.throwError s!"unmatched proof label: {j}"
 
-def generalize (lets: Option (List Name × Name)) (t: Term) : MacroM Term := match lets with
+def generalize (lets: Option ProofStep) (t: Term) : MacroM Term := match lets with
   | .none => pure t
-  | .some (ids, type) =>
+  | .some (.let ids type) =>
       let ids := (ids.inter (free_vars t)).toArray.map mkIdent
       if ids == #[] then pure t else `(∀ $ids:ident* : $(mkIdent type), $t)
+  | _ => Macro.throwError "generalize: unexpected step"
 
-def of_props_proofs (lets: Option (List Name × Name)) : TSyntax `props_proofs →
+def of_props_proofs (lets: Option ProofStep) : TSyntax `props_proofs →
         MacroM (List (Option Name × Term × Option Term))
   | `(props_proofs| $p:prop . $[ Proof. $proof:proof ]?) => do
-      pure [ (none, ← (of_prop p >>= generalize lets), ← proof.mapM of_proof) ]
+      let thm ← of_prop p
+      let proof ← proof.mapM of_proof
+      pure [ (none, ← (generalize lets thm), ← proof.mapM (translate_proof lets thm)) ]
   | `(props_proofs| $ps:prop_item* $[ Proof. $pis:proof_items ]?) => do
-      let thms ← ps.toList.mapM of_prop_item
-      let thms ← thms.mapM (mapM_snd (generalize lets))
-      let proofs := (← pis.mapM of_proof_items).getD []
-      match_proofs thms proofs
+      let ids_thms ← ps.toList.mapM of_prop_item
+      let ids_proofs := (← pis.mapM of_proof_items).getD []
+      let thms_proofs ← match_proofs ids_thms ids_proofs
+      thms_proofs.mapM (fun (id, thm, proof) => do
+        pure (id, ← generalize lets thm, ← proof.mapM (translate_proof lets thm)))
   | _ => Macro.throwError "unknown prop_or_items"
 
 macro t:_theorem : command => do
