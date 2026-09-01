@@ -151,12 +151,12 @@ mutual
       | `(prop| $p:prop and $q:prop) => do `($(← of_prop p) ∧ $(← of_prop q))
       | `(prop| $p:prop or $q:prop) => do `($(← of_prop p) ∨ $(← of_prop q))
       | `(prop| $p:prop implies $q:prop)
-      | `(prop| if $p:prop then $q:prop) => do `($(← of_prop p) → $(← of_prop q))
+      | `(prop| $_:_if $p:prop then $q:prop) => do `($(← of_prop p) → $(← of_prop q))
       | `(prop| $p:prop $_:_iff $q:prop) => do `($(← of_prop p) ↔ $(← of_prop q))
       | `(prop| $_:_for_all $x:ident,* : $t:ident, $p:prop)
       | `(prop| $p:prop $_:_for_all $x:ident,* : $t:ident) => do
             `(∀ $x* : $t, $(← of_prop p))
-      | `(prop| there $_:_exists $s:some_or_no ? $x:ident,* : $t:ident such that $p:prop) => do
+      | `(prop| $_:_there $_:_exists $s:some_or_no ? $x:ident,* : $t:ident such that $p:prop) => do
             let b ← s.elim (pure true) of_some_or_no
             let t ← `(∃ $[$x:ident]* : $t, $(← of_prop p))
             if b then pure t else `(¬ $t)

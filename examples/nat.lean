@@ -108,13 +108,16 @@ Definition.  For all x, y : ℕ, x < y iff there is some z : ℕ such that x + S
 
 -- ordering: theorems
 
-Theorem n4_1a.  For all x : ℕ, x ≮ x.
+Theorem n4_1.  Let x, y, z : ℕ.
 
-Proof.  Let x : ℕ, and suppose that x < x.  Then there is some z : ℕ such that x + S(z) = x.  But x + S(z) ≠ x by :n3_6 and :n3_4.  This is a contradiction.
+  a. x ≮ x.
+  b. x < y and y < z implies x < z.
 
-Theorem n4_1b.  For all x, y, z: ℕ, x < y and y < z implies x < z.
+Proof.
 
-Proof.  Let x, y, z : ℕ.  Suppose that x < y and y < z.  Then there exist some u, v : ℕ such that x + S(u) = y and y + S(v) = z.  Then
+  a. Let x : ℕ, and suppose that x < x.  Then there is some z : ℕ such that x + S(z) = x.  But x + S(z) ≠ x by :n3_6 and :n3_4.  This is a contradiction.
+
+  b. Let x, y, z : ℕ.  Suppose that x < y and y < z.  Then there exist some u, v : ℕ such that x + S(u) = y and y + S(v) = z.  Then
 
     z = (x + S(u)) + S(v)
       = x + (S(u) + S(v)) by :n3_2
@@ -124,7 +127,7 @@ Then x < z by :ℕ.lt.
 
 Theorem n4_1c.  For all x, y : ℕ, exactly one of x < y, x = y, y < x is true.
 
-Proof.  Let x, y : ℕ.  If x < y and x = y then x < x, contradicting :n4_1a.  If x = y and y < x then x < x, again contradicting :n4_1a.  If x < y and y < x then by :n4_1b x < x, contradicting :n4_1a.  So at most one of x < y, x = y, y < x is true.
+Proof.  Let x, y : ℕ.  If x < y and x = y then x < x, contradicting :n4_1.a.  If x = y and y < x then x < x, again contradicting :n4_1.a.  If x < y and y < x then by :n4_1.b x < x, contradicting :n4_1.a.  So at most one of x < y, x = y, y < x is true.
 
 Let x, y : ℕ.  Let A = { x : ℕ | x < y or x = y or y < x }.  First, by :n1_1 we have either y = 0, or y = S(u) for some u : ℕ.  Hence by :n3_3.a either y = 0, or 0 + S(u) = y for some u : ℕ.  So y = 0 or 0 < y.  Thus 0 ∈ A.
 
@@ -143,13 +146,16 @@ Case 3: y < v.  Then v = y + S(u) for some u : ℕ.  Hence S(v) = S(y + S(u)) = 
 
 In all cases S(v) < y or S(v) = y or y < S(v).  Hence S(v) ∈ A.  We have shown that for all v : ℕ, v ∈ A implies S(v) ∈ A.  By induction x ∈ A for all x : ℕ.  So at least one of x < y, x = y, y < x is true.
 
-Theorem n4_2a.  For all x : ℕ, x < S(x).
+Theorem n4_2.  Let x : ℕ.
 
-Proof.  Let x : ℕ.   x + S(0) = S(x).  Therefore x < S(x).
+  a. x < S(x).
+  b. There is no y : ℕ such that x < y < S(x).
 
-Theorem n4_2b.  For all x : ℕ, there is no y : ℕ such that x < y < S(x).
+Proof.
 
-Proof.  Let x : ℕ, and assume there is some y : ℕ such that x < y < S(x).  Since x < y there is some z : ℕ such that x + S(z) = y.  By :n1_1 either z = 0, or z = S(u) for some u : ℕ.  Suppose that z = 0 .  Then S(x) = x + S(0) = x + S(z) = y, contradicting :n4_1c since y < S(x).  Otherwise z = S(u) for some u : ℕ.  Then S(x) + S(u) = x + S(S(u)) by :n3_3.b = x + S(z) = y.  Thus S(x) < y, contradicting :n4_1c since y < S(x).  In either case we have a contradiction.
+  a. Let x : ℕ.   x + S(0) = S(x).  Therefore x < S(x).
+
+  b. Let x : ℕ, and assume there is some y : ℕ such that x < y < S(x).  Since x < y there is some z : ℕ such that x + S(z) = y.  By :n1_1 either z = 0, or z = S(u) for some u : ℕ.  Suppose that z = 0 .  Then S(x) = x + S(0) = x + S(z) = y, contradicting :n4_1c since y < S(x).  Otherwise z = S(u) for some u : ℕ.  Then S(x) + S(u) = x + S(S(u)) by :n3_3.b = x + S(z) = y.  Thus S(x) < y, contradicting :n4_1c since y < S(x).  In either case we have a contradiction.
 
 Definition.  For all x, y : ℕ, x ≤ y iff x < y or x = y.
 
@@ -159,12 +165,14 @@ Proof.  Let x, y : ℕ.  Suppose that x ≤ y.  If x < y then there is some w : 
 
 Let x, y : ℕ.  Suppose that there is some z : ℕ such that x + z = y.  If z = 0 then x = y, so x ≤ y.  Otherwise z ≠ 0 .  Then by :n1_1 there is some w : ℕ such that z = S(w).  Then x + S(w) = y, so x < y, so x ≤ y.  In either case x ≤ y.
 
-Theorem n4_3a.  For all x : ℕ, x ≤ x.
+Theorem n4_3.  Let x, y, z : ℕ.
 
-Theorem n4_3b.  For all x, y, z : ℕ, if x < y and y ≤ z then x < z.
+  a. x ≤ x.
+  b. If x < y and y ≤ z then x < z.
+  c. If x ≤ y and y < z then x < z.
 
-Proof.  Let x, y, z : ℕ.  Suppose that x < y ≤ z.  We know that y = z or y < z.  If y = z, then x < z.  If y < z, then x < z by :n4_1b.
+Proof.
 
-Theorem n4_3c.  For all x, y, z : ℕ, if x ≤ y and y < z then x < z.
+  b. Let x, y, z : ℕ.  Suppose that x < y ≤ z.  We know that y = z or y < z.  If y = z, then x < z.  If y < z, then x < z by :n4_1.b.
 
-Proof.  Let x, y, z : ℕ.  Suppose that x ≤ y and y < z.  We know that x = y or x < y.  If x = y, then y < z.  If x < y, then x < z by :n4_1b.
+  c. Let x, y, z : ℕ.  Suppose that x ≤ y and y < z.  We know that x = y or x < y.  If x = y, then y < z.  If x < y, then x < z by :n4_1.b.

@@ -37,6 +37,8 @@ kdef _for = "for"
 
 syntax _for_all := _for "all"
 
+kdef _there = "there"
+
 kdef _exists = "exist" | "exists" | "is"
 
 kdef _at_least = "at least"
@@ -60,15 +62,15 @@ kdef _is_have = "this is" | "we have"
 syntax have_contradiction := _is_have &"a" "contradiction"
 
 sdef_extend prop
-  | rel_prop
+  | atomic(rel_prop)
   |:35 prop:36 "and" prop:35
   |:30 prop:31 "or" prop:30
   |:25 prop:26 "implies" prop:25
-  | "if" prop "then" prop
+  | _if prop "then" prop
   |:20 prop:21 _iff prop:21
   | _for_all ident,+ ":" ident "," prop
   | prop _for_all ident,+ ":" ident
-  | "there" _exists some_or_no ? ident,+ ":" ident "such" "that" prop
+  | _there _exists some_or_no ? ident,+ ":" ident "such" "that" prop
   | prop _for "some" ident,+ ":" ident
   | _either prop "," "or" prop
   | multi_or
@@ -139,10 +141,10 @@ kdef _otherwise = "otherwise"
 
 kdef _any_case = "in all cases" | "in any case" | "in either case"
 
-sdef assert_step
-  | proof_if_prop
-  | will_show prop
-  | _so ? proof_prop
+declare_syntax_cat assert_step
+syntax (priority := 1) _so ? proof_prop : assert_step
+syntax (priority := 2) proof_if_prop : assert_step
+syntax will_show prop : assert_step
 
 sdef clause_intro
   | ("First" <|> "Now" <|> "Second") ","?
