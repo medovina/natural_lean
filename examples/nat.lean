@@ -6,11 +6,11 @@ Definition.  The type ℕ is defined inductively with constructors 0 : ℕ and S
 
 -- theorems about successor function
 
-Theorem.  For all x : ℕ, x = 0 or there exists some y : ℕ such that x = S(y).  [n1_1]
+Theorem.  For all x : ℕ, x = 0 or there exists some y : ℕ such that x = S(y).  [ℕ.is_zero_or_succ]
 
 Proof.  By induction.
 
-Theorem n1_2.  For all x : ℕ, S(x) ≠ x.
+Theorem.  For all x : ℕ, S(x) ≠ x.  [ℕ.succ_ne_self]
 
 Proof.  By induction.
 
@@ -23,9 +23,9 @@ Definition.  The binary operation + on ℕ is defined recursively such that for 
 
 -- addition: theorems
 
-Theorem n3_2 "Associativity of Addition".  For all x, y, z: ℕ,
+Theorem "Associativity of Addition".  For all x, y, z: ℕ,
 
-  x + (y + z) = (x + y) + z.
+  x + (y + z) = (x + y) + z.  [ℕ.add_assoc]
 
 Proof. Let x, y : ℕ.  Let
 
@@ -40,10 +40,10 @@ Proof. Let x, y : ℕ.  Let
 
   Thus S(z) ∈ A.  We have shown that z ∈ A implies S(z) ∈ A.  Hence by induction z ∈ A for all z: ℕ.
 
-Lemma n3_3.  Let x, y : ℕ.
+Lemma.  Let x, y : ℕ.
 
-  a. 0 + x = x.
-  b. S(x) + y = S(x + y).
+  a. 0 + x = x.   [ℕ.zero_add]
+  b. S(x) + y = S(x + y).   [ℕ.succ_add]
 
 Proof.
 
@@ -61,9 +61,9 @@ Proof.
 
   So S(y) ∈ B.  Hence by induction y ∈ B for all y: ℕ.
 
-Theorem n3_4 "Commutativity of Addition".  For all x, y : ℕ,
+Theorem "Commutativity of Addition".  For all x, y : ℕ,
 
-  x + y = y + x.
+  x + y = y + x.  [ℕ.add_comm]
 
 Proof.  Let y : ℕ.  Let
 
@@ -71,20 +71,20 @@ Proof.  Let y : ℕ.  Let
 
   We know that
 
-    0 + y = y      by :n3_3.a
+    0 + y = y      by :ℕ.zero_add
           = y + 0 .
 
   So 0 ∈ C.  Now let x : ℕ, and suppose that x ∈ C.  Then
 
-    S(x) + y = S(x + y) by Lemma n3_3.b
+    S(x) + y = S(x + y) by :ℕ.succ_add
              = S(y + x)
              = y + S(x).
 
   So S(x) ∈ C.  Hence by induction x ∈ C for all x : ℕ.
 
-Theorem n3_5 "Cancellation Law for Addition".  For all x, y, z: ℕ,
+Theorem "Cancellation Law for Addition".  For all x, y, z: ℕ,
 
-  x + z = y + z implies x = y.
+  x + z = y + z implies x = y.  [ℕ.add_right_cancel]
 
 Proof.  Let x, y : ℕ.  Let
 
@@ -94,7 +94,7 @@ Proof.  Let x, y : ℕ.  Let
 
   Second, let z : ℕ and assume z ∈ A.  Then x + z = y + z implies x = y.  Now assume x + S(z) = y + S(z).  Then S(x + z) = S(y + z).  Therefore x + z = y + z.  Hence by the inductive hypothesis x = y.  Thus we have shown that x + S(z) = y + S(z) implies x = y, so S(z) ∈ A.  Therefore z ∈ A implies S(z) ∈ A.  By induction z ∈ A for all z : ℕ.
 
-Theorem n3_6.  For all x, y : ℕ, y ≠ S(x) + y.
+Theorem.  For all x, y : ℕ, y ≠ S(x) + y.  [ℕ.not_succ_add]
 
 Proof.  Let x : ℕ.  Let
 
@@ -108,34 +108,34 @@ Definition.  For all x, y : ℕ, x < y iff there is some z : ℕ such that x + S
 
 -- ordering: theorems
 
-Theorem n4_1.  Let x, y, z : ℕ.
+Theorem.  Let x, y, z : ℕ.
 
-  a. x ≮ x.
-  b. x < y and y < z implies x < z.
+  a. x ≮ x.  [ℕ.lt_irrefl]
+  b. x < y and y < z implies x < z.  [ℕ.lt_trans]
 
 Proof.
 
-  a. Suppose that x < x.  Then there is some z : ℕ such that x + S(z) = x.  But x + S(z) ≠ x by :n3_6 and :n3_4.  This is a contradiction.
+  a. Suppose that x < x.  Then there is some z : ℕ such that x + S(z) = x.  But x + S(z) ≠ x by :ℕ.not_succ_add and :ℕ.add_comm.  This is a contradiction.
 
   b. Suppose that x < y and y < z.  Then there exist some u, v : ℕ such that x + S(u) = y and y + S(v) = z.  Then
 
     z = (x + S(u)) + S(v)
-      = x + (S(u) + S(v)) by :n3_2
-      = x + S(u + S(v)) by :n3_3.b.
+      = x + (S(u) + S(v)) by :ℕ.add_assoc
+      = x + S(u + S(v)) by :ℕ.succ_add.
 
 Then x < z by :ℕ.lt.
 
-Theorem n4_1c.  For all x, y : ℕ, exactly one of x < y, x = y, y < x is true.
+Theorem "Trichotomy".  For all x, y : ℕ, exactly one of x < y, x = y, y < x is true.  [ℕ.lt_trichotomy]
 
-Proof.  Let x, y : ℕ.  If x < y and x = y then x < x, contradicting :n4_1.a.  If x = y and y < x then x < x, again contradicting :n4_1.a.  If x < y and y < x then by :n4_1.b x < x, contradicting :n4_1.a.  So at most one of x < y, x = y, y < x is true.
+Proof.  Let x, y : ℕ.  If x < y and x = y then x < x, contradicting :ℕ.lt_irrefl.  If x = y and y < x then x < x, again contradicting :ℕ.lt_irrefl.  If x < y and y < x then by :ℕ.lt_trans x < x, contradicting :ℕ.lt_irrefl.  So at most one of x < y, x = y, y < x is true.
 
-Let x, y : ℕ.  Let A = { x : ℕ | x < y or x = y or y < x }.  First, by :n1_1 we have either y = 0, or y = S(u) for some u : ℕ.  Hence by :n3_3.a either y = 0, or 0 + S(u) = y for some u : ℕ.  So y = 0 or 0 < y.  Thus 0 ∈ A.
+Let x, y : ℕ.  Let A = { x : ℕ | x < y or x = y or y < x }.  First, by :ℕ.is_zero_or_succ we have either y = 0, or y = S(u) for some u : ℕ.  Hence by :ℕ.zero_add either y = 0, or 0 + S(u) = y for some u : ℕ.  So y = 0 or 0 < y.  Thus 0 ∈ A.
 
 Now let v : ℕ, and assume that v ∈ A.  Then v < y or v = y or y < v.
 
-Case 1: v < y.  Then v + S(z) = y for some z : ℕ.  By :n1_1 either z = 0, or z = S(u) for some u : ℕ.  Suppose that z = 0 .  Then v + S(0) = y, that is S(v) = y.  Otherwise z = S(u) for some u : ℕ.  Then
+Case 1: v < y.  Then v + S(z) = y for some z : ℕ.  By :ℕ.is_zero_or_succ either z = 0, or z = S(u) for some u : ℕ.  Suppose that z = 0 .  Then v + S(0) = y, that is S(v) = y.  Otherwise z = S(u) for some u : ℕ.  Then
 
-  S(v) + S(u) = v + S(S(u)) by :n3_3.b
+  S(v) + S(u) = v + S(S(u)) by :ℕ.succ_add
               = v + S(z) = y.
 
   So S(v) < y.  In either case S(v) < y or S(v) = y.
@@ -146,33 +146,33 @@ Case 3: y < v.  Then v = y + S(u) for some u : ℕ.  Hence S(v) = S(y + S(u)) = 
 
 In all cases S(v) < y or S(v) = y or y < S(v).  Hence S(v) ∈ A.  We have shown that for all v : ℕ, v ∈ A implies S(v) ∈ A.  By induction x ∈ A for all x : ℕ.  So at least one of x < y, x = y, y < x is true.
 
-Theorem n4_2.  Let x : ℕ.
+Theorem.  Let x : ℕ.
 
-  a. x < S(x).
-  b. There is no y : ℕ such that x < y < S(x).
+  a. x < S(x).  [ℕ.lt_succ]
+  b. There is no y : ℕ such that x < y < S(x).  [ℕ.discrete]
 
 Proof.
 
   a. x + S(0) = S(x).  Therefore x < S(x).
 
-  b. Assume there is some y : ℕ such that x < y < S(x).  Since x < y there is some z : ℕ such that x + S(z) = y.  By :n1_1 either z = 0, or z = S(u) for some u : ℕ.  Suppose that z = 0 .  Then S(x) = x + S(0) = x + S(z) = y, contradicting :n4_1c since y < S(x).  Otherwise z = S(u) for some u : ℕ.  Then S(x) + S(u) = x + S(S(u)) by :n3_3.b = x + S(z) = y.  Thus S(x) < y, contradicting :n4_1c since y < S(x).  In either case we have a contradiction.
+  b. Assume there is some y : ℕ such that x < y < S(x).  Since x < y there is some z : ℕ such that x + S(z) = y.  By :ℕ.is_zero_or_succ either z = 0, or z = S(u) for some u : ℕ.  Suppose that z = 0 .  Then S(x) = x + S(0) = x + S(z) = y, contradicting :ℕ.lt_trichotomy since y < S(x).  Otherwise z = S(u) for some u : ℕ.  Then S(x) + S(u) = x + S(S(u)) by :ℕ.succ_add = x + S(z) = y.  Thus S(x) < y, contradicting :ℕ.lt_trichotomy since y < S(x).  In either case we have a contradiction.
 
 Definition.  For all x, y : ℕ, x ≤ y iff x < y or x = y.
 
-Theorem n4_2c.  For all x, y : ℕ, x ≤ y iff there is some z : ℕ such that x + z = y.
+Theorem.  For all x, y : ℕ, x ≤ y iff there is some z : ℕ such that x + z = y.  [ℕ.le_iff_add]
 
 Proof.  Let x, y : ℕ.  Suppose that x ≤ y.  If x < y then there is some w : ℕ such that x + S(w) = y.  Otherwise x = y, so x + 0 = y.  In either case there is some z : ℕ such that x + z = y.
 
-Let x, y : ℕ.  Suppose that there is some z : ℕ such that x + z = y.  If z = 0 then x = y, so x ≤ y.  Otherwise z ≠ 0 .  Then by :n1_1 there is some w : ℕ such that z = S(w).  Then x + S(w) = y, so x < y, so x ≤ y.  In either case x ≤ y.
+Let x, y : ℕ.  Suppose that there is some z : ℕ such that x + z = y.  If z = 0 then x = y, so x ≤ y.  Otherwise z ≠ 0 .  Then by :ℕ.is_zero_or_succ there is some w : ℕ such that z = S(w).  Then x + S(w) = y, so x < y, so x ≤ y.  In either case x ≤ y.
 
-Theorem n4_3.  Let x, y, z : ℕ.
+Theorem.  Let x, y, z : ℕ.
 
-  a. x ≤ x.
-  b. If x < y and y ≤ z then x < z.
-  c. If x ≤ y and y < z then x < z.
+  a. x ≤ x.  [ℕ.le_refl]
+  b. If x < y and y ≤ z then x < z.  [ℕ.lt_of_lt_of_le]
+  c. If x ≤ y and y < z then x < z.  [ℕ.lt_of_le_of_le]
 
 Proof.
 
-  b. Suppose that x < y ≤ z.  We know that y = z or y < z.  If y = z, then x < z.  If y < z, then x < z by :n4_1.b.
+  b. Suppose that x < y ≤ z.  We know that y = z or y < z.  If y = z, then x < z.  If y < z, then x < z by :ℕ.lt_trans.
 
-  c. Suppose that x ≤ y and y < z.  We know that x = y or x < y.  If x = y, then y < z.  If x < y, then x < z by :n4_1.b.
+  c. Suppose that x ≤ y and y < z.  We know that x = y or x < y.  If x = y, then y < z.  If x < y, then x < z by :ℕ.lt_trans.
