@@ -176,7 +176,7 @@ inductive Reason where
 
 def of_reason: TSyntax `reason → MacroM (Option Reason)
   | `(reason| [ $t:tactic ]) => pure (Reason.tactic t)
-  | `(reason| $[$_:_thm $n:ident] and*) =>
+  | `(reason| $[$n:ident] and*) =>
         pure (Reason.apply (n.toList.map TSyntax.getId))
   | `(reason| induction) => pure Reason.induction
   | `(reason| the inductive hypothesis) => pure .none
@@ -271,7 +271,7 @@ def of_because_prop : TSyntax `because_prop → MacroM ProofStep
 
 def of_which_is_contradiction: TSyntax `which_is_contradiction → MacroM (List ProofStep)
   | `(which_is_contradiction|
-          , $[again]? contradicting $_:_thm $i:ident $b:because_prop ?) => do
+          , $[again]? contradicting $i:ident $b:because_prop ?) => do
         let because ← b.toList.mapM of_because_prop
         let s := assert_step mk_false (.some (.apply [i.getId]))
         pure (because ++ [s])

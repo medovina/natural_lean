@@ -79,11 +79,11 @@ sdef_extend prop
 -- reason
 
 sdef _thm
-  | "Lemma" <|> "Theorem" <|> ":"
+  | "Lemma" <|> "Theorem"
 
 sdef reason
   | "[" tactic "]"
-  | sepBy1(_thm ident, "and")
+  | sepBy1(ident, "and")
   | "induction"
   | "the" "inductive" "hypothesis"
 
@@ -109,7 +109,7 @@ syntax because_prop := _since prop
 kdef _by = "by"
 
 sdef which_is_contradiction
-  | atomic("," "again"? "contradicting") _thm ident because_prop ?
+  | atomic("," "again"? "contradicting") ident because_prop ?
 
 sdef proof_prop
   | because_prop ? (_by reason)? _have ? assert_prop

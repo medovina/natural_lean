@@ -71,12 +71,12 @@ Proof.  Let y : ℕ.  Let
 
   We know that
 
-    0 + y = y      by :ℕ.zero_add
+    0 + y = y      by ℕ.zero_add
           = y + 0 .
 
   So 0 ∈ C.  Now let x : ℕ, and suppose that x ∈ C.  Then
 
-    S(x) + y = S(x + y) by :ℕ.succ_add
+    S(x) + y = S(x + y) by ℕ.succ_add
              = S(y + x)
              = y + S(x).
 
@@ -115,27 +115,27 @@ Theorem.  Let x, y, z : ℕ.
 
 Proof.
 
-  a. Suppose that x < x.  Then there is some z : ℕ such that x + S(z) = x.  But x + S(z) ≠ x by :ℕ.not_succ_add and :ℕ.add_comm.  This is a contradiction.
+  a. Suppose that x < x.  Then there is some z : ℕ such that x + S(z) = x.  But x + S(z) ≠ x by ℕ.not_succ_add and ℕ.add_comm.  This is a contradiction.
 
   b. Suppose that x < y and y < z.  Then there exist some u, v : ℕ such that x + S(u) = y and y + S(v) = z.  Then
 
     z = (x + S(u)) + S(v)
-      = x + (S(u) + S(v)) by :ℕ.add_assoc
-      = x + S(u + S(v)) by :ℕ.succ_add.
+      = x + (S(u) + S(v)) by ℕ.add_assoc
+      = x + S(u + S(v)) by ℕ.succ_add.
 
-Then x < z by :ℕ.lt.
+Then x < z by ℕ.lt.
 
 Theorem "Trichotomy".  For all x, y : ℕ, exactly one of x < y, x = y, y < x is true.  [ℕ.lt_trichotomy]
 
-Proof.  Let x, y : ℕ.  If x < y and x = y then x < x, contradicting :ℕ.lt_irrefl.  If x = y and y < x then x < x, again contradicting :ℕ.lt_irrefl.  If x < y and y < x then by :ℕ.lt_trans x < x, contradicting :ℕ.lt_irrefl.  So at most one of x < y, x = y, y < x is true.
+Proof.  Let x, y : ℕ.  If x < y and x = y then x < x, contradicting ℕ.lt_irrefl.  If x = y and y < x then x < x, again contradicting ℕ.lt_irrefl.  If x < y and y < x then by ℕ.lt_trans x < x, contradicting ℕ.lt_irrefl.  So at most one of x < y, x = y, y < x is true.
 
-Let x, y : ℕ.  Let A = { x : ℕ | x < y or x = y or y < x }.  First, by :ℕ.is_zero_or_succ we have either y = 0, or y = S(u) for some u : ℕ.  Hence by :ℕ.zero_add either y = 0, or 0 + S(u) = y for some u : ℕ.  So y = 0 or 0 < y.  Thus 0 ∈ A.
+Let x, y : ℕ.  Let A = { x : ℕ | x < y or x = y or y < x }.  First, by ℕ.is_zero_or_succ we have either y = 0, or y = S(u) for some u : ℕ.  Hence by ℕ.zero_add either y = 0, or 0 + S(u) = y for some u : ℕ.  So y = 0 or 0 < y.  Thus 0 ∈ A.
 
 Now let v : ℕ, and assume that v ∈ A.  Then v < y or v = y or y < v.
 
-Case 1: v < y.  Then v + S(z) = y for some z : ℕ.  By :ℕ.is_zero_or_succ either z = 0, or z = S(u) for some u : ℕ.  Suppose that z = 0 .  Then v + S(0) = y, that is S(v) = y.  Otherwise z = S(u) for some u : ℕ.  Then
+Case 1: v < y.  Then v + S(z) = y for some z : ℕ.  By ℕ.is_zero_or_succ either z = 0, or z = S(u) for some u : ℕ.  Suppose that z = 0 .  Then v + S(0) = y, that is S(v) = y.  Otherwise z = S(u) for some u : ℕ.  Then
 
-  S(v) + S(u) = v + S(S(u)) by :ℕ.succ_add
+  S(v) + S(u) = v + S(S(u)) by ℕ.succ_add
               = v + S(z) = y.
 
   So S(v) < y.  In either case S(v) < y or S(v) = y.
@@ -155,7 +155,7 @@ Proof.
 
   a. x + S(0) = S(x).  Therefore x < S(x).
 
-  b. Assume there is some y : ℕ such that x < y < S(x).  Since x < y there is some z : ℕ such that x + S(z) = y.  By :ℕ.is_zero_or_succ either z = 0, or z = S(u) for some u : ℕ.  Suppose that z = 0 .  Then S(x) = x + S(0) = x + S(z) = y, contradicting :ℕ.lt_trichotomy since y < S(x).  Otherwise z = S(u) for some u : ℕ.  Then S(x) + S(u) = x + S(S(u)) by :ℕ.succ_add = x + S(z) = y.  Thus S(x) < y, contradicting :ℕ.lt_trichotomy since y < S(x).  In either case we have a contradiction.
+  b. Assume there is some y : ℕ such that x < y < S(x).  Since x < y there is some z : ℕ such that x + S(z) = y.  By ℕ.is_zero_or_succ either z = 0, or z = S(u) for some u : ℕ.  Suppose that z = 0 .  Then S(x) = x + S(0) = x + S(z) = y, contradicting ℕ.lt_trichotomy since y < S(x).  Otherwise z = S(u) for some u : ℕ.  Then S(x) + S(u) = x + S(S(u)) by ℕ.succ_add = x + S(z) = y.  Thus S(x) < y, contradicting ℕ.lt_trichotomy since y < S(x).  In either case we have a contradiction.
 
 Definition.  For all x, y : ℕ, x ≤ y iff x < y or x = y.
 
@@ -163,7 +163,7 @@ Theorem.  For all x, y : ℕ, x ≤ y iff there is some z : ℕ such that x + z 
 
 Proof.  Let x, y : ℕ.  Suppose that x ≤ y.  If x < y then there is some w : ℕ such that x + S(w) = y.  Otherwise x = y, so x + 0 = y.  In either case there is some z : ℕ such that x + z = y.
 
-Let x, y : ℕ.  Suppose that there is some z : ℕ such that x + z = y.  If z = 0 then x = y, so x ≤ y.  Otherwise z ≠ 0 .  Then by :ℕ.is_zero_or_succ there is some w : ℕ such that z = S(w).  Then x + S(w) = y, so x < y, so x ≤ y.  In either case x ≤ y.
+Let x, y : ℕ.  Suppose that there is some z : ℕ such that x + z = y.  If z = 0 then x = y, so x ≤ y.  Otherwise z ≠ 0 .  Then by ℕ.is_zero_or_succ there is some w : ℕ such that z = S(w).  Then x + S(w) = y, so x < y, so x ≤ y.  In either case x ≤ y.
 
 Theorem.  Let x, y, z : ℕ.
 
@@ -173,6 +173,6 @@ Theorem.  Let x, y, z : ℕ.
 
 Proof.
 
-  b. Suppose that x < y ≤ z.  We know that y = z or y < z.  If y = z, then x < z.  If y < z, then x < z by :ℕ.lt_trans.
+  b. Suppose that x < y ≤ z.  We know that y = z or y < z.  If y = z, then x < z.  If y < z, then x < z by ℕ.lt_trans.
 
-  c. Suppose that x ≤ y and y < z.  We know that x = y or x < y.  If x = y, then y < z.  If x < y, then x < z by :ℕ.lt_trans.
+  c. Suppose that x ≤ y and y < z.  We know that x = y or x < y.  If x = y, then y < z.  If x < y, then x < z by ℕ.lt_trans.
