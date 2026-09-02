@@ -13,14 +13,15 @@ declare_syntax_cat prop
 
 -- expr
 
-sdef expr
-  | num
-  | ident
-  |:70 expr:70 "*" expr:71
-  |:65 expr:65 "+" expr:66
-  | expr "(" expr ")"
-  | "(" expr ")"
-  | "{" ident ":" ident "|" prop "}"
+declare_syntax_cat expr
+syntax num : expr
+syntax ident : expr
+syntax:80 (priority := 1) expr:80 expr:81 : expr
+syntax:70 expr:70 "·" expr:71 : expr
+syntax:65 expr:65 "+" expr:66 : expr
+syntax (priority := 2) expr "(" expr ")" : expr
+syntax "(" expr ")" : expr
+syntax "{" ident ":" ident "|" prop "}" : expr
 
 -- prop
 

@@ -109,11 +109,15 @@ mutual
     let t ← match expr with
       | `(expr| $n:num) => `($n)
       | `(expr| $i:ident) => `($i)
-      | `(expr| $e:expr * $f:expr) => do `($(← of_expr e) * $(← of_expr f))
-      | `(expr| $e:expr + $f:expr) => do `($(← of_expr e) + $(← of_expr f))
-      | `(expr| $e:expr ( $f:expr )) => do `($(← of_expr e) $(← of_expr f))
+      | `(expr| $e:expr $f:expr)
+      | `(expr| $e:expr · $f:expr) => `($(← of_expr e) * $(← of_expr f))
+      | `(expr| $e:expr + $f:expr) => `($(← of_expr e) + $(← of_expr f))
+      | `(expr| $e:expr ( $f:expr )) =>
+          let e ← of_expr e
+          let f ← of_expr f
+          if (e.raw.isOfKind `num) then `($e * $f) else `($e $f)
       | `(expr| ( $e:expr )) => of_expr e
-      | `(expr| { $x:ident : $t:ident | $p:prop }) => do `({($x) : $t | $(← of_prop p)})
+      | `(expr| { $x:ident : $t:ident | $p:prop }) => `({($x) : $t | $(← of_prop p)})
       | _ => Macro.throwError "unknown expr"
 
     -- Avoid copying SourceInfo to identifiers, which produces spurious

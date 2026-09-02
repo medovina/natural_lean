@@ -261,13 +261,14 @@ __Expressions__ represent mathematical values.  In Natural Lean an expression ha
 ```
 <num>
 <var>
+<expr> <expr>      -- multiplication
 <expr> <op> <expr>
-<expr> ( <expr> )
+<expr> ( <expr> )  -- function call or multiplication
 ( <expr> )
 { <var> : <var> | <prop> }
 ```
 
-Above, `<op>` is a binary operator.  At the moment Natural Lean includes only the + and * operators, but I will expand this set soon.
+Above, `<op>` is a binary operator.  At the moment Natural Lean includes only the + and · operators, but I will expand this set soon.
 
 Here are some examples of expressions:
 
@@ -279,7 +280,7 @@ S(x + y)
 { z : ℕ | x + (y + z) = (x + y) + z }
 ```
 
-Note that Natural Lean uses the traditional function call syntax `f(x)`, which is different from `f x` as found in native Lean code.
+Implicit multiplication is supported: `xy` with no parentheses means `x · y`.  Note that Natural Lean uses the traditional function call syntax `f(x)`, which is different from `f x` as found in native Lean code.  An expression of the form `a(b)` is potentially ambiguous: it may represent either a multiplication or a function call.  At the moment Natural Lean considers such an expression to be a multiplication only if `a` is a numeric constant.
 
 ### Tactics
 
