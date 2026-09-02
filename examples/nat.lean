@@ -31,7 +31,7 @@ Proof. Let x, y : ℕ.  Let
 
     A = { z : ℕ | x + (y + z) = (x + y) + z }.
 
-  We must show that A = ℕ.  First, 0 ∈ A.  Second, let z : ℕ and assume z ∈ A.  Then x + (y + z) = (x + y) + z.  Now,
+  First, 0 ∈ A.  Second, let z : ℕ and assume z ∈ A.  Then x + (y + z) = (x + y) + z.  Now,
 
     x + (y + S(z)) = x + (S(y + z))
                    = S(x + (y + z))
@@ -169,10 +169,15 @@ Theorem.  Let x, y, z : ℕ.
 
   a. x ≤ x.  [ℕ.le_refl]
   b. If x < y and y ≤ z then x < z.  [ℕ.lt_of_lt_of_le]
-  c. If x ≤ y and y < z then x < z.  [ℕ.lt_of_le_of_le]
+  c. If x ≤ y and y < z then x < z.  [ℕ.lt_of_le_of_lt]
+  d. If x ≤ y and y ≤ z then x ≤ z.  [ℕ.le_trans]
+  e. x ≤ y or y ≤ x.  [ℕ.le_or_ge]
+  f. If x ≤ y and y ≤ x then x = y. [ℕ.le_antisymm]
 
 Proof.
 
-  b. Suppose that x < y ≤ z.  We know that y = z or y < z.  If y = z, then x < z.  If y < z, then x < z by ℕ.lt_trans.
-
-  c. Suppose that x ≤ y and y < z.  We know that x = y or x < y.  If x = y, then y < z.  If x < y, then x < z by ℕ.lt_trans.
+  b. By ℕ.lt_trans.
+  c. By ℕ.lt_trans.
+  d. By ℕ.lt_of_lt_of_le.
+  e. By ℕ.lt_trichotomy.
+  f. By ℕ.lt_trichotomy.
