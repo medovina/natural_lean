@@ -601,15 +601,23 @@ def of_type_def : TSyntax `type_def → MacroM Command
       pure $ .mk (mkNullNode commands)
   | _ => Macro.throwError "unknown definition"
 
-def of_top_sentence : TSyntax `top_sentence → MacroM (Term × Option Name)
-  | `(top_sentence| $p:prop . $[ [ $i:ident ] ]?) => do
-      pure (← of_prop p, i.map getId)
+def of_top_sentence : TSyntax `top_sentence → MacroM (Term × Option Name × Option Name)
+  | `(top_sentence| $p:prop . $[ [ $i:ident $[ : @ $a:ident ]? ] ]?) => do
+      pure (← of_prop p, i.map getId, a.join.map getId)
   | _ => Macro.throwError "unknown top_sentence"
 
 abbrev Label := Name
 
-def of_prop_item : TSyntax `prop_item → MacroM (Label × Term × Option Name)
-  | `(prop_item| $i:ident . $s:top_sentence) => do pure (i.getId, ← of_top_sentence s)
+structure ThmDecl where
+  label: Option Label
+  thm: Term
+  name: Option Name
+  attr: Option Name
+
+def of_prop_item : TSyntax `prop_item → MacroM ThmDecl
+  | `(prop_item| $i:ident . $s:top_sentence) => do
+      let (thm, name, attr) ← of_top_sentence s
+      pure ⟨i.getId, thm, name, attr⟩
   | _ => Macro.throwError "unknown prop_item"
 
 def of_binary_op : TSyntax `binary_op → MacroM String
@@ -666,7 +674,7 @@ def generate_def (op: String) (_args: Array Ident) (type: Ident) (eqs: Array Ter
 def of_cases_def : TSyntax `cases_def → MacroM Command
   | `(cases_def| The binary operation $op:binary_op on $type:ident is defined recursively
                     such that for all $xs:ident,* : $_type:ident , $items:prop_item*) => do
-      let eqs ← Array.map (fun (_, t, _) => t) <$> items.mapM of_prop_item
+      let eqs ← Array.map ThmDecl.thm <$> items.mapM of_prop_item
       generate_def (← of_binary_op op) xs type eqs
   | _ => Macro.throwError "unknown cases_def"
 
@@ -687,13 +695,12 @@ macro d:definition_stmt : command => match d with
   | `(definition_stmt| Definition. $d) => of_definition d
   | _ => Macro.throwError "unknown definition_stmt"
 
-def match_proofs : List (Label × Term × Option Name) → List (Label × Proof) →
-      MacroM (List (Label × Term × Option Name × Option Proof))
+def match_proofs : List ThmDecl → List (Label × Proof) → MacroM (List (ThmDecl × Option Proof))
   | [], [] => pure []
-  | (i, thm, name) :: ts, (j, proof) :: ps =>
-      if i == j then .cons (i, thm, name, .some proof) <$> match_proofs ts ps
-      else .cons (i, thm, name, .none) <$> match_proofs ts ((j, proof) :: ps)
-  | (i, thm, name) :: ts, [] => .cons (i, thm, name, .none) <$> match_proofs ts []
+  | decl :: ts, (j, proof) :: ps =>
+      if decl.label == j then .cons (decl, .some proof) <$> match_proofs ts ps
+      else .cons (decl, .none) <$> match_proofs ts ((j, proof) :: ps)
+  | decl :: ts, [] => .cons (decl, .none) <$> match_proofs ts []
   | [], (j, _) :: _ => Macro.throwError s!"unmatched proof label: {j}"
 
 def generalize (lets: Option ProofStep) (t: Term) : MacroM Term := match lets with
@@ -704,17 +711,19 @@ def generalize (lets: Option ProofStep) (t: Term) : MacroM Term := match lets wi
   | _ => Macro.throwError "generalize: unexpected step"
 
 def of_props_proofs (lets: Option ProofStep) : TSyntax `props_proofs →
-        MacroM (List (Option Label × Term × Option Name × Option Term))
+        MacroM (List (ThmDecl × Option Term))
   | `(props_proofs| $s:top_sentence $[ Proof. $proof:proof ]?) => do
-      let (thm, opt_name) ← of_top_sentence s
+      let (thm, opt_name, opt_attr) ← of_top_sentence s
       let proof ← proof.mapM of_proof
-      pure [ (none, ← (generalize lets thm), opt_name, ← proof.mapM (translate_proof lets thm)) ]
+      let decl := ThmDecl.mk none (← generalize lets thm) opt_name opt_attr
+      pure [ (decl, ← proof.mapM (translate_proof lets thm)) ]
   | `(props_proofs| $ps:prop_item* $[ Proof. $pis:proof_items ]?) => do
       let label_thms ← ps.toList.mapM of_prop_item
       let label_proofs := (← pis.mapM of_proof_items).getD []
       let thms_proofs ← match_proofs label_thms label_proofs
-      thms_proofs.mapM (fun (id, thm, name, proof) => do
-        pure (id, ← generalize lets thm, name, ← proof.mapM (translate_proof lets thm)))
+      thms_proofs.mapM (fun (decl, proof) => do
+        pure ({decl with thm := ← generalize lets decl.thm},
+              ← proof.mapM (translate_proof lets decl.thm)))
   | _ => Macro.throwError "unknown prop_or_items"
 
 macro t:_theorem : command => do
@@ -723,11 +732,13 @@ macro t:_theorem : command => do
             $[$ls:let_step .]? $ps:props_proofs) => do
         let name := name.map getId
         let thms_proofs ← of_props_proofs (← ls.mapM of_let_step) ps
-        let commands ← thms_proofs.toArray.mapM (fun (label, thm, thm_name, proof) => do
+        let commands ← thms_proofs.toArray.mapM (fun (⟨label, thm, thm_name, attr⟩, proof) => do
           let proof := proof.getD (← `(by default))
           let name := thm_name <|> name.map (fun name => label.elim name (name ++ ·))
+          let a ← attr.mapM (fun a => `(attributes| @[$(mkIdent a):ident]))
           match name with
-            | Option.some name => `(theorem $(mkIdent name) : $thm := $proof)
+            | Option.some name =>
+                `($a:attributes ? theorem $(mkIdent name) : $thm := $proof)
             | Option.none => `(example : $thm := $proof))
         pure $ .mk (mkNullNode commands)
     | _ => Macro.throwError "unknown theorem"

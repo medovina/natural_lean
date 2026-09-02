@@ -73,6 +73,12 @@ Theorem "Associativity of Addition".  For all x, y, z: ℕ,
   x + (y + z) = (x + y) + z.  [ℕ.add_assoc]
 ```
 
+A theorem name in brackets may optionally be followed by a Lean attribute to attach to the theorem:
+
+```
+Theorem.  For all x : ℕ, 0 + x = x.  [ℕ.zero_add: @simp]
+```
+
 A theorem may or may not be followed by a __proof__.  If a proof is not present, the system will attempt to prove the theorem using the default tactic as described below.  If a proof is present, it appears after the text `Proof.`:
 
 ```

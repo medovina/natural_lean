@@ -42,7 +42,7 @@ Proof. Let x, y : ℕ.  Let
 
 Lemma.  Let x, y : ℕ.
 
-  a. 0 + x = x.   [ℕ.zero_add]
+  a. 0 + x = x.   [ℕ.zero_add: @simp]
   b. S(x) + y = S(x + y).   [ℕ.succ_add]
 
 Proof.
@@ -71,7 +71,7 @@ Proof.  Let y : ℕ.  Let
 
   We know that
 
-    0 + y = y      by ℕ.zero_add
+    0 + y = y
           = y + 0 .
 
   So 0 ∈ C.  Now let x : ℕ, and suppose that x ∈ C.  Then
@@ -129,7 +129,7 @@ Theorem "Trichotomy".  For all x, y : ℕ, exactly one of x < y, x = y, y < x is
 
 Proof.  Let x, y : ℕ.  If x < y and x = y then x < x, contradicting ℕ.lt_irrefl.  If x = y and y < x then x < x, again contradicting ℕ.lt_irrefl.  If x < y and y < x then by ℕ.lt_trans x < x, contradicting ℕ.lt_irrefl.  So at most one of x < y, x = y, y < x is true.
 
-Let x, y : ℕ.  Let A = { x : ℕ | x < y or x = y or y < x }.  First, by ℕ.is_zero_or_succ we have either y = 0, or y = S(u) for some u : ℕ.  Hence by ℕ.zero_add either y = 0, or 0 + S(u) = y for some u : ℕ.  So y = 0 or 0 < y.  Thus 0 ∈ A.
+Let x, y : ℕ.  Let A = { x : ℕ | x < y or x = y or y < x }.  First, by ℕ.is_zero_or_succ we have either y = 0, or y = S(u) for some u : ℕ.  Hence either y = 0, or 0 + S(u) = y for some u : ℕ.  So y = 0 or 0 < y.  Thus 0 ∈ A.
 
 Now let v : ℕ, and assume that v ∈ A.  Then v < y or v = y or y < v.
 
@@ -181,3 +181,11 @@ Proof.
   d. By ℕ.lt_of_lt_of_le.
   e. By ℕ.lt_trichotomy.
   f. By ℕ.lt_trichotomy.
+
+Theorem.  Let x, y, z : ℕ.
+
+  a. If x ≠ 0 then x > 0 .
+
+Proof.
+
+  a. Assume that x ≠ 0 .  Then by ℕ.is_zero_or_succ there exists some u : ℕ such that x = S(u).  Hence x = 0 + S(u).  Therefore x > 0 .
