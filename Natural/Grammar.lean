@@ -16,6 +16,7 @@ declare_syntax_cat prop
 sdef expr
   | num
   | ident
+  |:70 expr:70 "*" expr:71
   |:65 expr:65 "+" expr:66
   | expr "(" expr ")"
   | "(" expr ")"
@@ -200,7 +201,7 @@ syntax top_sentence := prop "." ("[" ident "]")?
 
 syntax prop_item := ident "." top_sentence
 
-kdef binary_op = "+" | "<"
+kdef binary_op = "+" | "*" | "<"
 
 syntax cases_def :=
   "The" "binary" "operation" binary_op "on" ident

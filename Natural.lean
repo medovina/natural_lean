@@ -109,6 +109,7 @@ mutual
     let t ← match expr with
       | `(expr| $n:num) => `($n)
       | `(expr| $i:ident) => `($i)
+      | `(expr| $e:expr * $f:expr) => do `($(← of_expr e) * $(← of_expr f))
       | `(expr| $e:expr + $f:expr) => do `($(← of_expr e) + $(← of_expr f))
       | `(expr| $e:expr ( $f:expr )) => do `($(← of_expr e) $(← of_expr f))
       | `(expr| ( $e:expr )) => of_expr e
@@ -721,7 +722,8 @@ macro t:_theorem : command => do
         let commands ← thms_proofs.toArray.mapM (fun (label, thm, thm_name, proof) => do
           let proof := proof.getD (← `(by default))
           let name := thm_name <|> name.map (fun name => label.elim name (name ++ ·))
-          let name ← name.elim (Macro.throwError "theorem has no name") pure
-          `(theorem $(mkIdent name) : $thm := $proof))
+          match name with
+            | Option.some name => `(theorem $(mkIdent name) : $thm := $proof)
+            | Option.none => `(example : $thm := $proof))
         pure $ .mk (mkNullNode commands)
     | _ => Macro.throwError "unknown theorem"

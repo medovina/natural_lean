@@ -4,7 +4,7 @@ Natural Lean is a library that lets you write Lean definitions, theorems, and pr
 
 The file `examples/nat.lean` in this repository contains a sample development of the natural numbers in Natural Lean.  I recommend looking at it for a first glimpse of the language's capabilities.
 
-Natural Lean is in an __early stage of development__ and is not a practical tool for writing many Lean proofs at this time: the grammar and expressiveness of the language are still extremely limited.  You may nevertheless want to experiment with Natural Lean even in its current state, and your feedback [is welcome](mailto:adam.dingle@mff.cuni.cz).  I am actively developing the library and intend to evolve the controlled natural language to be robust enough for writing large-scale proofs of any nature.
+Natural Lean is in an __early stage of development__ and is not a practical tool for writing many Lean proofs at this time: the grammar and expressiveness of the language are still extremely limited.  You may nevertheless want to experiment with Natural Lean even in its current state, and your feedback [is welcome](mailto:adam.dingle@mff.cuni.cz).  I am actively developing the library and hope to evolve the controlled natural language to be robust enough for writing large-scale proofs of any nature.
 
 ## Getting Natural Lean
 
@@ -267,7 +267,7 @@ __Expressions__ represent mathematical values.  In Natural Lean an expression ha
 { <var> : <var> | <prop> }
 ```
 
-Above, `<op>` is a binary operator.  At the moment Natural Lean includes only the + operator, but will certainly expand this soon.
+Above, `<op>` is a binary operator.  At the moment Natural Lean includes only the + and * operators, but I will expand this set soon.
 
 Here are some examples of expressions:
 
