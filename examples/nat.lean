@@ -25,13 +25,13 @@ Definition.  The binary operation + on ℕ is defined recursively such that for 
 
 Theorem "Associativity of Addition".  For all x, y, z: ℕ,
 
-  x + (y + z) = (x + y) + z.  [ℕ.add_assoc]
+  (x + y) + z = x + (y + z).  [ℕ.add_assoc]
 
 Proof. Let x, y : ℕ.  Let
 
-    A = { z : ℕ | x + (y + z) = (x + y) + z }.
+    A = { z : ℕ | (x + y) + z = x + (y + z) }.
 
-  First, 0 ∈ A.  Second, let z : ℕ and assume z ∈ A.  Then x + (y + z) = (x + y) + z.  Now,
+  First, 0 ∈ A.  Second, let z : ℕ and assume z ∈ A.  Then (x + y) + z = x + (y + z).  Now,
 
     x + (y + S(z)) = x + (S(y + z))
                    = S(x + (y + z))
@@ -39,6 +39,8 @@ Proof. Let x, y : ℕ.  Let
                    = (x + y) + S(z).
 
   Thus S(z) ∈ A.  We have shown that z ∈ A implies S(z) ∈ A.  Hence by induction z ∈ A for all z: ℕ.
+
+instance: Std.Associative (α := ℕ) (· + ·) := ⟨ℕ.add_assoc⟩
 
 Lemma.  Let x, y : ℕ.
 
@@ -82,6 +84,8 @@ Proof.  Let y : ℕ.  Let
 
   So S(x) ∈ C.  Hence by induction x ∈ C for all x : ℕ.
 
+instance : Std.Commutative (α := ℕ) (· + ·) := ⟨ℕ.add_comm⟩
+
 Theorem "Cancellation Law for Addition".  For all x, y, z: ℕ,
 
   x + z = y + z implies x = y.  [ℕ.add_right_cancel]
@@ -120,7 +124,7 @@ Proof.
   b. Suppose that x < y and y < z.  Then there exist some u, v : ℕ such that x + S(u) = y and y + S(v) = z.  Then
 
     z = (x + S(u)) + S(v)
-      = x + (S(u) + S(v)) by ℕ.add_assoc
+      = x + (S(u) + S(v))
       = x + S(u + S(v)) by ℕ.succ_add.
 
 Then x < z by ℕ.lt.
@@ -185,7 +189,11 @@ Proof.
 Theorem.  Let x, y, z : ℕ.
 
   a. If x ≠ 0 then x > 0 .
+  b. x < x + S(y).
+  c. If x < y then x + z < y + z.
 
 Proof.
 
   a. Assume that x ≠ 0 .  Then by ℕ.is_zero_or_succ there exists some u : ℕ such that x = S(u).  Hence x = 0 + S(u).  Therefore x > 0 .
+
+  c. Assume that x < y.  Then x + S(w) = y for some w : ℕ.  Hence (x + z) + S(w) = (x + S(w)) + z = y + z.  Then x + z < y + z.
