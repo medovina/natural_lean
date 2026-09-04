@@ -10,6 +10,7 @@ sdef type
 
 sdef ids_type
   | ident,+ ":" type
+  | ident ident sepBy1(ident, "and")
 
 kdef _at_least = "at least"
 kdef _at_most = "at most"

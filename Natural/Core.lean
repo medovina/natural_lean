@@ -7,6 +7,7 @@ import Natural.Attribute
 import Natural.Grammar
 
 open Lean
+open Lean.Elab.Command
 open Lean.Parser.Command
 open Lean.Parser.Term
 open Lean.Syntax
@@ -23,6 +24,11 @@ macro "default_apply" ts:ident+ : tactic => do
   `(tactic| first | (apply_rules [$[$ts:ident],*] ; done) | grind [$[$ts:ident],*] |
                     aesop (add $aesop_rules,*))
 
+-- English
+
+def singular (s: String) :=
+  if s.back == 's' then s.dropEnd 1 else s
+
 -- syntax helpers
 
 def range_info (s: TSyntax α) := match s.raw.getRange? with
@@ -36,10 +42,10 @@ def parse_infix_opt : Syntax → Option (Syntax × String × Syntax)
   | .node _ _ #[x, .atom _ op, y] => .some (x, op, y)
   | _ => .none
 
-def parse_infix (t: Term): MacroM (Term × String × Term) :=
+def parse_infix (t: Term): CoreM (Term × String × Term) :=
   match parse_infix_opt t.raw with
     | .some (x, op, y) => pure (⟨x⟩, op, ⟨y⟩)
-    | .none => Macro.throwError "infix expression expected"
+    | .none => throwError "infix expression expected"
 
 def build_infix (t: Term) (op: String) (u: Term) : Term :=
   ⟨mkNode (.mkSimple s!"term_{op}_") #[t, mkAtom op, u]⟩
@@ -73,16 +79,16 @@ def free_vars (t: Term): List Name := syntax_free_vars (t.raw)
 
 -- logical operations on terms
 
-def multi_and : List Term → MacroM Term := foldr1M (fun t a => `($t ∧ $a))
+def multi_and : List Term → CoreM Term := foldr1M (fun t a => `($t ∧ $a))
 
-def multi_or : List Term → MacroM Term := foldr1M (fun t a => `($t ∨ $a))
+def multi_or : List Term → CoreM Term := foldr1M (fun t a => `($t ∨ $a))
 
-def at_most (ts: List Term) : MacroM (List Term) :=
+def at_most (ts: List Term) : CoreM (List Term) :=
   let pair (t: Term) (u: Term) := do
     `(¬($t ∧ $u))
   (all_pairs ts).mapM pair.uncurry
 
-def precisely_one (ts: List Term) : MacroM (List Term) :=
+def precisely_one (ts: List Term) : CoreM (List Term) :=
   List.cons <$> multi_or ts <*> at_most ts
 
 partial def result_type : Term → Term
@@ -91,25 +97,31 @@ partial def result_type : Term → Term
 
 -- translation from natural language
 
-def of_const : TSyntax `const → MacroM Term
+def of_const : TSyntax `const → CoreM Term
   | `(const| $i:ident) => `($i)
   | `(const| $n:num) => `($n)
-  | _ => Macro.throwError "unknown const"
+  | _ => throwError "unknown const"
 
-partial def of_type : TSyntax `type → MacroM Term
+partial def of_type : TSyntax `type → CoreM Term
   | `(type| $i:ident) => `($i)
   | `(type| $t:type → $u:type) => do `($(← of_type t) → $(← of_type u))
-  | _ => Macro.throwError "unknown multi_specifier"
+  | _ => throwError "unknown multi_specifier"
 
-def of_ids_type : TSyntax `ids_type → MacroM (Array Ident × Term)
+def of_ids_type : TSyntax `ids_type → CoreM (Array Ident × Term)
   | `(ids_type| $xs:ident,* : $t:type) => do pure (xs.getElems, ← of_type t)
-  | _ => Macro.throwError "unknown ids_type"
+  | `(ids_type| $n1:ident $n2:ident $[$xs:ident] and*) => do
+      let s := s!"{n1.getId.toString} {singular n2.getId.toString}"
+      let type ← lookup_natural s
+      match type with
+        | .some type => pure (xs, mkIdent type)
+        | _ => throwError s!"unknown type: {s}"
+  | _ => throwError "unknown ids_type"
 
-def of_multi_specifier : TSyntax `multi_specifier → List Term → MacroM (List Term)
+def of_multi_specifier : TSyntax `multi_specifier → List Term → CoreM (List Term)
   | `(multi_specifier| $_:_at_least) => fun ts => List.singleton <$> multi_or ts
   | `(multi_specifier| $_:_at_most) => at_most
   | `(multi_specifier| $_:_exactly) => precisely_one
-  | _ => fun _ => Macro.throwError "unknown multi_specifier"
+  | _ => fun _ => throwError "unknown multi_specifier"
 
 def syntax_atom (t: TSyntax α): String := match t.raw with
   | .node _ _ #[.node _ _ #[a]] => a.getAtomVal
@@ -118,7 +130,7 @@ def syntax_atom (t: TSyntax α): String := match t.raw with
 def mk_false : Term := mkIdent ``False
 
 mutual
-  partial def of_expr (expr: TSyntax `expr): MacroM Term := do
+  partial def of_expr (expr: TSyntax `expr): CoreM Term := do
     let t ← match expr with
       | `(expr| $n:num) => `($n)
       | `(expr| $i:ident) => `($i)
@@ -131,13 +143,13 @@ mutual
           if (e.raw.isOfKind `num) then `($e * $f) else `($e $f)
       | `(expr| ( $e:expr )) => of_expr e
       | `(expr| { $x:ident : $t:ident | $p:prop }) => `({($x) : $t | $(← of_prop p)})
-      | _ => Macro.throwError "unknown expr"
+      | _ => throwError "unknown expr"
 
     -- Avoid copying SourceInfo to identifiers, which produces spurious
     -- "variable not referenced" errors.
     pure (if expr matches `(expr| $_:ident) then t else set_info_from t expr)
 
-  partial def of_rel_prop (prop: TSyntax `rel_prop): MacroM Term := do
+  partial def of_rel_prop (prop: TSyntax `rel_prop): CoreM Term := do
     let rec build : List Term → List String → List Term
       | _, [] => []
       | t :: u :: ts, op :: ops =>
@@ -148,22 +160,22 @@ mutual
             let ts ← (a :: bs.toList).mapM of_expr
             let ops := ops.toList.map syntax_atom
             multi_and (build ts ops)
-      | _ => Macro.throwError "unknown rel_prop"
+      | _ => throwError "unknown rel_prop"
     pure (set_info_from t prop)
 
-  partial def of_multi_or (prop: TSyntax `multi_or): MacroM Term := do
+  partial def of_multi_or (prop: TSyntax `multi_or): CoreM Term := do
     let t ← match prop with
       | `(multi_or| $s:multi_specifier one of $es,* is true) =>
             of_multi_specifier s (← es.getElems.toList.mapM of_rel_prop) >>= multi_and
-      | _ => Macro.throwError "unknown multi_or"
+      | _ => throwError "unknown multi_or"
     pure (set_info_from t prop)
 
-  partial def of_some_or_no : TSyntax `some_or_no → MacroM Bool
+  partial def of_some_or_no : TSyntax `some_or_no → CoreM Bool
     | `(some_or_no| some) => pure true
     | `(some_or_no| no) => pure false
-    | _ => Macro.throwError "unknown some_or_no"
+    | _ => throwError "unknown some_or_no"
 
-  partial def of_prop (prop: TSyntax `prop): MacroM Term := do
+  partial def of_prop (prop: TSyntax `prop): CoreM Term := do
     let t ← match prop with
       | `(prop| $e:rel_prop) => of_rel_prop e
       | `(prop| $p:prop and $q:prop) => do `($(← of_prop p) ∧ $(← of_prop q))
@@ -186,7 +198,7 @@ mutual
       | `(prop| $_:_either $p:prop , or $q:prop) => do `($(← of_prop p) ∨ $(← of_prop q))
       | `(prop| $m:multi_or) => of_multi_or m
       | `(prop| $_:have_contradiction) => pure mk_false
-      | stx => Macro.throwError s!"unknown prop: {stx}"
+      | stx => throwError s!"unknown prop: {stx}"
     pure (set_info_from t prop)
 end
 
@@ -195,18 +207,18 @@ inductive Reason where
   | apply (ns: List Name)
   | induction
 
-def of_reason: TSyntax `reason → MacroM (Option Reason)
+def of_reason: TSyntax `reason → CoreM (Option Reason)
   | `(reason| [ $t:tactic ]) => pure (Reason.tactic t)
   | `(reason| $[$n:ident] and*) =>
         pure (Reason.apply (n.toList.map TSyntax.getId))
   | `(reason| induction) => pure Reason.induction
   | `(reason| the inductive hypothesis) => pure .none
-  | _ => Macro.throwError "unknown reason"
+  | _ => throwError "unknown reason"
 
-def of_eq_expr_by: TSyntax `eq_expr_by → MacroM (Term × Option Reason)
+def of_eq_expr_by: TSyntax `eq_expr_by → CoreM (Term × Option Reason)
   | `(eq_expr_by| = $e:expr $[ by $r:reason ]?) =>
         do pure ((← of_expr e), (← r.bindM of_reason))
-  | _ => Macro.throwError "unknown eq_expr_by"
+  | _ => throwError "unknown eq_expr_by"
 
 inductive ETerm where
   | term (t: Term)
@@ -273,37 +285,37 @@ instance: ToString ProofStep where
     | .case _ _ => "case"
     | .group _ => "group"
 
-def of_assert_prop: TSyntax `assert_prop → MacroM (ETerm × List (Option Reason))
+def of_assert_prop: TSyntax `assert_prop → CoreM (ETerm × List (Option Reason))
   | `(assert_prop| $p:prop) =>
         do pure (.term (← of_prop p), [none])
   | `(assert_prop| $e:expr $eb:eq_expr_by $ebs:eq_expr_by*) => do
         let (e1, by1) ← of_eq_expr_by eb
         let (es, bys) := (← ebs.toList.mapM of_eq_expr_by).unzip
         pure (.eq_chain ((← of_expr e) :: e1 :: es), by1 :: bys)
-  | _ => Macro.throwError "unknown assert_prop"
+  | _ => throwError "unknown assert_prop"
 
 def assert_step (t: Term) (r: Option Reason): ProofStep :=
   .assert (.term t) [r]
 
-def of_because_prop : TSyntax `because_prop → MacroM ProofStep
+def of_because_prop : TSyntax `because_prop → CoreM ProofStep
   | `(because_prop| $_:_since $p:prop) => do
        pure $ .assert (.term (← of_prop p)) [none]
-  | _ => Macro.throwError "unknown because_prop"
+  | _ => throwError "unknown because_prop"
 
-def of_which_is_contradiction: TSyntax `which_is_contradiction → MacroM (List ProofStep)
+def of_which_is_contradiction: TSyntax `which_is_contradiction → CoreM (List ProofStep)
   | `(which_is_contradiction|
           , $[again]? contradicting $i:ident $b:because_prop ?) => do
         let because ← b.toList.mapM of_because_prop
         let s := assert_step mk_false (.some (.apply [i.getId]))
         pure (because ++ [s])
-  | _ => Macro.throwError "unknown which_is_contradiction"
+  | _ => throwError "unknown which_is_contradiction"
 
 def mk_step (t: Term) (r: Option Reason): ProofStep := match t with
   | `(∃ $[$xs:ident]* : $type:ident, $p) =>
         .is_some (xs.toList.map TSyntax.getId) type.getId p r
   | _ => assert_step t r
 
-def of_proof_prop: TSyntax `proof_prop → MacroM (List ProofStep)
+def of_proof_prop: TSyntax `proof_prop → CoreM (List ProofStep)
   | `(proof_prop| $b:because_prop ? $[$_:_by $r:reason]? $[$_:_have]? $p:assert_prop
           $[by $r2:reason]? $w:which_is_contradiction ?) => do
         let because ← b.toList.mapM of_because_prop
@@ -313,80 +325,80 @@ def of_proof_prop: TSyntax `proof_prop → MacroM (List ProofStep)
           | .eq_chain _ => pure (.assert e rs)
         let contra ← w.toList.flatMapM of_which_is_contradiction
         pure (because ++ [s] ++ contra)
-  | _ => Macro.throwError "unknown proof_prop"
+  | _ => throwError "unknown proof_prop"
 
-def of_let_step: TSyntax `let_step → MacroM ProofStep
+def of_let_step: TSyntax `let_step → CoreM ProofStep
   | `(let_step| $_:_let $ids:ident,* : $type) =>
         pure $ .let (ids.getElems.toList.map TSyntax.getId) type.getId
-  | _ => Macro.throwError "unknown let_step"
+  | _ => throwError "unknown let_step"
 
-def of_let_or_assume: TSyntax `let_or_assume → MacroM ProofStep
+def of_let_or_assume: TSyntax `let_or_assume → CoreM ProofStep
   | `(let_or_assume| $ls:let_step) => of_let_step ls
   | `(let_or_assume| $_:_let $id = $e) =>
         do pure $ .let_def id.getId (← of_expr e)
   | `(let_or_assume| $_:_assume $p:prop) => do pure $ .assume (← of_prop p)
-  | _ => Macro.throwError "unknown let_or_assume"
+  | _ => throwError "unknown let_or_assume"
 
-def of_proof_if_prop: TSyntax `proof_if_prop → MacroM ProofStep
+def of_proof_if_prop: TSyntax `proof_if_prop → CoreM ProofStep
   | `(proof_if_prop| $_:_if $p:prop $[,]? then $[$qs:proof_prop]/*) => do
         pure $ .group (.assume (← of_prop p) :: (← qs.toList.flatMapM of_proof_prop))
-  | _ => Macro.throwError "unknown proof_if_prop"
+  | _ => throwError "unknown proof_if_prop"
 
-def of_assert_step: TSyntax `assert_step → MacroM (List ProofStep)
+def of_assert_step: TSyntax `assert_step → CoreM (List ProofStep)
   | `(assert_step| $p:proof_if_prop) => .singleton <$> of_proof_if_prop p
   | `(assert_step| $_:will_show $_p:prop) => pure []
   | `(assert_step| $_:_so ? $p:proof_prop) => of_proof_prop p
-  | _ => Macro.throwError "unknown assert_step"
+  | _ => throwError "unknown assert_step"
 
-def of_proof_sentence1: TSyntax `proof_sentence1 → MacroM (List ProofStep)
+def of_proof_sentence1: TSyntax `proof_sentence1 → CoreM (List ProofStep)
   | `(proof_sentence1| $ls:let_or_assume /*) =>
         ls.getElems.toList.mapM of_let_or_assume
   | `(proof_sentence1| $s:assert_step /*) =>
         s.getElems.toList.flatMapM of_assert_step
-  | _ => Macro.throwError "unknown proof_sentence1"
+  | _ => throwError "unknown proof_sentence1"
 
-def of_proof_sentence: TSyntax `proof_sentence → MacroM (List ProofStep)
+def of_proof_sentence: TSyntax `proof_sentence → CoreM (List ProofStep)
   | `(proof_sentence| $_:clause_intro ? $s:proof_sentence1 .) =>
       of_proof_sentence1 s
-  | _ => Macro.throwError "unknown proof_sentence"
+  | _ => throwError "unknown proof_sentence"
 
 mutual
-partial def of_otherwise_intro: TSyntax `otherwise_intro → MacroM (Term × List ProofStep)
+partial def of_otherwise_intro: TSyntax `otherwise_intro → CoreM (Term × List ProofStep)
   | `(otherwise_intro| $_:_assume $p:prop . $ts:proof_unit*) => do
       pure (← of_prop p, ← ts.toList.flatMapM of_proof_unit)
   | `(otherwise_intro| $pip:proof_if_prop .) => match pip with
     | `(proof_if_prop| $_:_if $p:prop $[,]? then $[$qs:proof_prop]/*) => do
         pure (← of_prop p, ← qs.toList.flatMapM of_proof_prop)
-    | _ => Macro.throwError "unknown otherwise_intro"
-  | _ => Macro.throwError "unknown otherwise_intro"
+    | _ => throwError "unknown otherwise_intro"
+  | _ => throwError "unknown otherwise_intro"
 
-partial def of_otherwise_unit: TSyntax `otherwise_unit → MacroM ProofStep
+partial def of_otherwise_unit: TSyntax `otherwise_unit → CoreM ProofStep
   | `(otherwise_unit| $intro:otherwise_intro $_:_otherwise $fs:proof_unit*
                      $_:_any_case $q:prop .) => do
       let (p, ts) ← of_otherwise_intro intro
       pure $ ProofStep.if_otherwise p ts (← fs.toList.flatMapM of_proof_unit) (← of_prop q)
-  | _ => Macro.throwError "unknown otherwise_unit"
+  | _ => throwError "unknown otherwise_unit"
 
-partial def of_proof_unit: TSyntax `proof_unit → MacroM (List ProofStep)
+partial def of_proof_unit: TSyntax `proof_unit → CoreM (List ProofStep)
   | `(proof_unit| $o:otherwise_unit) =>
       List.singleton <$> of_otherwise_unit o
   | `(proof_unit| $s:proof_sentence) => of_proof_sentence s
-  | _ => Macro.throwError "unknown proof_unit"
+  | _ => throwError "unknown proof_unit"
 end
 
-def of_case: TSyntax `case → MacroM (Nat × Term × List ProofStep)
+def of_case: TSyntax `case → CoreM (Nat × Term × List ProofStep)
   | `(case| Case $n:num : $p:prop . $ts:proof_unit*) => do
       pure (n.getNat, (← of_prop p), (← ts.toList.flatMapM of_proof_unit))
-  | _ => Macro.throwError "unknown case"
+  | _ => throwError "unknown case"
 
-def of_case_unit: TSyntax `case_unit → MacroM (List ProofStep)
+def of_case_unit: TSyntax `case_unit → CoreM (List ProofStep)
   | `(case_unit| $cs:case* $_:_any_case $p:prop .) => do
       let (nums, cases) ← List.unzip <$> cs.toList.mapM of_case
       match (nums.zipIdx 1).find? (fun (n, i) => n != i) with
-        | .some (n, _i) => Macro.throwError s!"case number {n} is unexpected"
+        | .some (n, _i) => throwError s!"case number {n} is unexpected"
         | .none => pure [ProofStep.case cases (← of_prop p)]
   | `(case_unit| $u:proof_unit) => of_proof_unit u
-  | _ => Macro.throwError "unknown case_unit"
+  | _ => throwError "unknown case_unit"
 
 structure Block where
   step : ProofStep
@@ -451,7 +463,7 @@ def adjust_info (n: Nat) (s: SourceInfo) :=
 def with_info2 (t: Term) (source: Term): Term :=
     ⟨t.raw.setInfo (adjust_info 2 (get_info source))⟩
 
-def tactic : Option Reason → MacroM Term
+def tactic : Option Reason → CoreM Term
   | .some (.tactic t) => `(by { $t })
   | .some (.apply ns) => `(by default_apply $(ns.toArray.map mkIdent)*)
   | .some (.induction) => `(by intro x ; induction x <;> default)
@@ -463,14 +475,14 @@ def produces_let : ProofStep → Bool
 
 -- Given a list of ids such as [x, y, z], produce an existential
 -- binding pattern such as `( ⟨x, ⟨y, ⟨z, _⟩⟩⟩ ).
-def ex_pattern : List Ident → MacroM Term
+def ex_pattern : List Ident → CoreM Term
   | [] => `(_)
   | x :: xs => do
       let p ← ex_pattern xs
       `(⟨$x, $p⟩)
 
 partial def translate (top: Bool) (parent_ex: List Name) (prev: Term) (concl: Option Term)
-      : List Block → MacroM (Term × Term)
+      : List Block → CoreM (Term × Term)
   | [] => match concl with
       | .some c => do pure (← `(show $c by default), c)
       | _ => do
@@ -488,7 +500,7 @@ partial def translate (top: Bool) (parent_ex: List Name) (prev: Term) (concl: Op
       let (c, child_concl) ←
         if step matches (.if_otherwise ..) || step matches (.case ..) then pure (unit, unit) else
         translate (top && rest.isEmpty && produces_let step) ex_decl unit none children
-      let translate_case (concl: Term) : Block → MacroM Term
+      let translate_case (concl: Term) : Block → CoreM Term
         | ⟨.assume p, bs⟩ => do
             let (c, _) ← translate false [] unit (.some concl) bs
             `(fun (_: $p) => $c)
@@ -556,7 +568,7 @@ inductive Proof where
   | steps (l: List ProofStep)
   | proof_by (r: Option Reason)
 
-def translate_proof (lets: Option ProofStep) (thm: Term): Proof → MacroM Term
+def translate_proof (lets: Option ProofStep) (thm: Term): Proof → CoreM Term
   | .steps steps => do
       let steps ← match lets with
         | .none => pure steps
@@ -565,47 +577,47 @@ def translate_proof (lets: Option ProofStep) (thm: Term): Proof → MacroM Term
           | _ =>
             let vars := ids.inter (free_vars thm)
             pure $ .let vars type :: steps
-        | _ => Macro.throwError "of_proof: unexpected step"
+        | _ => throwError "of_proof: unexpected step"
       let blocks := infer_blocks steps
       -- dbg_trace (show_blocks blocks)
       Prod.fst <$> translate True [] (← `(())) none blocks
   | .proof_by r => tactic r
 
-def of_proof: TSyntax `proof → MacroM Proof
+def of_proof: TSyntax `proof → CoreM Proof
   | `(proof| $steps:case_unit*) => do
         pure $ .steps $ List.flatten (← steps.toList.mapM of_case_unit)
   | `(proof| By $r:reason .) => do pure $ .proof_by (← of_reason r)
-  | _ => Macro.throwError "unknown proof"
+  | _ => throwError "unknown proof"
 
-def of_proof_item: TSyntax `proof_item → MacroM (Name × Proof)
+def of_proof_item: TSyntax `proof_item → CoreM (Name × Proof)
   | `(proof_item| $i:ident . $p:proof) => do pure (i.getId, (← of_proof p))
-  | _ => Macro.throwError "unknown proof_item"
+  | _ => throwError "unknown proof_item"
 
-def of_proof_items: TSyntax `proof_items → MacroM (List (Name × Proof))
+def of_proof_items: TSyntax `proof_items → CoreM (List (Name × Proof))
   | `(proof_items| $ps:proof_item*) => ps.toList.mapM of_proof_item
-  | _ => Macro.throwError "unknown proof_items"
+  | _ => throwError "unknown proof_items"
 
 -- statements
 
-def of_constructor: TSyntax `constructor → MacroM (Term × Term)
+def of_constructor: TSyntax `constructor → CoreM (Term × Term)
   | `(constructor| $c:const : $t:type) => do pure (← of_const c, ← of_type t)
-  | _ => Macro.throwError "unknown constructor"
+  | _ => throwError "unknown constructor"
 
 def to_ident: Term → Ident
   | `($n:num) => mkIdent (Name.mkSimple s!"n{n.getNat}")
   | `($i:ident) => i
   | _ => panic! "to_ident: unknown"
 
-def aux_ctor_def (typ:Ident) (t: Term): MacroM Command :=
+def aux_ctor_def (typ:Ident) (t: Term): CoreM Command :=
   let dot (i: Ident) := mkIdent (typ.getId ++ i.getId)
   match t with
     | `($_:num) =>
         `(instance: $(mkIdent ``OfNat) $typ $t where
             $(mkIdent `ofNat):ident := $(dot (to_ident t)))
     | `($i:ident) => `(abbrev $i := $(dot i))
-    | _ => Macro.throwError "aux_ctor_def: unknown"
+    | _ => throwError "aux_ctor_def: unknown"
 
-def of_type_def : TSyntax `type_def → MacroM Command
+def of_type_def : TSyntax `type_def → CoreM Command
   | `(type_def| The type $i:ident is defined inductively
                 with constructors $cs:constructor and* .) => do
       let ctors ← cs.getElems.mapM of_constructor
@@ -615,12 +627,12 @@ def of_type_def : TSyntax `type_def → MacroM Command
       let aux ← (ctors.map (·.1)).mapM (aux_ctor_def i)
       let commands := #[ind_decl] ++ aux
       pure $ .mk (mkNullNode commands)
-  | _ => Macro.throwError "unknown definition"
+  | _ => throwError "unknown definition"
 
-def of_top_sentence : TSyntax `top_sentence → MacroM (Term × Option Name × Option Name)
+def of_top_sentence : TSyntax `top_sentence → CoreM (Term × Option Name × Option Name)
   | `(top_sentence| $p:prop . $[ [ $i:ident $[ : @ $a:ident ]? ] ]?) => do
       pure (← of_prop p, i.map getId, a.join.map getId)
-  | _ => Macro.throwError "unknown top_sentence"
+  | _ => throwError "unknown top_sentence"
 
 abbrev Label := Name
 
@@ -630,38 +642,38 @@ structure ThmDecl where
   name: Option Name
   attr: Option Name
 
-def of_prop_item : TSyntax `prop_item → MacroM ThmDecl
+def of_prop_item : TSyntax `prop_item → CoreM ThmDecl
   | `(prop_item| $i:ident . $s:top_sentence) => do
       let (thm, name, attr) ← of_top_sentence s
       pure ⟨i.getId, thm, name, attr⟩
-  | _ => Macro.throwError "unknown prop_item"
+  | _ => throwError "unknown prop_item"
 
-def of_binary_op : TSyntax `binary_op → MacroM String
+def of_binary_op : TSyntax `binary_op → CoreM String
   | `(binary_op| +) => pure "+"
   | `(binary_op| <) => pure "<"
-  | _ => Macro.throwError "unknown binary_op"
+  | _ => throwError "unknown binary_op"
 
 def op_map := [("+", `add, `Add), ("<", `lt, `LT), ("≤", `le, `LE)]
 
-def parse_def_eq : Term → MacroM (String × Term × Term × Term)
+def parse_def_eq : Term → CoreM (String × Term × Term × Term)
   | `($l = $r)
   | `($l ↔ $r) => do
       let (a, op, b) ← parse_infix l
       pure (op, a, b, r)
-  | _ => Macro.throwError "equation expected"
+  | _ => throwError "equation expected"
 
-def eq_to_alt_expr (op: String) (fname: Ident) (t: Term): MacroM (TSyntax ``matchAltExpr) := do
+def eq_to_alt_expr (op: String) (fname: Ident) (t: Term): CoreM (TSyntax ``matchAltExpr) := do
   let (op', a, b, r) ← parse_def_eq t
   if op == op' then
     `(matchAltExpr| | $a, $b => $(replace_infix op fname r))
-  else Macro.throwError "wrong infix op"
+  else throwError "wrong infix op"
 
-def as_ident (t: Term): MacroM Ident := match t.raw with
+def as_ident (t: Term): CoreM Ident := match t.raw with
   | .ident _ _ name _ => pure (mkIdent name)
-  | _ => Macro.throwError "identifier expected"
+  | _ => throwError "identifier expected"
 
 def generate_def (op: String) (_args: Array Ident) (type: Ident) (eqs: Array Term)
-    : MacroM Command := do
+    : CoreM Command := do
   let (op_name, cl) := (op_map.lookup op).get!
   let fname := mkIdent (type.getId ++ op_name)
   let d ← match eqs with
@@ -687,51 +699,53 @@ def generate_def (op: String) (_args: Array Ident) (type: Ident) (eqs: Array Ter
     $i:command
     $a:command)
 
-def of_cases_def : TSyntax `cases_def → MacroM Command
+def of_cases_def : TSyntax `cases_def → CoreM Command
   | `(cases_def| The binary operation $op:binary_op on $type:ident is defined recursively
                     such that for all $ids_type:ids_type , $items:prop_item*) => do
       let (xs, _type) ← of_ids_type ids_type
       let eqs ← Array.map ThmDecl.thm <$> items.mapM of_prop_item
       generate_def (← of_binary_op op) xs type eqs
-  | _ => Macro.throwError "unknown cases_def"
+  | _ => throwError "unknown cases_def"
 
-def of_direct_def : TSyntax `direct_def → MacroM Command
+def of_direct_def : TSyntax `direct_def → CoreM Command
   | `(direct_def| $_:_for_all $ids_type:ids_type , $p:prop .) => do
       let (args, type) ← of_ids_type ids_type
       let eq ← of_prop p
       let (op, _, _, _) ← parse_def_eq eq
       match type with
         | `($i:ident) => generate_def op args i #[eq]
-        | _ => Macro.throwError "simple type expected"
-  | _ => Macro.throwError "unknown direct_def"
+        | _ => throwError "simple type expected"
+  | _ => throwError "unknown direct_def"
 
-def of_definition : TSyntax `definition → MacroM Command
+def of_definition : TSyntax `definition → CoreM Command
   | `(definition| $d:type_def) => of_type_def d
   | `(definition| $e:cases_def) => of_cases_def e
   | `(definition| $d:direct_def) => of_direct_def d
-  | _ => Macro.throwError "unknown definition"
+  | _ => throwError "unknown definition"
 
-macro d:definition_stmt : command => match d with
-  | `(definition_stmt| Definition. $d) => of_definition d
-  | _ => Macro.throwError "unknown definition_stmt"
+elab d:definition_stmt : command => do
+  let c ← match d with
+    | `(definition_stmt| Definition. $d) => liftCoreM (of_definition d)
+    | _ => throwError "unknown definition_stmt"
+  elabCommand c
 
-def match_proofs : List ThmDecl → List (Label × Proof) → MacroM (List (ThmDecl × Option Proof))
+def match_proofs : List ThmDecl → List (Label × Proof) → CoreM (List (ThmDecl × Option Proof))
   | [], [] => pure []
   | decl :: ts, (j, proof) :: ps =>
       if decl.label == j then .cons (decl, .some proof) <$> match_proofs ts ps
       else .cons (decl, .none) <$> match_proofs ts ((j, proof) :: ps)
   | decl :: ts, [] => .cons (decl, .none) <$> match_proofs ts []
-  | [], (j, _) :: _ => Macro.throwError s!"unmatched proof label: {j}"
+  | [], (j, _) :: _ => throwError s!"unmatched proof label: {j}"
 
-def generalize (lets: Option ProofStep) (t: Term) : MacroM Term := match lets with
+def generalize (lets: Option ProofStep) (t: Term) : CoreM Term := match lets with
   | .none => pure t
   | .some (.let ids type) =>
       let ids := (ids.inter (free_vars t)).toArray.map mkIdent
       if ids == #[] then pure t else `(∀ $ids:ident* : $(mkIdent type), $t)
-  | _ => Macro.throwError "generalize: unexpected step"
+  | _ => throwError "generalize: unexpected step"
 
 def of_props_proofs (lets: Option ProofStep) : TSyntax `props_proofs →
-        MacroM (List (ThmDecl × Option Term))
+        CoreM (List (ThmDecl × Option Term))
   | `(props_proofs| $s:top_sentence $[ Proof. $proof:proof ]?) => do
       let (thm, opt_name, opt_attr) ← of_top_sentence s
       let proof ← proof.mapM of_proof
@@ -744,10 +758,10 @@ def of_props_proofs (lets: Option ProofStep) : TSyntax `props_proofs →
       thms_proofs.mapM (fun (decl, proof) => do
         pure ({decl with thm := ← generalize lets decl.thm},
               ← proof.mapM (translate_proof lets decl.thm)))
-  | _ => Macro.throwError "unknown prop_or_items"
+  | _ => throwError "unknown prop_or_items"
 
-macro t:_theorem : command => do
-  match t with
+elab t:_theorem : command => do
+  let c : Command ← liftCoreM $ match t with
     | `(_theorem| $_:_thm $name:ident ? $_:str ? .
             $[$ls:let_step .]? $ps:props_proofs) => do
         let name := name.map getId
@@ -761,4 +775,5 @@ macro t:_theorem : command => do
                 `($a:attributes ? theorem $(mkIdent name) : $thm := $proof)
             | Option.none => `(example : $thm := $proof))
         pure $ .mk (mkNullNode commands)
-    | _ => Macro.throwError "unknown theorem"
+    | _ => throwError "unknown theorem"
+  elabCommand c

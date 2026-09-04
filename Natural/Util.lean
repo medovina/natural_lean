@@ -1,6 +1,6 @@
 import Lean
-
 import Batteries.Data.List.Basic
+
 open Lean hiding mkStrLit
 open Elab Tactic Meta
 open Elab.Command
@@ -32,7 +32,7 @@ def foldr1M [Monad m] [Inhabited α] (f: α → α → m α) (xs: List α) : m �
       f x r
   | _ => panic! "foldr1M"
 
--- syntax
+-- syntax builders
 
 macro "kdef" name:ident "=" ks:sepBy1(str, "|") : command => do
   let rec mk_or : List (TSyntax `stx) → MacroM (TSyntax `stx)
