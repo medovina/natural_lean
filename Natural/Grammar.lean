@@ -78,7 +78,7 @@ sdef_extend prop
   | multi_or
   | have_contradiction
 
--- reason
+-- proof steps
 
 sdef _thm
   | "Lemma" <|> "Theorem"
@@ -88,8 +88,6 @@ sdef reason
   | sepBy1(ident, "and")
   | "induction"
   | "the" "inductive" "hypothesis"
-
--- assert_prop
 
 sdef eq_expr_by
   | "=" expr ("by" reason)?
@@ -180,7 +178,7 @@ sdef case_unit
   | case+ _any_case prop "."
   | proof_unit
 
--- proof
+-- proofs
 
 sdef proof
   | case_unit+
@@ -190,7 +188,7 @@ syntax proof_item := ident "." proof
 
 syntax proof_items := proof_item+
 
--- statements
+-- definitions
 
 syntax constructor := const ":" type
 
@@ -218,6 +216,8 @@ sdef definition
   | direct_def
 
 syntax definition_stmt := "Definition." definition
+
+-- theorems
 
 sdef props_proofs
   | top_sentence ("Proof." proof)?
