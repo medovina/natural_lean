@@ -8,6 +8,18 @@ sdef type
   | ident
   | type "→" type
 
+sdef ids_type
+  | ident,+ ":" type
+
+kdef _at_least = "at least"
+kdef _at_most = "at most"
+kdef _exactly = "exactly"
+
+sdef multi_specifier
+  | _at_least
+  | _at_most
+  | _exactly
+
 -- forward declaration
 declare_syntax_cat prop
 
@@ -43,15 +55,6 @@ kdef _there = "there"
 
 kdef _exists = "exist" | "exists" | "is"
 
-kdef _at_least = "at least"
-kdef _at_most = "at most"
-kdef _exactly = "exactly"
-
-sdef multi_specifier
-  | _at_least
-  | _at_most
-  | _exactly
-
 sdef multi_or
   | multi_specifier "one" "of" rel_prop,+ "is" &"true"
 
@@ -70,10 +73,10 @@ sdef_extend prop
   |:25 prop:26 "implies" prop:25
   | _if prop "then" prop
   |:20 prop:21 _iff prop:21
-  | _for_all ident,+ ":" ident "," prop
-  | prop _for_all ident,+ ":" ident
-  | _there _exists some_or_no ? ident,+ ":" ident "such" "that" prop
-  | prop _for "some" ident,+ ":" ident
+  | _for_all ids_type "," prop
+  | prop _for_all ids_type
+  | _there _exists some_or_no ? ids_type "such" "that" prop
+  | prop _for "some" ids_type
   | _either prop "," "or" prop
   | multi_or
   | have_contradiction
@@ -204,11 +207,11 @@ kdef binary_op = "+" | "*" | "<"
 
 syntax cases_def :=
   "The" "binary" "operation" binary_op "on" ident
-  "is" "defined" "recursively" "such" "that" "for" "all" ident,+ ":" ident ","
+  "is" "defined" "recursively" "such" "that" "for" "all" ids_type ","
   prop_item+
 
 syntax direct_def :=
-  _for_all ident,+ ":" ident "," prop "."
+  _for_all ids_type "," prop "."
 
 sdef definition
   | type_def

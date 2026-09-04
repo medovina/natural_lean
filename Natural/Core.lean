@@ -23,24 +23,14 @@ macro "default_apply" ts:ident+ : tactic => do
   `(tactic| first | (apply_rules [$[$ts:ident],*] ; done) | grind [$[$ts:ident],*] |
                     aesop (add $aesop_rules,*))
 
+-- syntax helpers
+
 def range_info (s: TSyntax α) := match s.raw.getRange? with
     | .some ⟨pos, endPos⟩ => SourceInfo.synthetic pos endPos
     | .none => SourceInfo.none
 
 def set_info_from (s: TSyntax α) (t: TSyntax β): Term :=
   ⟨s.raw.setInfo (range_info t)⟩
-
-def multi_and : List Term → MacroM Term := foldr1M (fun t a => `($t ∧ $a))
-
-def multi_or : List Term → MacroM Term := foldr1M (fun t a => `($t ∨ $a))
-
-def at_most (ts: List Term) : MacroM (List Term) :=
-  let pair (t: Term) (u: Term) := do
-    `(¬($t ∧ $u))
-  (all_pairs ts).mapM pair.uncurry
-
-def precisely_one (ts: List Term) : MacroM (List Term) :=
-  List.cons <$> multi_or ts <*> at_most ts
 
 def parse_infix_opt : Syntax → Option (Syntax × String × Syntax)
   | .node _ _ #[x, .atom _ op, y] => .some (x, op, y)
@@ -81,11 +71,27 @@ partial def syntax_free_vars (s: Syntax): List Name := match s with
 
 def free_vars (t: Term): List Name := syntax_free_vars (t.raw)
 
+-- logical operations on terms
+
+def multi_and : List Term → MacroM Term := foldr1M (fun t a => `($t ∧ $a))
+
+def multi_or : List Term → MacroM Term := foldr1M (fun t a => `($t ∨ $a))
+
+def at_most (ts: List Term) : MacroM (List Term) :=
+  let pair (t: Term) (u: Term) := do
+    `(¬($t ∧ $u))
+  (all_pairs ts).mapM pair.uncurry
+
+def precisely_one (ts: List Term) : MacroM (List Term) :=
+  List.cons <$> multi_or ts <*> at_most ts
+
 partial def result_type : Term → Term
   | `($_t → $u) => result_type u
   | t => t
 
-partial def of_const : TSyntax `const → MacroM Term
+-- translation from natural language
+
+def of_const : TSyntax `const → MacroM Term
   | `(const| $i:ident) => `($i)
   | `(const| $n:num) => `($n)
   | _ => Macro.throwError "unknown const"
@@ -94,6 +100,10 @@ partial def of_type : TSyntax `type → MacroM Term
   | `(type| $i:ident) => `($i)
   | `(type| $t:type → $u:type) => do `($(← of_type t) → $(← of_type u))
   | _ => Macro.throwError "unknown multi_specifier"
+
+def of_ids_type : TSyntax `ids_type → MacroM (Array Ident × Term)
+  | `(ids_type| $xs:ident,* : $t:type) => do pure (xs.getElems, ← of_type t)
+  | _ => Macro.throwError "unknown ids_type"
 
 def of_multi_specifier : TSyntax `multi_specifier → List Term → MacroM (List Term)
   | `(multi_specifier| $_:_at_least) => fun ts => List.singleton <$> multi_or ts
@@ -161,14 +171,17 @@ mutual
       | `(prop| $p:prop implies $q:prop)
       | `(prop| $_:_if $p:prop then $q:prop) => do `($(← of_prop p) → $(← of_prop q))
       | `(prop| $p:prop $_:_iff $q:prop) => do `($(← of_prop p) ↔ $(← of_prop q))
-      | `(prop| $_:_for_all $x:ident,* : $t:ident, $p:prop)
-      | `(prop| $p:prop $_:_for_all $x:ident,* : $t:ident) => do
+      | `(prop| $_:_for_all $ids_type:ids_type , $p:prop)
+      | `(prop| $p:prop $_:_for_all $ids_type:ids_type) => do
+            let (x, t) ← of_ids_type ids_type
             `(∀ $x* : $t, $(← of_prop p))
-      | `(prop| $_:_there $_:_exists $s:some_or_no ? $x:ident,* : $t:ident such that $p:prop) => do
+      | `(prop| $_:_there $_:_exists $s:some_or_no ? $ids_type:ids_type such that $p:prop) => do
+            let (x, t) ← of_ids_type ids_type
             let b ← s.elim (pure true) of_some_or_no
             let t ← `(∃ $[$x:ident]* : $t, $(← of_prop p))
             if b then pure t else `(¬ $t)
-      | `(prop| $p:prop $_:_for some $x:ident,* : $t:ident) => do
+      | `(prop| $p:prop $_:_for some $ids_type:ids_type) => do
+            let (x, t) ← of_ids_type ids_type
             `(∃ $[$x:ident]* : $t, $(← of_prop p))
       | `(prop| $_:_either $p:prop , or $q:prop) => do `($(← of_prop p) ∨ $(← of_prop q))
       | `(prop| $m:multi_or) => of_multi_or m
@@ -676,16 +689,20 @@ def generate_def (op: String) (_args: Array Ident) (type: Ident) (eqs: Array Ter
 
 def of_cases_def : TSyntax `cases_def → MacroM Command
   | `(cases_def| The binary operation $op:binary_op on $type:ident is defined recursively
-                    such that for all $xs:ident,* : $_type:ident , $items:prop_item*) => do
+                    such that for all $ids_type:ids_type , $items:prop_item*) => do
+      let (xs, _type) ← of_ids_type ids_type
       let eqs ← Array.map ThmDecl.thm <$> items.mapM of_prop_item
       generate_def (← of_binary_op op) xs type eqs
   | _ => Macro.throwError "unknown cases_def"
 
 def of_direct_def : TSyntax `direct_def → MacroM Command
-  | `(direct_def| $_:_for_all $args:ident,* : $type:ident , $p:prop .) => do
+  | `(direct_def| $_:_for_all $ids_type:ids_type , $p:prop .) => do
+      let (args, type) ← of_ids_type ids_type
       let eq ← of_prop p
       let (op, _, _, _) ← parse_def_eq eq
-      generate_def op args type #[eq]
+      match type with
+        | `($i:ident) => generate_def op args i #[eq]
+        | _ => Macro.throwError "simple type expected"
   | _ => Macro.throwError "unknown direct_def"
 
 def of_definition : TSyntax `definition → MacroM Command
