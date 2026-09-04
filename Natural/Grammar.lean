@@ -8,9 +8,13 @@ sdef type
   | ident
   | type "→" type
 
+syntax id_list := ident (atomic("," ident))* (atomic("," ? "and") ident)?
+
+syntax natural_type := ident ident   -- e.g. "natural numbers"
+
 sdef ids_type
-  | ident,+ ":" type
-  | ident ident sepBy1(ident, "and")
+  | atomic(ident,+ ":") type
+  | natural_type id_list   -- e.g. "natural numbers x, y and z"
 
 kdef _at_least = "at least"
 kdef _at_most = "at most"
@@ -128,7 +132,11 @@ kdef _assume1 = "assume" | "suppose"
 sdef _assume
   | _also ? _assume1 "that"?
 
-syntax let_step := _let ident,+ ":" ident
+sdef type_suffix
+  | ":" type
+  | "be" natural_type
+
+syntax let_step := _let id_list type_suffix
 
 sdef let_or_assume
   | let_step

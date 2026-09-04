@@ -107,14 +107,26 @@ partial def of_type : TSyntax `type → CoreM Term
   | `(type| $t:type → $u:type) => do `($(← of_type t) → $(← of_type u))
   | _ => throwError "unknown multi_specifier"
 
-def of_ids_type : TSyntax `ids_type → CoreM (Array Ident × Term)
-  | `(ids_type| $xs:ident,* : $t:type) => do pure (xs.getElems, ← of_type t)
-  | `(ids_type| $n1:ident $n2:ident $[$xs:ident] and*) => do
+def of_id_list : TSyntax `id_list → CoreM (Array Ident)
+  | `(id_list| $id:ident $[, $ids:ident]* $[$[,]? and $id2:ident]?) => do
+      pure $ #[id] ++ ids ++ id2.toArray
+  | _ => throwError "unknown id_list"
+
+def of_natural_type : TSyntax `natural_type → CoreM Term
+  | `(natural_type| $n1:ident $n2:ident) => do
       let s := s!"{n1.getId.toString} {singular n2.getId.toString}"
       let type ← lookup_natural s
       match type with
-        | .some type => pure (xs, mkIdent type)
+        | .some type => pure (mkIdent type)
         | _ => throwError s!"unknown type: {s}"
+  | _ => throwError "unknown natural_type"
+
+def of_ids_type : TSyntax `ids_type → CoreM (Array Ident × Term)
+  | `(ids_type| $xs:ident,* : $t:type) => do pure (xs.getElems, ← of_type t)
+  | `(ids_type| $t:natural_type $ids:id_list) => do
+      let type ← of_natural_type t
+      let ids ← of_id_list ids
+      pure (ids, type)
   | _ => throwError "unknown ids_type"
 
 def of_multi_specifier : TSyntax `multi_specifier → List Term → CoreM (List Term)
@@ -234,7 +246,7 @@ def ex_vars : Term → List Ident
 
 inductive ProofStep where
   | assert (p: ETerm) (reason: List (Option Reason))
-  | let (ids: List Name) (type: Name)
+  | let (ids: List Name) (type: Term)
   | let_def (id: Name) (e: Term)
   | assume (p: Term)
   | is_some (ids: List Name) (type: Name) (p: Term) (reason: Option Reason)
@@ -327,9 +339,15 @@ def of_proof_prop: TSyntax `proof_prop → CoreM (List ProofStep)
         pure (because ++ [s] ++ contra)
   | _ => throwError "unknown proof_prop"
 
+def of_type_suffix: TSyntax `type_suffix → CoreM Term
+  | `(type_suffix| : $type:type) => of_type type
+  | `(type_suffix| be $type:natural_type) => of_natural_type type
+  | _ => throwError "unknown type_suffix"
+
 def of_let_step: TSyntax `let_step → CoreM ProofStep
-  | `(let_step| $_:_let $ids:ident,* : $type) =>
-        pure $ .let (ids.getElems.toList.map TSyntax.getId) type.getId
+  | `(let_step| $_:_let $ids:id_list $type:type_suffix) => do
+        let ids := (← of_id_list ids).toList.map TSyntax.getId
+        pure $ .let ids (← of_type_suffix type)
   | _ => throwError "unknown let_step"
 
 def of_let_or_assume: TSyntax `let_or_assume → CoreM ProofStep
@@ -521,8 +539,8 @@ partial def translate (top: Bool) (parent_ex: List Name) (prev: Term) (concl: Op
                   ← `($(ts.head!) = $(ts.getLast!)))
         | .let ids type =>
             let ids := ids.toArray.map mkIdent
-            pure (fun r => `(have: _ := fun $ids* : $(mkIdent type) => $c; $r),
-                  ← `(∀ $ids:ident* : $(mkIdent type), _))
+            pure (fun r => `(have: _ := fun $ids* : $type => $c; $r),
+                  ← `(∀ $ids:ident* : $type, _))
         | .let_def id e =>
             let t := `(let $(mkIdent id) := $e; $c)
             pure (
@@ -741,7 +759,7 @@ def generalize (lets: Option ProofStep) (t: Term) : CoreM Term := match lets wit
   | .none => pure t
   | .some (.let ids type) =>
       let ids := (ids.inter (free_vars t)).toArray.map mkIdent
-      if ids == #[] then pure t else `(∀ $ids:ident* : $(mkIdent type), $t)
+      if ids == #[] then pure t else `(∀ $ids:ident* : $type, $t)
   | _ => throwError "generalize: unexpected step"
 
 def of_props_proofs (lets: Option ProofStep) : TSyntax `props_proofs →

@@ -4,18 +4,24 @@ open Nat (succ)
 
 -- tutorial world
 
-Theorem.  For all natural numbers x and q, 37x + q = 37x + q.
+Theorem.  Let a, b, c, q, and x be natural numbers.
 
-Theorem.  For all natural numbers x and y, if y = x + 7 then 2y = 2(x + 7).
+  a. 37x + q = 37x + q.
 
-Theorem.  2 = succ(succ(0)).
+  b. If y = x + 7 then 2y = 2(x + 7).
 
-Theorem.  For all a, b, c : Nat, a + (b + 0) + (c + 0) = a + b + c.
+  c. 2 = succ(succ(0)).
 
-Theorem.  For all a : Nat, succ(a) = a + 1 .
+  d. a + (b + 0) + (c + 0) = a + b + c.
 
-Theorem.  2 + 2 = 4 .
+  e. succ(a) = a + 1 .
+
+  f. 2 + 2 = 4 .
 
 -- addition world
 
-Theorem.  For all n : Nat, 0 + n = n.
+Theorem.  For all natural numbers n, 0 + n = n.
+
+Theorem.  For all natural numbers a and b, succ(a) + b = succ(a + b).
+
+Theorem.  For all natural numbers a and b, a + b = b + a.
