@@ -34,4 +34,17 @@ Theorem.  Let a, b, c, and n be natural numbers.
 
 -- multiplication world
 
-Theorem.  For any natural number m, m · 1 = m.
+Theorem.  Let a, b, c, m, and n be natural numbers.
+
+  a. m × 1 = m.
+
+  b. 0 × m = 0.
+
+  c. succ(a) × b = a × b + b.
+
+  -- Multiplication is commutative.
+  d. a × b = b × a.
+
+  e. 1 × m = m.
+
+  f. 2 × m = m + m.

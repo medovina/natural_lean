@@ -147,12 +147,15 @@ mutual
       | `(expr| $n:num) => `($n)
       | `(expr| $i:ident) => `($i)
       | `(expr| $e:expr $f:expr)
-      | `(expr| $e:expr · $f:expr) => `($(← of_expr e) * $(← of_expr f))
+      | `(expr| $e:expr · $f:expr)
+      | `(expr| $e:expr × $f:expr) => `($(← of_expr e) * $(← of_expr f))
       | `(expr| $e:expr + $f:expr) => `($(← of_expr e) + $(← of_expr f))
       | `(expr| $e:expr ( $f:expr )) =>
           let e ← of_expr e
           let f ← of_expr f
-          if (e.raw.isOfKind `num) then `($e * $f) else `($e $f)
+          match e with
+            | `($_:num) => `($e * $f)
+            | _ => `($e $f)
       | `(expr| ( $e:expr )) => of_expr e
       | `(expr| { $x:ident : $t:ident | $p:prop }) => `({($x) : $t | $(← of_prop p)})
       | _ => throwError "unknown expr"
@@ -342,7 +345,7 @@ def of_proof_prop: TSyntax `proof_prop → CoreM (List ProofStep)
 def of_let_step: TSyntax `let_step → CoreM ProofStep
   | `(let_step| $_:_let $xs:ident,* : $type:type) => do
         pure $ .let (xs.getElems.toList.map TSyntax.getId) (← of_type type)
-  | `(let_step| $_:_let $xs:id_list be $type:natural_type) => do
+  | `(let_step| $_:_let $xs:id_list be $[a]? $type:natural_type) => do
         pure $ .let ((← of_id_list xs).toList.map TSyntax.getId) (← of_natural_type type)
   | _ => throwError "unknown let_step"
 

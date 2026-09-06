@@ -2,7 +2,7 @@
 
 Natural Lean is a library that lets you write Lean definitions, theorems, and proofs in a controlled natural language that looks much like ordinary mathematical English.  To use the library, you can simply write `import Natural` at the top of a Lean source file, then write natural-language mathematics freely in the rest of the file.  If you are using an IDE such as Visual Studio Code, Natural Lean will automatically translate your text into native Lean code, which will be checked for correctness.
 
-The file `examples/nat.lean` in this repository contains a sample development of the natural numbers in Natural Lean.  I recommend looking at it for a first glimpse of the language's capabilities.
+For a first glimpse of Natural Lean you could look at the file [`examples/nat_num_game.lean`](examples/nat_num_game.lean), which contains a number of problems from the [Natural Number Game](https://adam.math.hhu.de/#/g/leanprover-community/nng4) written in Natural Lean.  (No proofs are needed in this file, since Natural Lean's default tactic can solve all these problems directly.)  The file [`examples/nat.lean`](examples/nat.lean) is more substantial, and includes a partial development of the natural numbers from first principles in Natural Lean, including a number of theorems with proofs.   (To see the full proofs in this file, you will want to turn on word wrap.  As one possibility, download the file, view it in Visual Studio Code, and press Alt+Z to enable wrapping.)  
 
 Natural Lean is in an __early stage of development__ and is not a practical tool for writing many Lean proofs at this time: the grammar and expressiveness of the language are still extremely limited.  You may nevertheless want to experiment with Natural Lean even in its current state, and your feedback [is welcome](mailto:adam.dingle@mff.cuni.cz).  I am actively developing the library and hope to evolve the controlled natural language to be robust enough for writing large-scale proofs of any nature.
 
@@ -217,11 +217,16 @@ In addition, the following are __compound steps__ that group proof steps togethe
 - A __cases__ block allows a proof to consider several mutually exclusive possibilities:
 
   ```
-  Case 1: v < y.  Then v + S(z) = y for some z : ℕ.  By ℕ.is_zero_or_succ either z = 0, or z = S(u) for some u : ℕ.  So S(v) < y or S(v) = y.
+  Case 1: v < y.  Then v + S(z) = y for some z : ℕ.  By ℕ.is_zero_or_succ either
+    z = 0, or z = S(u) for some u : ℕ.  So S(v) < y or S(v) = y.
 
   Case 2: v = y.  Then S(v) = S(y) = y + S(0).  So y < S(v).
 
-  Case 3: y < v.  Then v = y + S(u) for some u : ℕ.  Hence S(v) = S(y + S(u)) = y + S(S(u)).  Thus y < S(v).
+  Case 3: y < v.  Then v = y + S(u) for some u : ℕ.  Hence
+
+      S(v) = S(y + S(u)) = y + S(S(u)).
+
+    Thus y < S(v).
 
   In all cases S(v) < y or S(v) = y or y < S(v). 
   ```

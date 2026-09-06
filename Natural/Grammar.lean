@@ -37,7 +37,7 @@ declare_syntax_cat expr
 syntax nat : expr
 syntax ident : expr
 syntax:80 (priority := 1) expr:80 expr:81 : expr
-syntax:70 expr:70 "·" expr:71 : expr
+syntax:70 expr:70 ("·" <|> "×") expr:71 : expr
 syntax:65 expr:65 "+" expr:66 : expr
 syntax (priority := 2) expr "(" expr ")" : expr
 syntax "(" expr ")" : expr
@@ -141,7 +141,7 @@ sdef type_suffix
 
 sdef let_step
   | atomic(_let ident,+ ":") type
-  | atomic(_let id_list "be") natural_type
+  | atomic(_let id_list "be") &"a"? natural_type
 
 sdef let_or_assume
   | let_step
