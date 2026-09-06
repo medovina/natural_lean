@@ -8,7 +8,10 @@ sdef type
   | ident
   | type "→" type
 
-syntax id_list := ident (atomic("," ident))* (atomic("," ? "and") ident)?
+syntax comma_ahead := lookahead("," <|> "and")
+
+syntax id_list :=
+  ident (atomic("," ident comma_ahead))* (atomic("," ? "and") ident)?
 
 syntax natural_type := ident ident   -- e.g. "natural numbers"
 
@@ -54,7 +57,7 @@ sdef _iff
 
 kdef _for = "for"
 
-syntax _for_all := _for "all"
+syntax _for_all := _for ("all" <|> "any")
 
 kdef _there = "there"
 
@@ -136,7 +139,9 @@ sdef type_suffix
   | ":" type
   | "be" natural_type
 
-syntax let_step := _let id_list type_suffix
+sdef let_step
+  | atomic(_let ident,+ ":") type
+  | atomic(_let id_list "be") natural_type
 
 sdef let_or_assume
   | let_step

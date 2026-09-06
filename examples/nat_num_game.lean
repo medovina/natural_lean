@@ -20,8 +20,18 @@ Theorem.  Let a, b, c, q, and x be natural numbers.
 
 -- addition world
 
-Theorem.  For all natural numbers n, 0 + n = n.
+Theorem.  Let a, b, c, and n be natural numbers.
 
-Theorem.  For all natural numbers a and b, succ(a) + b = succ(a + b).
+  a. 0 + n = n.
 
-Theorem.  For all natural numbers a and b, a + b = b + a.
+  b. succ(a) + b = succ(a + b).
+
+  c. a + b = b + a.
+
+  d. (a + b) + c = a + (b + c).
+
+  e. (a + b) + c = (a + c) + b.
+
+-- multiplication world
+
+Theorem.  For any natural number m, m · 1 = m.

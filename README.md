@@ -29,6 +29,7 @@ import Natural
 
 After that, you can mix natural-language mathematics with native Lean code freely in the same file.
 
+
 ### Definitions
 
 A definition begins with the capitalized word `Definition`.  Three kinds of definitions are currently supported.  An _inductive type definition_ defines a new type with one or more constructors:
@@ -89,6 +90,15 @@ Proof.  Let x : ℕ.  x + S(0) = S(x).  Therefore x < S(x).
 
 The section Proofs below describes the structure of proofs.
 
+A theorem may optionally being with a `Let` declaration introducing one or more quantified variables, so the preceding theorem may alternatively be written as
+
+```
+Theorem.  Let x : ℕ.  x < S(x).  [ℕ.lt_succ]
+
+Proof.  x + S(0) = S(x).  Therefore x < S(x).
+```
+
+A `Let` declaration of this nature is automatically included at the beginning of a proof, unless the proof begins with its own `Let` declaration.
 #### Theorem groups
 
 Several theorems may appear together in a single __theorem group__:
@@ -121,9 +131,10 @@ Theorem.
   c. For all x, y, z : ℕ, if x ≤ y and y < z then x < z.  [ℕ.lt_of_le_of_le]
 
 Proof.
-
   ...
 ```
+
+A `Let` declaration at the top of a theorem group will automatically be included at the beginning of each proof in the group, unless that proof already begins with its own `Let` declaration. 
 
 ### Proofs
 
@@ -301,6 +312,8 @@ But x + S(z) ≠ x by ℕ.not_succ_add and ℕ.add_comm.
 In this situation Natural Lean will invoke the tactic `default_apply` with the given theorem names, e.g. using the Lean code `(by default_apply ℕ.not_succ_add ℕ.add_comm)`.  `default_apply` is a tactic that calls each of `apply_rules`, `grind` and `aesop` in turn, passing the given theorems as arguments.  (I also intend to make this tactic configurable in the future.)
 
 ### Hints and tips
+
+You may notice that Visual Studio Code doesn't display a double checkmark beside natural-language theorems that have been proven.  That's due to a [bug](https://github.com/leanprover/lean4/issues/15044) in Lean.  I have submitted a [pull request](https://github.com/leanprover/lean4/pull/15045) that will fix it, so hopefully that will land soon.
 
 Due to a limitation in Lean's parser, in Natural Lean a number may not be directly followed by a period, so an assertion such as `x = 0.` will fail to parse.  Instead, you need to write a space after the number:
 

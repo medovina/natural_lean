@@ -108,7 +108,7 @@ partial def of_type : TSyntax `type → CoreM Term
   | _ => throwError "unknown multi_specifier"
 
 def of_id_list : TSyntax `id_list → CoreM (Array Ident)
-  | `(id_list| $id:ident $[, $ids:ident]* $[$[,]? and $id2:ident]?) => do
+  | `(id_list| $id:ident $[, $ids:ident $_:comma_ahead]* $[$[,]? and $id2:ident]?) => do
       pure $ #[id] ++ ids ++ id2.toArray
   | _ => throwError "unknown id_list"
 
@@ -339,15 +339,11 @@ def of_proof_prop: TSyntax `proof_prop → CoreM (List ProofStep)
         pure (because ++ [s] ++ contra)
   | _ => throwError "unknown proof_prop"
 
-def of_type_suffix: TSyntax `type_suffix → CoreM Term
-  | `(type_suffix| : $type:type) => of_type type
-  | `(type_suffix| be $type:natural_type) => of_natural_type type
-  | _ => throwError "unknown type_suffix"
-
 def of_let_step: TSyntax `let_step → CoreM ProofStep
-  | `(let_step| $_:_let $ids:id_list $type:type_suffix) => do
-        let ids := (← of_id_list ids).toList.map TSyntax.getId
-        pure $ .let ids (← of_type_suffix type)
+  | `(let_step| $_:_let $xs:ident,* : $type:type) => do
+        pure $ .let (xs.getElems.toList.map TSyntax.getId) (← of_type type)
+  | `(let_step| $_:_let $xs:id_list be $type:natural_type) => do
+        pure $ .let ((← of_id_list xs).toList.map TSyntax.getId) (← of_natural_type type)
   | _ => throwError "unknown let_step"
 
 def of_let_or_assume: TSyntax `let_or_assume → CoreM ProofStep
