@@ -14,9 +14,9 @@ Theorem.  Let a, b, c, q, and x be natural numbers.
 
   d. a + (b + 0) + (c + 0) = a + b + c.
 
-  e. succ(a) = a + 1 .
+  e. succ(a) = a + 1.
 
-  f. 2 + 2 = 4 .
+  f. 2 + 2 = 4.
 
 -- addition world
 

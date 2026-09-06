@@ -315,12 +315,4 @@ In this situation Natural Lean will invoke the tactic `default_apply` with the g
 
 You may notice that Visual Studio Code doesn't display a double checkmark beside natural-language theorems that have been proven.  That's due to a [bug](https://github.com/leanprover/lean4/issues/15044) in Lean.  I have submitted a [pull request](https://github.com/leanprover/lean4/pull/15045) that will fix it, so hopefully that will land soon.
 
-Due to a limitation in Lean's parser, in Natural Lean a number may not be directly followed by a period, so an assertion such as `x = 0.` will fail to parse.  Instead, you need to write a space after the number:
-
-```
-x = 0 .
-```
-
-I hope to implement a workaround to fix this limitation soon.
-
 If you would like to see the Lean code that is generated from any definition or theorem in Natural Lean, write `set_option trace.Elab.command true in` immediately before the definition or theorem.  The Lean code will be visible in the InfoView window in Visual Studio Code.

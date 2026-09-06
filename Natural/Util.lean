@@ -2,6 +2,7 @@ import Lean
 import Batteries.Data.List.Basic
 
 open Lean hiding mkStrLit
+open Lean.Parser
 open Elab Tactic Meta
 open Elab.Command
 open Lean.Syntax (mkStrLit)
@@ -31,6 +32,28 @@ def foldr1M [Monad m] [Inhabited α] (f: α → α → m α) (xs: List α) : m �
       let r ← foldr1M f xs
       f x r
   | _ => panic! "foldr1M"
+
+-- parsing
+
+-- A parser for numeric literals consisting only of digits.  We need this
+-- so that we can parse syntax such as "Let x = 5.", where the built-in parser
+-- would parse "5." as a scientific literal, which we don't want.
+-- Thanks to Robin Arnez for providing this implementation on the Lean Zulip.
+def rawNumLitNoAntiquot : Parser where
+  fn c s :=
+    let startPos := s.pos
+    -- delegate to `numLitFn` for appropriate error messages
+    if h : c.atEnd startPos then numLitFn c s else
+    if !(c.get' startPos h).isDigit then numLitFn c s else
+    let s := takeWhileFn (·.isDigit) c (s.next' c startPos h)
+    mkNodeToken numLitKind startPos true c s
+
+attribute [combinator_formatter rawNumLitNoAntiquot] PrettyPrinter.Formatter.numLit.formatter
+attribute [combinator_parenthesizer rawNumLitNoAntiquot] PrettyPrinter.Parenthesizer.numLit.parenthesizer
+
+@[run_parser_attribute_hooks]
+def nat : Parser :=
+  withAntiquot (mkAntiquot "num" numLitKind) rawNumLitNoAntiquot
 
 -- syntax builders
 

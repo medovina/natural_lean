@@ -74,7 +74,7 @@ Proof.  Let y : ℕ.  Let
   We know that
 
     0 + y = y
-          = y + 0 .
+          = y + 0.
 
   So 0 ∈ C.  Now let x : ℕ, and suppose that x ∈ C.  Then
 
@@ -137,7 +137,7 @@ Let x, y : ℕ.  Let A = { x : ℕ | x < y or x = y or y < x }.  First, by ℕ.i
 
 Now let v : ℕ, and assume that v ∈ A.  Then v < y or v = y or y < v.
 
-Case 1: v < y.  Then v + S(z) = y for some z : ℕ.  By ℕ.is_zero_or_succ either z = 0, or z = S(u) for some u : ℕ.  Suppose that z = 0 .  Then v + S(0) = y, that is S(v) = y.  Otherwise z = S(u) for some u : ℕ.  Then
+Case 1: v < y.  Then v + S(z) = y for some z : ℕ.  By ℕ.is_zero_or_succ either z = 0, or z = S(u) for some u : ℕ.  Suppose that z = 0.  Then v + S(0) = y, that is S(v) = y.  Otherwise z = S(u) for some u : ℕ.  Then
 
   S(v) + S(u) = v + S(S(u)) by ℕ.succ_add
               = v + S(z) = y.
@@ -159,7 +159,7 @@ Proof.
 
   a. x + S(0) = S(x).  Therefore x < S(x).
 
-  b. Assume there is some y : ℕ such that x < y < S(x).  Since x < y there is some z : ℕ such that x + S(z) = y.  By ℕ.is_zero_or_succ either z = 0, or z = S(u) for some u : ℕ.  Suppose that z = 0 .  Then S(x) = x + S(0) = x + S(z) = y, contradicting ℕ.lt_trichotomy since y < S(x).  Otherwise z = S(u) for some u : ℕ.  Then S(x) + S(u) = x + S(S(u)) by ℕ.succ_add = x + S(z) = y.  Thus S(x) < y, contradicting ℕ.lt_trichotomy since y < S(x).  In either case we have a contradiction.
+  b. Assume there is some y : ℕ such that x < y < S(x).  Since x < y there is some z : ℕ such that x + S(z) = y.  By ℕ.is_zero_or_succ either z = 0, or z = S(u) for some u : ℕ.  Suppose that z = 0.  Then S(x) = x + S(0) = x + S(z) = y, contradicting ℕ.lt_trichotomy since y < S(x).  Otherwise z = S(u) for some u : ℕ.  Then S(x) + S(u) = x + S(S(u)) by ℕ.succ_add = x + S(z) = y.  Thus S(x) < y, contradicting ℕ.lt_trichotomy since y < S(x).  In either case we have a contradiction.
 
 Definition.  For all x, y : ℕ, x ≤ y iff x < y or x = y.
 
@@ -167,7 +167,7 @@ Theorem.  For all x, y : ℕ, x ≤ y iff there is some z : ℕ such that x + z 
 
 Proof.  Let x, y : ℕ.  Suppose that x ≤ y.  If x < y then there is some w : ℕ such that x + S(w) = y.  Otherwise x = y, so x + 0 = y.  In either case there is some z : ℕ such that x + z = y.
 
-Let x, y : ℕ.  Suppose that there is some z : ℕ such that x + z = y.  If z = 0 then x = y, so x ≤ y.  Otherwise z ≠ 0 .  Then by ℕ.is_zero_or_succ there is some w : ℕ such that z = S(w).  Then x + S(w) = y, so x < y, so x ≤ y.  In either case x ≤ y.
+Let x, y : ℕ.  Suppose that there is some z : ℕ such that x + z = y.  If z = 0 then x = y, so x ≤ y.  Otherwise z ≠ 0.  Then by ℕ.is_zero_or_succ there is some w : ℕ such that z = S(w).  Then x + S(w) = y, so x < y, so x ≤ y.  In either case x ≤ y.
 
 Theorem.  Let x, y, z : ℕ.
 
@@ -188,12 +188,12 @@ Proof.
 
 Theorem.  Let x, y, z : ℕ.
 
-  a. If x ≠ 0 then x > 0 .
+  a. If x ≠ 0 then x > 0.
   b. x < x + S(y).
   c. If x < y then x + z < y + z.
 
 Proof.
 
-  a. Assume that x ≠ 0 .  Then by ℕ.is_zero_or_succ there exists some u : ℕ such that x = S(u).  Hence x = 0 + S(u).  Therefore x > 0 .
+  a. Assume that x ≠ 0.  Then by ℕ.is_zero_or_succ there exists some u : ℕ such that x = S(u).  Hence x = 0 + S(u).  Therefore x > 0.
 
   c. Assume that x < y.  Then x + S(w) = y for some w : ℕ.  Hence (x + z) + S(w) = (x + S(w)) + z = y + z.  Then x + z < y + z.
