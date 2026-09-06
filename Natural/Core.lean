@@ -65,10 +65,28 @@ partial def syntax_replace_infix (op: String) (name: Ident) :=
 def replace_infix (op: String) (name: Ident) (t: Term) : Term :=
   ⟨syntax_replace_infix op name t.raw⟩
 
-partial def syntax_free_vars (s: Syntax): List Name := match s with
-  | `(∀ $x:ident* : $_typ, $t) => (syntax_free_vars t).removeAll (x.toList.map TSyntax.getId)
-  | `(∃ $[$x:ident]* : $_typ, $t) => (syntax_free_vars t).removeAll (x.toList.map TSyntax.getId)
-  | `({($x:ident) : $_typ | $t}) => (syntax_free_vars t).erase (x.getId)
+inductive BinderType
+  | all
+  | exists
+  | set_comp
+
+def match_binder : Syntax → Option (BinderType × List Name × Term × Term)
+  | `(∀ $xs:ident* : $type, $t) => .some (.all, xs.toList.map TSyntax.getId, type, t)
+  | `(∃ $[$xs:ident]* : $type, $t) => .some (.exists, xs.toList.map TSyntax.getId, type, t)
+  | `({($x:ident) : $type | $t}) => .some (.set_comp, [x.getId], type, t)
+  | _ => .none
+
+def mk_binder (bt: BinderType) (xs: List Name) (type: Term) (t: Term) : CoreM Term :=
+  let xs := xs.toArray.map mkIdent
+  match bt with
+    | .all => `(∀ $xs* : $type, $t)
+    | .exists => `(∃ $[$xs:ident]* : $type, $t)
+    | .set_comp => match xs with
+        | #[x] => `({($x) : $type | $t})
+        | _ => panic! "mk_binder"
+
+partial def syntax_free_vars (s: Syntax): List Name := match match_binder s with
+  | .some (_bt, xs, _type, t) => (syntax_free_vars t).removeAll xs
   | _ => match s with
     | .missing => []
     | .node _ _ args => args.toList.flatMap syntax_free_vars |>.eraseDups
@@ -77,11 +95,24 @@ partial def syntax_free_vars (s: Syntax): List Name := match s with
 
 def free_vars (t: Term): List Name := syntax_free_vars (t.raw)
 
--- logical operations on terms
+-- terms
+
+def name_to_term (n: Name) : CoreM Term := `($(mkIdent n))
+
+def to_ident: Term → Ident
+  | `($n:num) => mkIdent (Name.mkSimple s!"n{n.getNat}")
+  | `($i:ident) => i
+  | _ => panic! "to_ident: unknown"
+
+def is_fun_type : Term → Bool
+  | `(_ → _) => true
+  | _ => false
 
 def multi_and : List Term → CoreM Term := foldr1M (fun t a => `($t ∧ $a))
 
 def multi_or : List Term → CoreM Term := foldr1M (fun t a => `($t ∨ $a))
+
+def multi_prod : List Term → CoreM Term := foldr1M (fun t a => `($t * $a))
 
 def at_most (ts: List Term) : CoreM (List Term) :=
   let pair (t: Term) (u: Term) := do
@@ -150,12 +181,7 @@ mutual
       | `(expr| $e:expr · $f:expr)
       | `(expr| $e:expr × $f:expr) => `($(← of_expr e) * $(← of_expr f))
       | `(expr| $e:expr + $f:expr) => `($(← of_expr e) + $(← of_expr f))
-      | `(expr| $e:expr ( $f:expr )) =>
-          let e ← of_expr e
-          let f ← of_expr f
-          match e with
-            | `($_:num) => `($e * $f)
-            | _ => `($e $f)
+      | `(expr| $e:expr ( $f:expr )) => `(app_or_mul $(← of_expr e) $(← of_expr f))
       | `(expr| ( $e:expr )) => of_expr e
       | `(expr| { $x:ident : $t:ident | $p:prop }) => `({($x) : $t | $(← of_prop p)})
       | _ => throwError "unknown expr"
@@ -243,8 +269,8 @@ def eterm_free_vars : ETerm → List Name
   | .term t => free_vars t
   | .eq_chain ts => ts.flatMap free_vars
 
-def ex_vars : Term → List Ident
-  | `(∃ $[$xs:ident]* : $_type:ident, $_p) => xs.toList
+def ex_vars : Term → List (Ident × Term)
+  | `(∃ $[$xs:ident]* : $type, $_p) => xs.toList.map (·, type)
   | _ => []
 
 inductive ProofStep where
@@ -252,23 +278,46 @@ inductive ProofStep where
   | let (ids: List Name) (type: Term)
   | let_def (id: Name) (e: Term)
   | assume (p: Term)
-  | is_some (ids: List Name) (type: Name) (p: Term) (reason: Option Reason)
+  | is_some (ids: List Name) (type: Term) (p: Term) (reason: Option Reason)
   | if_otherwise (p: Term) (if_true: List ProofStep) (if_false: List ProofStep) (concl: Term)
   | case (cases: List (Term × List ProofStep)) (concl: Term)
   | group (steps: List ProofStep)
 deriving Nonempty
 
-partial def step_decl_vars (step: ProofStep): List Name :=
-  let of_steps (steps: List ProofStep) := (steps.flatMap step_decl_vars).eraseDups
+partial def step_mapM [Monad m] (f: Term → m Term) (step: ProofStep) : m ProofStep := do
+  let map_steps (steps: List ProofStep) := steps.mapM (step_mapM f)
   match step with
-    | .assert .. => []
-    | .let ids _ => ids
-    | .let_def id _ => [id]
-    | .assume p => ex_vars p |>.map TSyntax.getId
-    | .is_some ids .. => ids
+    | .assert (.term t) rs => pure $ .assert (.term (← f t)) rs
+    | .assert (.eq_chain ts) rs =>
+        pure $ .assert (.eq_chain (← ts.mapM f)) rs
+    | .let .. => pure step
+    | .let_def id t => pure $ .let_def id (← f t)
+    | .assume p => pure $ .assume (← f p)
+    | .is_some ids type p r => pure $ .is_some ids type (← f p) r
+    | .if_otherwise p ts fs concl =>
+        pure $
+        .if_otherwise (← f p) (← map_steps ts) (← map_steps fs) (← f concl)
+    | .case cases concl => do
+        pure $ .case (← cases.mapM (fun (t, steps) => do pure $ (← f t, ← map_steps steps)))
+                     (← f concl)
+    | .group steps => pure $ .group (← map_steps steps)
+
+def step_decl_vars_types : ProofStep → List (Name × Term)
+  | .let ids type => ids.map (·, type)
+  | .let_def id _ => [(id, mkIdent `Unit)]  -- just a guess
+  | .assume p => (ex_vars p).map (map_fst TSyntax.getId)
+  | .is_some ids type .. => ids.map (·, type)
+  | _ => []
+
+def step_decl_vars (step: ProofStep): List Name := (step_decl_vars_types step).map (·.1)
+
+partial def step_all_decl_vars (step: ProofStep): List Name :=
+  let of_steps (steps: List ProofStep) := (steps.flatMap step_all_decl_vars).eraseDups
+  match step with
     | .if_otherwise _p t f _q => of_steps (t ++ f)
     | .case cases _ => of_steps (cases.map Prod.snd).flatten
     | .group steps => of_steps steps
+    | _ => step_decl_vars step
 
 mutual
 partial def step_free_vars : ProofStep → List Name
@@ -326,8 +375,8 @@ def of_which_is_contradiction: TSyntax `which_is_contradiction → CoreM (List P
   | _ => throwError "unknown which_is_contradiction"
 
 def mk_step (t: Term) (r: Option Reason): ProofStep := match t with
-  | `(∃ $[$xs:ident]* : $type:ident, $p) =>
-        .is_some (xs.toList.map TSyntax.getId) type.getId p r
+  | `(∃ $[$xs:ident]* : $type, $p) =>
+        .is_some (xs.toList.map TSyntax.getId) type p r
   | _ => assert_step t r
 
 def of_proof_prop: TSyntax `proof_prop → CoreM (List ProofStep)
@@ -437,7 +486,7 @@ partial def infer_blocks (steps: List ProofStep): List Block :=
     match steps with
       | [] => ([], [])
       | (step :: rest) =>
-          if overlap (step_decl_vars step) vars.flatten
+          if overlap (step_all_decl_vars step) vars.flatten
              then ([], steps) else
           let in_use := all_free_vars steps
           if (!is_assert_false step && !vars.head?.all (fun vs => vs.any in_use.elem))
@@ -465,6 +514,60 @@ partial def infer_blocks (steps: List ProofStep): List Block :=
   let (blocks, rest) := infer [] steps
   assert! (rest.isEmpty)
   blocks
+
+abbrev LocalEnv := List (Name × Term)    -- maps name to type
+
+def lookup (le: LocalEnv) (n: Name) : CoreM (Option Bool) := do
+  match (← resolveGlobalName n (enableLog := false)) with
+    | (name, _) :: _ =>
+        let env ← getEnv
+        match env.find? name with
+          | .some cinfo => pure $ .some (cinfo.type.isForall)
+          | .none => throwError s!"lookup: can't find {name}"
+    | [] => pure $ is_fun_type <$> le.lookup n
+
+mutual
+partial def resolve (le: LocalEnv) (s: Syntax) : CoreM (Term × Bool) := match s with
+  | `($i:ident) => do
+      let n := i.getId
+      if n.toString.contains "_@" then pure (⟨s⟩, false) else
+      match (← lookup le n) with
+        | .some is_fun => pure (⟨s⟩, is_fun)
+        | .none =>
+          let vars := n.toString.toList.map (fun c => Name.mkSimple c.toString)
+          if ← vars.allM (fun x => Option.isSome <$> lookup le x)
+          then pure (← multi_prod (← vars.mapM name_to_term), false)
+          else throwError (
+            if vars.length == 1 then s!"undefined: {n}"
+            else s!"{n} is neither defined nor an implicit product")
+  | `(app_or_mul $t:term $u:term) => do
+      let (t, t_is_fun) ← resolve le t
+      let u ← resolve1 le u
+      pure (← if t_is_fun then `($t $u) else `($t * $u), false)
+  | _ => match match_binder s with
+    | .some (bt, xs, type, t) => do
+        let vars := xs.map (·, type)
+        pure $ (← mk_binder bt xs type (← resolve1 (vars ++ le) t), false)
+    | .none => match s with
+      | .node info kind args => do
+          let args ← args.mapM (resolve1 le)
+          pure (⟨.node info kind args⟩, false)
+      | _ => pure (⟨s⟩, false)
+
+partial def resolve1 (le: LocalEnv) (s: Syntax) : CoreM Term := (·.1) <$> resolve le s
+end
+
+def resolve_term (le: LocalEnv) (t: Term) : CoreM Term :=
+  dbg_trace s!"resolving {t}"
+  (·.1) <$> resolve le t.raw
+
+partial def resolve_block (le: LocalEnv) : Block → CoreM Block
+  | ⟨step, children⟩ => do
+      let ivars := match step with
+        | .is_some .. => step_decl_vars_types step
+        | _ => []
+      pure ⟨← step_mapM (resolve_term (ivars ++ le)) step,
+            ← children.mapM (resolve_block (step_decl_vars_types step ++ le))⟩
 
 def get_info (t: Term): SourceInfo := t.raw.getInfo?.getD SourceInfo.none
 
@@ -548,7 +651,7 @@ partial def translate (top: Bool) (parent_ex: List Name) (prev: Term) (concl: Op
                 else `(have: _ := $(← t); $r),
               child_concl)
         | .assume p =>
-            let vars := ex_vars p
+            let vars := (ex_vars p).map (·.1)
             let pat ← ex_pattern vars
             pure (fun r => `(have: _ := fun ($pat:term : $p) => $c; $r),
                     ← `($p → _))
@@ -557,7 +660,7 @@ partial def translate (top: Bool) (parent_ex: List Name) (prev: Term) (concl: Op
             let ids := ids.map mkIdent
             let vars ← if children.isEmpty then `(this) else ex_pattern ids
             let a := ids.toArray
-            let t := `(have $vars:term : (∃ $[$a:ident]* : $(mkIdent type), $p) := $b; $c)
+            let t := `(have $vars:term : (∃ $[$a:ident]* : $type, $p) := $b; $c)
             pure (
               fun r => do
                 if rest.isEmpty && concl == none then t
@@ -597,6 +700,7 @@ def translate_proof (lets: Option ProofStep) (thm: Term): Proof → CoreM Term
         | _ => throwError "of_proof: unexpected step"
       let blocks := infer_blocks steps
       -- dbg_trace (show_blocks blocks)
+      let blocks ← blocks.mapM (resolve_block [])
       Prod.fst <$> translate True [] (← `(())) none blocks
   | .proof_by r => tactic r
 
@@ -619,11 +723,6 @@ def of_proof_items: TSyntax `proof_items → CoreM (List (Name × Proof))
 def of_constructor: TSyntax `constructor → CoreM (Term × Term)
   | `(constructor| $c:const : $t:type) => do pure (← of_const c, ← of_type t)
   | _ => throwError "unknown constructor"
-
-def to_ident: Term → Ident
-  | `($n:num) => mkIdent (Name.mkSimple s!"n{n.getNat}")
-  | `($i:ident) => i
-  | _ => panic! "to_ident: unknown"
 
 def aux_ctor_def (typ:Ident) (t: Term): CoreM Command :=
   let dot (i: Ident) := mkIdent (typ.getId ++ i.getId)
@@ -689,10 +788,11 @@ def as_ident (t: Term): CoreM Ident := match t.raw with
   | .ident _ _ name _ => pure (mkIdent name)
   | _ => throwError "identifier expected"
 
-def generate_def (op: String) (_args: Array Ident) (type: Ident) (eqs: Array Term)
+def generate_def (op: String) (args: List Ident) (type: Ident) (eqs: Array Term)
     : CoreM Command := do
   let (op_name, cl) := (op_map.lookup op).get!
   let fname := mkIdent (type.getId ++ op_name)
+  let eqs ← eqs.mapM (resolve_term (args.map (·.getId, type)))
   let d ← match eqs with
     | #[eq] =>  -- direct definition
         let (_op, x, y, r) ← parse_def_eq eq
@@ -721,7 +821,7 @@ def of_cases_def : TSyntax `cases_def → CoreM Command
                     such that for all $ids_type:ids_type , $items:prop_item*) => do
       let (xs, _type) ← of_ids_type ids_type
       let eqs ← Array.map ThmDecl.thm <$> items.mapM of_prop_item
-      generate_def (← of_binary_op op) xs type eqs
+      generate_def (← of_binary_op op) xs.toList type eqs
   | _ => throwError "unknown cases_def"
 
 def of_direct_def : TSyntax `direct_def → CoreM Command
@@ -730,7 +830,7 @@ def of_direct_def : TSyntax `direct_def → CoreM Command
       let eq ← of_prop p
       let (op, _, _, _) ← parse_def_eq eq
       match type with
-        | `($i:ident) => generate_def op args i #[eq]
+        | `($i:ident) => generate_def op args.toList i #[eq]
         | _ => throwError "simple type expected"
   | _ => throwError "unknown direct_def"
 
@@ -761,21 +861,23 @@ def generalize (lets: Option ProofStep) (t: Term) : CoreM Term := match lets wit
       if ids == #[] then pure t else `(∀ $ids:ident* : $type, $t)
   | _ => throwError "generalize: unexpected step"
 
-def of_props_proofs (lets: Option ProofStep) : TSyntax `props_proofs →
-        CoreM (List (ThmDecl × Option Term))
-  | `(props_proofs| $s:top_sentence $[ Proof. $proof:proof ]?) => do
-      let (thm, opt_name, opt_attr) ← of_top_sentence s
-      let proof ← proof.mapM of_proof
-      let decl := ThmDecl.mk none (← generalize lets thm) opt_name opt_attr
-      pure [ (decl, ← proof.mapM (translate_proof lets thm)) ]
-  | `(props_proofs| $ps:prop_item* $[ Proof. $pis:proof_items ]?) => do
-      let label_thms ← ps.toList.mapM of_prop_item
-      let label_proofs := (← pis.mapM of_proof_items).getD []
-      let thms_proofs ← match_proofs label_thms label_proofs
-      thms_proofs.mapM (fun (decl, proof) => do
-        pure ({decl with thm := ← generalize lets decl.thm},
-              ← proof.mapM (translate_proof lets decl.thm)))
-  | _ => throwError "unknown prop_or_items"
+def of_props_proofs (lets: Option ProofStep) (ps: TSyntax `props_proofs) :
+        CoreM (List (ThmDecl × Option Term)) :=
+  let finalize thm := generalize lets thm >>= resolve_term []
+  match ps with
+    | `(props_proofs| $s:top_sentence $[ Proof. $proof:proof ]?) => do
+        let (thm, opt_name, opt_attr) ← of_top_sentence s
+        let proof ← proof.mapM of_proof
+        let decl := ThmDecl.mk none (← finalize thm) opt_name opt_attr
+        pure [ (decl, ← proof.mapM (translate_proof lets thm)) ]
+    | `(props_proofs| $ps:prop_item* $[ Proof. $pis:proof_items ]?) => do
+        let label_thms ← ps.toList.mapM of_prop_item
+        let label_proofs := (← pis.mapM of_proof_items).getD []
+        let thms_proofs ← match_proofs label_thms label_proofs
+        thms_proofs.mapM (fun (decl, proof) => do
+          pure ({decl with thm := ← finalize decl.thm},
+                ← proof.mapM (translate_proof lets decl.thm)))
+    | _ => throwError "unknown prop_or_items"
 
 elab t:_theorem : command => do
   let c : Command ← liftCoreM $ match t with

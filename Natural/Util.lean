@@ -12,10 +12,10 @@ open Lean.Syntax (mkStrLit)
 def map_fst (f : α → γ) (pair : Prod α β) := pair.map f id
 def map_snd (f : β → γ) (pair : Prod α β) := pair.map id f
 
-def mapM_fst [Monad m] (f : α → m γ) : Prod α β → m (Prod γ β)
+def mapM_fst [Monad m] (f : α → m γ) : α × β → m (γ × β)
   | (x, y) => do pure (← f x, y)
 
-def mapM_snd [Monad m] (f : β → m γ) : Prod α β → m (Prod α γ)
+def mapM_snd [Monad m] (f : β → m γ) : α × β → m (α × γ)
   | (x, y) => do pure (x, ← f y)
 
 -- lists

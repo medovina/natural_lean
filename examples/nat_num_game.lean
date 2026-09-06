@@ -4,7 +4,7 @@ open Nat (succ)
 
 -- tutorial world
 
-Theorem.  Let a, b, c, q, and x be natural numbers.
+Theorem.  Let a, b, c, q, x, and y be natural numbers.
 
   a. 37x + q = 37x + q.
 

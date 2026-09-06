@@ -127,7 +127,7 @@ Proof.
       = x + (S(u) + S(v))
       = x + S(u + S(v)) by ℕ.succ_add.
 
-Then x < z by ℕ.lt.
+    Then x < z by ℕ.lt.
 
 Theorem "Trichotomy".  For all x, y : ℕ, exactly one of x < y, x = y, y < x is true.  [ℕ.lt_trichotomy]
 
