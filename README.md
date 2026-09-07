@@ -14,6 +14,7 @@ For a first glimpse of Natural Lean you could look at the file [`examples/nat_nu
 
 Natural Lean is in an __early stage of development__ and is not a practical tool for writing many Lean proofs at this time: the grammar and expressiveness of the language are still extremely limited.  You may nevertheless want to experiment with Natural Lean even in its current state, and your feedback [is welcome](mailto:adam.dingle@mff.cuni.cz).  I am actively developing the library and hope to evolve the controlled natural language to be robust enough for writing large-scale proofs of any nature.
 
+(Tip: If you are viewing this document on GitHub's web site, click the table of contents icon in the upper right to navigate through the various sections.)
 ## Getting Natural Lean
 
 In your project's `lakefile.toml` file, write
@@ -245,16 +246,15 @@ Each theorem asserts that a certain __proposition__ is true, and every assertion
 
 ```
 <expr> <rel_op> <expr>
-<prop> and <prop>
-<prop> or <prop>
+<prop> (,)? and <prop>
+(either)? <prop> (,)? or <prop>
 <prop> implies <prop>
-if <prop> then <prop>
 <prop> iff <prop>
+if <prop> then <prop>
 for all (<var>),+ : <type> , <prop>
 <prop> for all (<var>),+ : <type>
 there exists (some | no) (<var>),+ : <type> such that <prop>
 <prop> for some (<var>),+ : <type>
-either <prop> or <prop>
 (at least | at most | exactly) one of (<prop>),+ is true
 (this is | we have) a contradiction
 ```
@@ -274,6 +274,7 @@ y = S(u) for some u : ℕ
 at least one of x < y, x = y, y < x is true
 ```
 
+Natural Lean follows the usual precedence for Boolean operators:  `and` normally has the highest precedence, followed in turn by `or`, `implies` and `iff`.  For example, `x > 0 and y > 0 or z > 0` means `(x > 0 and y > 0) or z > 0`.  However, a comma before `and` or `or`will cause the operator to have a low precedence.  For example, `x > 0, and y > 0 or z > 0` means `x > 0 and (y > 0 or z > 0)`.
 #### Operator chains
 
 A proposition may contain __chained relational operators__: for example, `x < y ≤ z = w` has the same meaning as `x < y and y ≤ z and z = w`.  In an assertion, each step in chain may optionally have a reason:

@@ -42,7 +42,6 @@ Theorem.  Let a, b, c, m, and n be natural numbers.
 
   c. succ(a) × b = a × b + b.
 
-  -- Multiplication is commutative.
   d. a × b = b × a.
 
   e. 1 × m = m.
@@ -54,3 +53,13 @@ Theorem.  Let a, b, c, m, and n be natural numbers.
   h. (a + b) × c = ac + bc.
 
   i. (ab)c = a(bc).
+
+-- implication world
+
+Theorem.  Let x, y, and z be natural numbers.
+
+  a. If x + y = 37 and 3x + z = 42 then x + y = 37.
+
+  b. If 0 + x = (0 + y) + 2 then x = y + 2.
+
+  c. If x = 37, and x = 37 implies y = 42, then y = 42.

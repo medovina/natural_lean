@@ -77,15 +77,16 @@ syntax have_contradiction := _is_have &"a" "contradiction"
 sdef_extend prop
   | atomic(rel_prop)
   |:35 prop:36 "and" prop:35
-  |:30 prop:31 "or" prop:30
+  |:30 atomic(_either ? prop:31 "or") prop:30
   |:25 prop:26 "implies" prop:25
-  | _if prop "then" prop
+  | _if prop atomic("," ? "then") prop
   |:20 prop:21 _iff prop:21
+  |:18 prop:19 atomic("," "and") prop:18
+  |:16 atomic(_either ? prop:17 "," "or") prop:16
   | _for_all ids_type "," prop
   | prop _for_all ids_type
   | _there _exists some_or_no ? ids_type "such" "that" prop
   | prop _for "some" ids_type
-  | _either prop "," "or" prop
   | multi_or
   | have_contradiction
 

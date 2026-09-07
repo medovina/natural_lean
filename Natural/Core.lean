@@ -220,9 +220,9 @@ mutual
     let t ← match prop with
       | `(prop| $e:rel_prop) => of_rel_prop e
       | `(prop| $p:prop and $q:prop) => do `($(← of_prop p) ∧ $(← of_prop q))
-      | `(prop| $p:prop or $q:prop) => do `($(← of_prop p) ∨ $(← of_prop q))
+      | `(prop| $_:_either ? $p:prop or $q:prop) => do `($(← of_prop p) ∨ $(← of_prop q))
       | `(prop| $p:prop implies $q:prop)
-      | `(prop| $_:_if $p:prop then $q:prop) => do `($(← of_prop p) → $(← of_prop q))
+      | `(prop| $_:_if $p:prop $[,]? then $q:prop) => do `($(← of_prop p) → $(← of_prop q))
       | `(prop| $p:prop $_:_iff $q:prop) => do `($(← of_prop p) ↔ $(← of_prop q))
       | `(prop| $_:_for_all $ids_type:ids_type , $p:prop)
       | `(prop| $p:prop $_:_for_all $ids_type:ids_type) => do
@@ -236,7 +236,8 @@ mutual
       | `(prop| $p:prop $_:_for some $ids_type:ids_type) => do
             let (x, t) ← of_ids_type ids_type
             `(∃ $[$x:ident]* : $t, $(← of_prop p))
-      | `(prop| $_:_either $p:prop , or $q:prop) => do `($(← of_prop p) ∨ $(← of_prop q))
+      | `(prop| $p:prop , and $q:prop) => do `($(← of_prop p) ∧ $(← of_prop q))
+      | `(prop| $_:_either ? $p:prop , or $q:prop) => do `($(← of_prop p) ∨ $(← of_prop q))
       | `(prop| $m:multi_or) => of_multi_or m
       | `(prop| $_:have_contradiction) => pure mk_false
       | stx => throwError s!"unknown prop: {stx}"
@@ -537,7 +538,7 @@ partial def resolve (le: LocalEnv) (s: Syntax) : CoreM (Term × Bool) := match s
           let vars := n.toString.toList.map (fun c => Name.mkSimple c.toString)
           if ← vars.allM (fun x => Option.isSome <$> lookup le x)
           then pure (← multi_prod (← vars.mapM name_to_term), false)
-          else throwError (
+          else throwErrorAt s (
             if vars.length == 1 then s!"undefined: {n}"
             else s!"{n} is neither defined nor an implicit product")
   | `(app_or_mul $t:term $u:term) => do
