@@ -80,7 +80,7 @@ Theorem.  Let x, y, and z be natural numbers.
 
 -- power world
 
-Theorem.  Let a, m, and n be natural numbers.
+Theorem.  Let a, b, m, and n be natural numbers.
 
   a. 0⁰ = 1.
 
@@ -91,3 +91,35 @@ Theorem.  Let a, m, and n be natural numbers.
   d. a² = a × a.
 
   e. aᵐ⁺ⁿ = aᵐ · aⁿ.
+
+  f. (ab)ⁿ = aⁿbⁿ.
+
+  g. (aᵐ)ⁿ = aᵐⁿ.
+
+  h. (a + b)² = a² + b² + 2ab.
+
+Proof.
+
+  f. By Nat.mul_pow.
+
+  g. By Nat.pow_mul.
+
+-- algorithm world
+
+Theorem.  Let a, b, c, d, e, f, g, and h be natural numbers.
+
+  a. a + (b + c) = b + (a + c).
+
+  b. (a + b) + (c + d) = ((a + c) + d) + b.
+
+  c. (d + f) + (h + (a + c)) + (g + e + b) = a + b + c + d + e + f + g + h.
+
+  d. If succ(a) = succ(b) then a = b.
+
+  e. succ(a) ≠ 0.
+
+  f. If a ≠ b then succ(a) ≠ succ(b).
+
+  g. 20 + 20 = 40.
+
+  h. 2 + 2 ≠ 5.

@@ -200,7 +200,8 @@ mutual
       | `(expr| $e:expr + $f:expr) => `($(← of_expr e) + $(← of_expr f))
       | `(expr| $e:expr ( $f:expr )) => `(app_or_mul $(← of_expr e) $(← of_expr f))
       | `(expr| ( $e:expr )) => of_expr e
-      | `(expr| { $x:ident : $t:ident | $p:prop }) => `({($x) : $t | $(← of_prop p)})
+      | `(expr| { $x:ident : $type:type | $p:prop }) =>
+          `({($x) : $(← of_type type) | $(← of_prop p)})
       | _ => throwError "unknown expr"
 
     -- Avoid copying SourceInfo to identifiers, which produces spurious
