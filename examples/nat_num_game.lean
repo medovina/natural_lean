@@ -2,6 +2,16 @@ import Natural
 
 open Nat (succ)
 
+/- This file proves all the theorems in the Natural Number Game:
+     https://adam.math.hhu.de/#/g/leanprover-community/nng4
+
+   Actually there aren't many proofs here, since Natural Lean's default tactic calls
+   'grind', which can pick off most of these statements automatically.  Also, we make
+   free use of lemmas about Nat that are predefined in Lean, many of which are equivalent
+   to the statements here.  So mostly this file serves as a demonstration of Natural Lean's
+   syntax, as well as how to write some short one-line proofs.
+-/
+
 -- tutorial world
 
 Theorem.  Let a, b, c, q, x, and y be natural numbers.
@@ -168,7 +178,7 @@ Theorem.  Let x, y, and z be natural numbers.
 
 -- advanced multiplication world
 
-Theorem.  Let a, b, and t be natural numbers.
+Theorem.  Let a, b, c, t, x, and y be natural numbers.
 
   -- We must write "a · t" insted of "at" here, since "at" is a Lean keyword.
   a. If a ≤ b then a · t ≤ bt.
@@ -179,8 +189,32 @@ Theorem.  Let a, b, and t be natural numbers.
 
   d. If a ≠ 0 then 1 ≤ a.
 
+  e. If ab ≠ 0 then a ≤ ab.
+
+  f. If xy = 1 then x = 1.
+
+  g. If a ≠ 0 and b ≠ 0 then ab ≠ 0.
+
+  h. If ab = 0 then a = 0 or b = 0.
+
+  i. If a ≠ 0 and ab = ac then b = c.
+
+  j. If a ≠ 0 and ab = a then b = 1.
+
 Proof.
 
   a. By Nat.mul_le_mul_right.
 
   c. By Nat.exists_eq_succ_of_ne_zero.
+
+  e. Suppose that ab ≠ 0.  Then we must have b ≠ 0, so 1 ≤ b.  And so a · 1 ≤ ab by Nat.mul_le_mul_left.
+
+  f. By Nat.eq_one_of_mul_eq_one_left.
+
+  g. By Nat.mul_ne_zero_iff.
+
+  h. By Nat.mul_eq_zero.
+
+  i. Suppose that a ≠ 0 and ab = ac.  Then 0 < a, so b = c by Nat.mul_left_cancel.
+
+  j. Suppose that a ≠ 0 and ab = a.  Then 0 < a and ab = a · 1, so b = 1 by Nat.mul_left_cancel.

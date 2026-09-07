@@ -4,11 +4,25 @@
 
 Natural Lean is a library that lets you write Lean definitions, theorems, and proofs in a controlled natural language that looks much like ordinary mathematical English.  To use the library, you can simply write `import Natural` at the top of a Lean source file, then write natural-language mathematics freely in the rest of the file.  If you are using an IDE such as Visual Studio Code, Natural Lean will automatically translate your text into native Lean code, which will be checked for correctness.
 
-For a first glimpse of Natural Lean you could look at the file [`examples/nat_num_game.lean`](examples/nat_num_game.lean), which contains a number of problems from the [Natural Number Game](https://adam.math.hhu.de/#/g/leanprover-community/nng4) written in Natural Lean.  (Almost no proofs are needed in this file, since Natural Lean's [default tactic](#tactics) can solve almost all of these problems directly.)  The file [`examples/nat.lean`](examples/nat.lean) is more substantial, and includes a partial development of the natural numbers from first principles in Natural Lean, including a number of theorems with proofs.   (To see the full proofs in this file, you will want to turn on word wrap.  As one possibility, download the file, view it in Visual Studio Code, and press Alt+Z to enable wrapping.)  
+For a first glimpse of Natural Lean you could look at the file [`examples/nat_num_game.lean`](examples/nat_num_game.lean), which proves all of the of theorems from the [Natural Number Game](https://adam.math.hhu.de/#/g/leanprover-community/nng4).  (Actually there are not many  explicit proofs in this file, since Natural Lean's [default tactic](#tactics) can solve most of these problems directly.)  The file [`examples/nat.lean`](examples/nat.lean) is more substantial, and includes a partial development of the natural numbers from first principles in Natural Lean, including a number of theorems with proofs.   (To see the full proofs in this file, you will want to turn on word wrap.  As one possibility, download the file, view it in Visual Studio Code, and press Alt+Z to enable wrapping.)  
 
 Natural Lean is in an __early stage of development__ and is not a practical tool for writing many Lean proofs at this time: the grammar and expressiveness of the language are still extremely limited.  You may nevertheless want to experiment with Natural Lean even in its current state.  Your feedback is welcome: you can send me  [email](mailto:adam.dingle@mff.cuni.cz) or open issues in this repository.  I am actively developing the library and hope to evolve the controlled natural language to eventually be robust enough for writing large-scale proofs of any nature.
 
-(Tip: If you are viewing this document on GitHub's web site, click the table of contents icon in the upper right to navigate through the various sections.)
+### Contents
+
+- [Getting started](#getting-started)
+- [Definitions](#definitions)
+- [Theorems](#theorems)
+  - [Theorem groups](#theorem-groups)
+- [Proofs](#proofs)
+- [Propositions](#propositions)
+  - [Operator chains](#operator-chains)
+- [Expressions](#expressions)
+- [Types](#types)
+- [Tactics](#tactics)
+- [Hints and tips](#hints-and-tips)
+     
+(Tip: If you are viewing this document on GitHub's web site, you can also click the table of contents icon in the upper right to navigate through the various sections.)
 
 ### Getting started
 In your project's `lakefile.toml` file, write
@@ -20,7 +34,7 @@ git = "https://github.com/medovina/natural_lean.git"
 rev = "main"
 ```
 
-At the top of any source file, write
+At the top of any Lean source file in your project, write
 
 ```
 import Natural
@@ -329,6 +343,16 @@ In this situation Natural Lean will invoke the tactic `default_apply` with the g
 ### Hints and tips
 
 You may notice that Visual Studio Code doesn't display a double checkmark beside natural-language theorems that have been proven.  That's due to a [bug](https://github.com/leanprover/lean4/issues/15044) in Lean.  I have submitted a [pull request](https://github.com/leanprover/lean4/pull/15045) that will fix it, so hopefully that will land soon.
+
+The `try?` tactic is very useful.  If a proof step fails, try adding `by [try?]`to that step.  If that succeeds, the information in the InfoView will often reveal which theorem(s) you will need to use to prove the step without `try?`.  For example, if the InfoView shows
+
+  ```
+  Try these:
+    [apply] grind only [Nat.eq_one_of_mul_eq_one_left]
+    [apply] grind => instantiate only [Nat.eq_one_of_mul_eq_one_left]
+  ```
+
+then you should be able to prove the step by writing `by Nat.eq_one_of_mul_eq_one_left`, since Natural Lean's `default_apply` tactic will call `grind`. 
 
 Natural Lean is currently quite lax about plurals, articles, and capitalization, so at the moment you may be able to get away with writing ungrammatical English such as "Let a and b be natural number".  I plan to check grammar more strictly in the future.
 
