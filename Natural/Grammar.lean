@@ -48,8 +48,9 @@ declare_syntax_cat prop
 -- expr
 
 sdef super_expr
-  | super_digit
-  | super_letter
+  | super_digit+
+  | super_letter+
+  | super_expr "⁺" super_expr
 
 declare_syntax_cat expr
 syntax nat : expr

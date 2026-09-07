@@ -174,12 +174,17 @@ def mk_false : Term := mkIdent ``False
 
 def super_char (s: Syntax) : Char := (s.getArg 0).getAtomVal.front
 
-def of_super_expr : TSyntax `super_expr → CoreM Term
-  | `(super_expr| $d:super_digit) =>
-      pure $ mkNatLit (super_digits.lookup (super_char d)).get!
-  | `(super_expr| $d:super_letter) =>
-      let c := (super_letters.lookup (super_char d)).get!.toString
-      pure $ mkIdent (Name.mkSimple c)
+def super_string (table: List (Char × Char)) (a: TSyntaxArray α) : String :=
+  let chars := a.map (fun s => (table.lookup (super_char s)).get!)
+  String.ofList chars.toList
+
+partial def of_super_expr : TSyntax `super_expr → CoreM Term
+  | `(super_expr| $ds:super_digit*) =>
+      pure $ mkNatLit (super_string super_digits ds).toNat!
+  | `(super_expr| $cs:super_letter*) =>
+      pure $ mkIdent (Name.mkSimple (super_string super_letters cs))
+  | `(super_expr| $e:super_expr ⁺ $f:super_expr) => do
+      `($(← of_super_expr e) + $(← of_super_expr f))
   | _ => throwError "unknown super_expr"
 
 mutual

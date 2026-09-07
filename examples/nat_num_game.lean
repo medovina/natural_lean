@@ -90,4 +90,4 @@ Theorem.  Let a, m, and n be natural numbers.
 
   d. a² = a × a.
 
-  e. a^(m + n) = aᵐ · aⁿ.
+  e. aᵐ⁺ⁿ = aᵐ · aⁿ.

@@ -32,7 +32,7 @@ After that, you can mix natural-language mathematics with native Lean code freel
 
 ### Definitions
 
-A definition begins with the capitalized word `Definition`.  Three kinds of definitions are currently supported.  An _inductive type definition_ defines a new type with one or more constructors:
+A definition begins with the capitalized word `Definition`.  Three limited kinds of definitions are currently supported.  An _inductive type definition_ defines a new type with one or more constructors:
 
 ```
 Definition.  The type ℕ is defined inductively with constructors 0 : ℕ and S : ℕ → ℕ.
@@ -306,7 +306,7 @@ ac + bc
 
 Implicit multiplication is supported: `xy` with no parentheses means `x · y`.  Note that Natural Lean uses the traditional function call syntax `f(x)`, which is different from `f x` as found in native Lean code.  An expression of the form `a(b)` is potentially ambiguous: it may represent either a multiplication or a function call.  Natural Lean resolves this ambiguity based on the type of `a`: if it is a function, then `a(b)` is considered to be a function call, otherwise a multiplication.
 
-Unicode superscript digits and letters are supported, so you may write e.g. `x²` in place of `x^2`, or `xʸ` in place of `x^y`.
+Unicode superscript digits and letters are supported, so you may write e.g. `x²` in place of `x^2`, or `xʸ` in place of `x^y`.  A superscripted expression may include the  `+` operator, so `xⁱ⁺ʲ` is the same as `x ^ (i + j)`.  
 ### Tactics
 
 When an assertion does not contain a reason, or when a theorem does not include a proof at all, Natural Lean will attempt to prove the assertion or theorem using a tactic named `default` which tries each of `trivial`, `grind` and `aesop` in turn.  In the future I intent to make the default tactic configurable by any development in Natural Lean, but for the moment it is fixed.
