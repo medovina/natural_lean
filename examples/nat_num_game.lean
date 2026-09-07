@@ -77,3 +77,15 @@ Theorem.  Let x, y, and z be natural numbers.
   i. 1 ≠ 0.
 
   j. 2 + 2 ≠ 5.
+
+-- power world
+
+Theorem.  Let a, m, and n be natural numbers.
+
+  a. 0⁰ = 1.
+
+  b. 0 ^ succ(m) = 0.
+
+  c. a¹ = a.
+
+  d. a² = a × a.

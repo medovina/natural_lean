@@ -9,7 +9,8 @@ For a first glimpse of Natural Lean you could look at the file [`examples/nat_nu
 Natural Lean is in an __early stage of development__ and is not a practical tool for writing many Lean proofs at this time: the grammar and expressiveness of the language are still extremely limited.  You may nevertheless want to experiment with Natural Lean even in its current state, and your feedback [is welcome](mailto:adam.dingle@mff.cuni.cz).  I am actively developing the library and hope to evolve the controlled natural language to be robust enough for writing large-scale proofs of any nature.
 
 (Tip: If you are viewing this document on GitHub's web site, click the table of contents icon in the upper right to navigate through the various sections.)
-## Getting Natural Lean
+
+### Getting started with Natural Lean
 
 In your project's `lakefile.toml` file, write
 
@@ -19,10 +20,6 @@ name = "natural"
 git = "https://github.com/medovina/natural_lean.git"
 rev = "main"
 ```
-
-## Quick tour
-
-This section gives an informal overview of how to write mathematics in Natural Lean.  (I hope to add a more formal language reference before long.)
 
 At the top of any source file, write
 
@@ -272,7 +269,7 @@ at least one of x < y, x = y, y < x is true
 Natural Lean follows the usual precedence for Boolean operators:  `and` normally has the highest precedence, followed in turn by `or`, `implies` and `iff`.  For example, `x > 0 and y > 0 or z > 0` means `(x > 0 and y > 0) or z > 0`.  However, a comma before `and` or `or`will cause the operator to have a low precedence.  For example, `x > 0, and y > 0 or z > 0` means `x > 0 and (y > 0 or z > 0)`.
 #### Operator chains
 
-A proposition may contain __chained relational operators__: for example, `x < y ≤ z = w` has the same meaning as `x < y and y ≤ z and z = w`.  In an assertion, each step in chain may optionally have a reason:
+A proposition may contain __chained relational operators__: for example, `x < y ≤ z = w` has the same meaning as `x < y and y ≤ z and z = w`.  In an assertion, each step in a chain may optionally have a reason:
 
 ```
 z = (x + S(u)) + S(v)
@@ -294,7 +291,7 @@ __Expressions__ represent mathematical values.  In Natural Lean an expression ha
 { <var> : <var> | <prop> }
 ```
 
-Above, `<op>` is a binary operator.  At the moment Natural Lean includes only the + and · operators, plus × which is a synonym for ·.  I intend to expand the set of allowed operators soon.
+Above, `<op>` is a binary operator.  At the moment Natural Lean includes only the +,  · and ^ operators, plus × which is a synonym for ·.  I intend to expand the set of allowed operators soon.
 
 
 Here are some examples of expressions:
@@ -304,10 +301,14 @@ Here are some examples of expressions:
 y
 x + (y + z)
 S(x + y)
+a(b + c)
+ac + bc
 { z : ℕ | x + (y + z) = (x + y) + z }
 ```
 
 Implicit multiplication is supported: `xy` with no parentheses means `x · y`.  Note that Natural Lean uses the traditional function call syntax `f(x)`, which is different from `f x` as found in native Lean code.  An expression of the form `a(b)` is potentially ambiguous: it may represent either a multiplication or a function call.  Natural Lean resolves this ambiguity based on the type of `a`: if it is a function, then `a(b)` is considered to be a function call, otherwise a multiplication.
+
+Unicode superscript digits are supported, so you may write e.g. `x²` in place of `x^2`.
 ### Tactics
 
 When an assertion does not contain a reason, or when a theorem does not include a proof at all, Natural Lean will attempt to prove the assertion or theorem using a tactic named `default` which tries each of `trivial`, `grind` and `aesop` in turn.  In the future I intent to make the default tactic configurable by any development in Natural Lean, but for the moment it is fixed.

@@ -4,6 +4,11 @@ sdef const
   | ident
   | num
 
+syntax super_digit :=
+  unicode("⁰", "^0") <|> unicode("¹", "^1") <|> unicode("²", "^2") <|> unicode("³", "^3") <|>
+  unicode("⁴", "^4") <|> unicode("⁵", "^5") <|> unicode("⁶", "^6") <|> unicode("⁷", "^7") <|>
+  unicode("⁸", "^8") <|> unicode("⁹", "^9")
+
 sdef type
   | ident
   | type "→" type
@@ -36,7 +41,9 @@ declare_syntax_cat prop
 declare_syntax_cat expr
 syntax nat : expr
 syntax ident : expr
-syntax:80 (priority := 1) expr:80 expr:81 : expr
+syntax:80 expr:80 super_digit : expr
+syntax:80 expr:81 "^" expr:80 : expr
+syntax:75 (priority := 1) expr:75 expr:76 : expr
 syntax:70 expr:70 ("·" <|> "×") expr:71 : expr
 syntax:65 expr:65 "+" expr:66 : expr
 syntax (priority := 2) expr "(" expr ")" : expr
