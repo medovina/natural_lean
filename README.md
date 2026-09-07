@@ -6,7 +6,7 @@ Natural Lean is a library that lets you write Lean definitions, theorems, and pr
 
 For a first glimpse of Natural Lean you could look at the file [`examples/nat_num_game.lean`](examples/nat_num_game.lean), which proves all of the theorems from the [Natural Number Game](https://adam.math.hhu.de/#/g/leanprover-community/nng4).  (Actually there are not many  explicit proofs in this file, since Natural Lean's [default tactic](#tactics) can solve most of these problems directly.)  The file [`examples/nat.lean`](examples/nat.lean) is more substantial, and includes a partial development of the natural numbers from first principles in Natural Lean, including a number of theorems with proofs.   (To see the full proofs in this file, you will want to turn on word wrap.  As one possibility, download the file, view it in Visual Studio Code, and press Alt+Z to enable wrapping.)  
 
-Natural Lean is in an __early stage of development__ and is not a practical tool for writing many Lean proofs at this time: the grammar and expressiveness of the language are still extremely limited.  You may nevertheless want to experiment with Natural Lean even in its current state.  Your feedback is welcome: you can send me [email](mailto:adam.dingle@mff.cuni.cz) or open issues in this repository.  I am actively developing the library and hope to evolve the controlled natural language to eventually be robust enough for writing large-scale proofs of any nature.
+Natural Lean is in an __early stage of development__ and is not a practical tool for writing many Lean proofs at this time: the grammar and expressiveness of the language are still extremely limited.  You may nevertheless want to experiment with Natural Lean even in its current state.  Your feedback is welcome: you can send me [email](mailto:adam.dingle@mff.cuni.cz) or open issues in this repository.  I am actively developing the library and hope to evolve the controlled natural language to eventually be robust enough for serious mathematical work.
 
 ### Contents
 
@@ -15,6 +15,7 @@ Natural Lean is in an __early stage of development__ and is not a practical tool
 - [Theorems](#theorems)
   - [Theorem groups](#theorem-groups)
 - [Proofs](#proofs)
+  - [Sequences of proof steps](#sequences-of-proof-steps)
 - [Propositions](#propositions)
   - [Operator chains](#operator-chains)
 - [Expressions](#expressions)
@@ -252,6 +253,29 @@ In addition, the following are __compound steps__ that group proof steps togethe
 
   In all cases S(v) < y or S(v) = y or y < S(v). 
   ```
+
+#### Sequences of proof steps
+
+In theory, you may write each proof step as a single sentence, with no extra words between steps:
+
+```
+Let z : ℕ.  Assume z ∈ A.  x + z = y + z implies x = y.
+Assume x + S(z) = y + S(z).  S(x + z) = S(y + z).  x + z = y + z.
+By the inductive hypothesis x = y.  x + S(z) = y + S(z) implies x = y.
+S(z) ∈ A.
+```
+
+However this style feels wooden and unnatural, and is discouraged in Natural Lean.  Instead, you may place  filler words such as "so", "then", "therefore", "hence", "thus" and so on between steps.  Furthermore, you may group multiple steps into a single sentence, separated by the words "and" or "so".  For example, the proof steps above might be rewritten like this:
+
+```
+Let z : ℕ and assume z ∈ A.  Then x + z = y + z implies x = y.
+Now assume x + S(z) = y + S(z).  Then S(x + z) = S(y + z).
+Therefore x + z = y + z.  Hence by the inductive hypothesis x = y.
+Thus we have shown that x + S(z) = y + S(z) implies x = y,
+so S(z) ∈ A.
+```
+
+This sounds more like textbook mathematics, and illustrates the writing style for which Natural Lean is intended. 
 
 ### Propositions
 
