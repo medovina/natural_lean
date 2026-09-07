@@ -63,3 +63,17 @@ Theorem.  Let x, y, and z be natural numbers.
   b. If 0 + x = (0 + y) + 2 then x = y + 2.
 
   c. If x = 37, and x = 37 implies y = 42, then y = 42.
+
+  d. If x + 1 = 4 then x = 3.
+
+  e. x = 37 implies x = 37.
+
+  f. If x + 1 = y + 1 then x = y.
+
+  g. If x = y and x ≠ y then we have a contradiction.
+
+  h. 0 ≠ 1.
+
+  i. 1 ≠ 0.
+
+  j. 2 + 2 ≠ 5.

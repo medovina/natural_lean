@@ -1,16 +1,10 @@
 # Natural Lean
 
-
-
-
-
-
-
 ![cancellation of addition](images/cancel_addition.png)
 
 Natural Lean is a library that lets you write Lean definitions, theorems, and proofs in a controlled natural language that looks much like ordinary mathematical English.  To use the library, you can simply write `import Natural` at the top of a Lean source file, then write natural-language mathematics freely in the rest of the file.  If you are using an IDE such as Visual Studio Code, Natural Lean will automatically translate your text into native Lean code, which will be checked for correctness.
 
-For a first glimpse of Natural Lean you could look at the file [`examples/nat_num_game.lean`](examples/nat_num_game.lean), which contains a number of problems from the [Natural Number Game](https://adam.math.hhu.de/#/g/leanprover-community/nng4) written in Natural Lean.  (No proofs are needed in this file, since Natural Lean's default tactic can solve all these problems directly.)  The file [`examples/nat.lean`](examples/nat.lean) is more substantial, and includes a partial development of the natural numbers from first principles in Natural Lean, including a number of theorems with proofs.   (To see the full proofs in this file, you will want to turn on word wrap.  As one possibility, download the file, view it in Visual Studio Code, and press Alt+Z to enable wrapping.)  
+For a first glimpse of Natural Lean you could look at the file [`examples/nat_num_game.lean`](examples/nat_num_game.lean), which contains a number of problems from the [Natural Number Game](https://adam.math.hhu.de/#/g/leanprover-community/nng4) written in Natural Lean.  (No proofs are needed in this file, since Natural Lean's [default tactic](#tactic) can solve all these problems directly.)  The file [`examples/nat.lean`](examples/nat.lean) is more substantial, and includes a partial development of the natural numbers from first principles in Natural Lean, including a number of theorems with proofs.   (To see the full proofs in this file, you will want to turn on word wrap.  As one possibility, download the file, view it in Visual Studio Code, and press Alt+Z to enable wrapping.)  
 
 Natural Lean is in an __early stage of development__ and is not a practical tool for writing many Lean proofs at this time: the grammar and expressiveness of the language are still extremely limited.  You may nevertheless want to experiment with Natural Lean even in its current state, and your feedback [is welcome](mailto:adam.dingle@mff.cuni.cz).  I am actively developing the library and hope to evolve the controlled natural language to be robust enough for writing large-scale proofs of any nature.
 
@@ -164,6 +158,7 @@ A proof step may be any of the following:
     Hence by induction y ∈ B for all y: ℕ.
     Then x < z by ℕ.lt.
     ```
+  (In addition to the reasons listed above, an assertion in a proof by induction may use the reason `by the inductive hypothesis`.)
 
 - A __let declaration__ introduces one or more universally quantified variables of a given type.  Examples:
 
@@ -299,7 +294,8 @@ __Expressions__ represent mathematical values.  In Natural Lean an expression ha
 { <var> : <var> | <prop> }
 ```
 
-Above, `<op>` is a binary operator.  At the moment Natural Lean includes only the + and · operators, but I will expand this set soon.
+Above, `<op>` is a binary operator.  At the moment Natural Lean includes only the + and · operators, plus × which is a synonym for ·.  I intend to expand the set of allowed operators soon.
+
 
 Here are some examples of expressions:
 
@@ -311,8 +307,7 @@ S(x + y)
 { z : ℕ | x + (y + z) = (x + y) + z }
 ```
 
-Implicit multiplication is supported: `xy` with no parentheses means `x · y`.  Note that Natural Lean uses the traditional function call syntax `f(x)`, which is different from `f x` as found in native Lean code.  An expression of the form `a(b)` is potentially ambiguous: it may represent either a multiplication or a function call.  At the moment Natural Lean considers such an expression to be a multiplication only if `a` is a numeric constant.
-
+Implicit multiplication is supported: `xy` with no parentheses means `x · y`.  Note that Natural Lean uses the traditional function call syntax `f(x)`, which is different from `f x` as found in native Lean code.  An expression of the form `a(b)` is potentially ambiguous: it may represent either a multiplication or a function call.  Natural Lean resolves this ambiguity based on the type of `a`: if it is a function, then `a(b)` is considered to be a function call, otherwise a multiplication.
 ### Tactics
 
 When an assertion does not contain a reason, or when a theorem does not include a proof at all, Natural Lean will attempt to prove the assertion or theorem using a tactic named `default` which tries each of `trivial`, `grind` and `aesop` in turn.  In the future I intent to make the default tactic configurable by any development in Natural Lean, but for the moment it is fixed.
@@ -328,5 +323,7 @@ In this situation Natural Lean will invoke the tactic `default_apply` with the g
 ### Hints and tips
 
 You may notice that Visual Studio Code doesn't display a double checkmark beside natural-language theorems that have been proven.  That's due to a [bug](https://github.com/leanprover/lean4/issues/15044) in Lean.  I have submitted a [pull request](https://github.com/leanprover/lean4/pull/15045) that will fix it, so hopefully that will land soon.
+
+Natural Lean is currently quite lax about plurals, articles, and capitalization, so at the moment you may be able to get away with writing ungrammatical English such as "Let a and b be natural number".  I plan to check grammar more strictly in the future.
 
 If you would like to see the Lean code that is generated from any definition or theorem in Natural Lean, write `set_option trace.Elab.command true in` immediately before the definition or theorem.  The Lean code will be visible in the InfoView window in Visual Studio Code.
