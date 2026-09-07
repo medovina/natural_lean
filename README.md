@@ -4,7 +4,7 @@
 
 Natural Lean is a library that lets you write Lean definitions, theorems, and proofs in a controlled natural language that looks much like ordinary mathematical English.  To use the library, you can simply write `import Natural` at the top of a Lean source file, then write natural-language mathematics freely in the rest of the file.  If you are using an IDE such as Visual Studio Code, Natural Lean will automatically translate your text into native Lean code, which will be checked for correctness.
 
-For a first glimpse of Natural Lean you could look at the file [`examples/nat_num_game.lean`](examples/nat_num_game.lean), which contains a number of problems from the [Natural Number Game](https://adam.math.hhu.de/#/g/leanprover-community/nng4) written in Natural Lean.  (No proofs are needed in this file, since Natural Lean's [default tactic](#tactic) can solve all these problems directly.)  The file [`examples/nat.lean`](examples/nat.lean) is more substantial, and includes a partial development of the natural numbers from first principles in Natural Lean, including a number of theorems with proofs.   (To see the full proofs in this file, you will want to turn on word wrap.  As one possibility, download the file, view it in Visual Studio Code, and press Alt+Z to enable wrapping.)  
+For a first glimpse of Natural Lean you could look at the file [`examples/nat_num_game.lean`](examples/nat_num_game.lean), which contains a number of problems from the [Natural Number Game](https://adam.math.hhu.de/#/g/leanprover-community/nng4) written in Natural Lean.  (No proofs are needed in this file, since Natural Lean's [default tactic](#tactics) can solve all these problems directly.)  The file [`examples/nat.lean`](examples/nat.lean) is more substantial, and includes a partial development of the natural numbers from first principles in Natural Lean, including a number of theorems with proofs.   (To see the full proofs in this file, you will want to turn on word wrap.  As one possibility, download the file, view it in Visual Studio Code, and press Alt+Z to enable wrapping.)  
 
 Natural Lean is in an __early stage of development__ and is not a practical tool for writing many Lean proofs at this time: the grammar and expressiveness of the language are still extremely limited.  You may nevertheless want to experiment with Natural Lean even in its current state, and your feedback [is welcome](mailto:adam.dingle@mff.cuni.cz).  I am actively developing the library and hope to evolve the controlled natural language to be robust enough for writing large-scale proofs of any nature.
 
@@ -91,7 +91,7 @@ Theorem.  For all x : ℕ, x < S(x).  [ℕ.lt_succ]
 Proof.  Let x : ℕ.  x + S(0) = S(x).  Therefore x < S(x).
 ```
 
-The section Proofs below describes the structure of proofs.
+The section [Proofs](#proofs) below describes the structure of proofs.
 
 A theorem may optionally being with a `Let` declaration introducing one or more quantified variables, so the preceding theorem may alternatively be written as
 
