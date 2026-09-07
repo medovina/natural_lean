@@ -2,7 +2,7 @@ import Natural
 
 -- definition of natural numbers
 
-Definition.  The type ℕ is defined inductively with constructors 0 : ℕ and S : ℕ → ℕ.
+Definition.  The type ℕ (the natural numbers) is defined inductively with constructors 0 : ℕ and S : ℕ → ℕ.
 
 -- theorems about successor function
 

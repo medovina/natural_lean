@@ -4,9 +4,9 @@
 
 Natural Lean is a library that lets you write Lean definitions, theorems, and proofs in a controlled natural language that looks much like ordinary mathematical English.  To use the library, you can simply write `import Natural` at the top of a Lean source file, then write natural-language mathematics freely in the rest of the file.  If you are using an IDE such as Visual Studio Code, Natural Lean will automatically translate your text into native Lean code, which will be checked for correctness.
 
-For a first glimpse of Natural Lean you could look at the file [`examples/nat_num_game.lean`](examples/nat_num_game.lean), which proves all of the of theorems from the [Natural Number Game](https://adam.math.hhu.de/#/g/leanprover-community/nng4).  (Actually there are not many  explicit proofs in this file, since Natural Lean's [default tactic](#tactics) can solve most of these problems directly.)  The file [`examples/nat.lean`](examples/nat.lean) is more substantial, and includes a partial development of the natural numbers from first principles in Natural Lean, including a number of theorems with proofs.   (To see the full proofs in this file, you will want to turn on word wrap.  As one possibility, download the file, view it in Visual Studio Code, and press Alt+Z to enable wrapping.)  
+For a first glimpse of Natural Lean you could look at the file [`examples/nat_num_game.lean`](examples/nat_num_game.lean), which proves all of the theorems from the [Natural Number Game](https://adam.math.hhu.de/#/g/leanprover-community/nng4).  (Actually there are not many  explicit proofs in this file, since Natural Lean's [default tactic](#tactics) can solve most of these problems directly.)  The file [`examples/nat.lean`](examples/nat.lean) is more substantial, and includes a partial development of the natural numbers from first principles in Natural Lean, including a number of theorems with proofs.   (To see the full proofs in this file, you will want to turn on word wrap.  As one possibility, download the file, view it in Visual Studio Code, and press Alt+Z to enable wrapping.)  
 
-Natural Lean is in an __early stage of development__ and is not a practical tool for writing many Lean proofs at this time: the grammar and expressiveness of the language are still extremely limited.  You may nevertheless want to experiment with Natural Lean even in its current state.  Your feedback is welcome: you can send me  [email](mailto:adam.dingle@mff.cuni.cz) or open issues in this repository.  I am actively developing the library and hope to evolve the controlled natural language to eventually be robust enough for writing large-scale proofs of any nature.
+Natural Lean is in an __early stage of development__ and is not a practical tool for writing many Lean proofs at this time: the grammar and expressiveness of the language are still extremely limited.  You may nevertheless want to experiment with Natural Lean even in its current state.  Your feedback is welcome: you can send me [email](mailto:adam.dingle@mff.cuni.cz) or open issues in this repository.  I am actively developing the library and hope to evolve the controlled natural language to eventually be robust enough for writing large-scale proofs of any nature.
 
 ### Contents
 
@@ -19,6 +19,7 @@ Natural Lean is in an __early stage of development__ and is not a practical tool
   - [Operator chains](#operator-chains)
 - [Expressions](#expressions)
 - [Types](#types)
+- [Natural names](#natural-names)
 - [Tactics](#tactics)
 - [Hints and tips](#hints-and-tips)
      
@@ -51,7 +52,7 @@ A definition begins with the capitalized word `Definition`.  Three limited kinds
 Definition.  The type ℕ is defined inductively with constructors 0 : ℕ and S : ℕ → ℕ.
 ```
 
-A _definition by cases_ defines a function recursively with one or more cases.  Currently the function must be a binary operator:
+A _definition by cases_ defines a function recursively with one or more cases.  Currently the function must be a supported [arithmetic operator](#expressions):
 
 ```
 Definition.  The binary operation + on ℕ is defined recursively such that
@@ -61,7 +62,7 @@ Definition.  The binary operation + on ℕ is defined recursively such that
   b.  x + S(y) = S(x + y).
 ```
 
-A _direct definition_ defines a function non-recursively, using a single formula.  Currently the function must be a binary operator:
+A _direct definition_ defines a function non-recursively, using a single formula.  Currently the function must be a supported [relational operator](#propositions):
 
 ```
 Definition.  For all x, y : ℕ, x < y iff there is some z : ℕ such that x + S(z) = y.
@@ -87,13 +88,15 @@ Theorem "Associativity of Addition".  For all x, y, z: ℕ,
   x + (y + z) = (x + y) + z.  [ℕ.add_assoc]
 ```
 
+(At the moment a long theorem name is just documentation; it's not possible to refer to it as a reason in a proof step.)
+
 A theorem name in brackets may optionally be followed by a Lean attribute to attach to the theorem:
 
 ```
 Theorem.  For all x : ℕ, 0 + x = x.  [ℕ.zero_add: @simp]
 ```
 
-A theorem may or may not be followed by a __proof__.  If a proof is not present, the system will attempt to prove the theorem using the default tactic as described below.  If a proof is present, it appears after the text `Proof.`:
+A theorem may or may not be followed by a __proof__.  If a proof is not present, Natural Lean will attempt to prove the theorem using the [default tactic](#tactics).  If a proof is present, it appears after the text `Proof.`:
 
 ```
 Theorem.  For all x : ℕ, x < S(x).  [ℕ.lt_succ]
@@ -155,9 +158,14 @@ A __proof__ consists either of the keyword `By` followed by a __reason__, or a s
 
 A reason may be any of the following:
 
-- One or more theorem names, separated by `and`.  Example: `By ℕ.add_assoc and ℕ.succ_ne_self`.
+- One or more theorem names, separated by `and`, e.g.
+
+  `By ℕ.add_assoc and ℕ.succ_ne_self.`
+
 - The keyword `induction`.
-- An arbitrary Lean tactic in brackets.  Example: `By [simp +arith]`.
+- An arbitrary Lean tactic in brackets, e.g.
+
+  `By [simp +arith]`.
 
 A proof step may be any of the following:
 
@@ -304,7 +312,8 @@ __Expressions__ represent mathematical values.  In Natural Lean an expression ha
 { <var> : <type> | <prop> }
 ```
 
-Above, `<op>` is a binary operator.  At the moment Natural Lean includes only the `+`,  `·` and `^` operators, plus `×` which is a synonym for `·`.
+Above, `<num>` is a natural number constant and `<op>` is an arithmetic operator.  At the moment Natural Lean includes only a small fixed set of these operators: the `+`,  `·` and `^` operators, plus `×` which is a synonym for `·`. (I hope to extend the system before long so that all operators predefined in a Lean theory will also be available in Natural Lean.)
+
 Here are some examples of expressions:
 
 ```
@@ -328,6 +337,39 @@ Unicode superscript digits and letters are supported, so you may write e.g. `x²
 
 At the moment any type in Natural Lean must be either a simple type such as `Nat`, or a function type such as `Nat → Nat → Nat`.
 I plan to add other types such as product types soon.
+
+### Natural names
+
+In Natural Lean, any simple type such as `Nat` or `Int` may have a __natural name__ such as "natural number" or "integer".  You may refer to a type either by its Lean name or its natural name.  For example, the following statements are equivalent:
+
+```
+For all x : Nat, x < x + 1.
+
+For all natural numbers x, x < x + 1.
+```
+
+You can use an attribute to assign a natural name to a type that already exists in Lean:
+
+```
+attribute [natural_name "natural number"] Nat
+attribute [natural_name "integer"] Int
+```
+
+In fact the preceding two attributes are predefined in Natural Lean, so you don't need to write them.
+
+A natural name must consist of only one or two words, each of which must be at least two letters long (to help distinguish them from variable names).
+
+When you define a new type in Natural Lean, you may give it a natural name as well as a Lean name:
+
+```
+Definition.  The type ℕ (the natural numbers) is defined inductively
+  with constructors 0 : ℕ and S : ℕ → ℕ.
+```
+
+
+
+This particular definition redefines the name "natural number" so that it refers to the inductive type that it is defining, rather than Lean's built-in `Nat` type.
+
 ### Tactics
 
 When an assertion does not contain a reason, or when a theorem does not include a proof at all, Natural Lean will attempt to prove the assertion or theorem using a tactic named `default` which tries each of `trivial`, `grind` and `aesop` in turn.  In the future I intend to make the default tactic configurable by any development in Natural Lean, but for the moment it is fixed.

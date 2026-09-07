@@ -16,6 +16,7 @@ infix:50 "≮" => fun x y => ¬(x < y)
 infix:50 "≯" => fun x y => ¬(x > y)
 
 attribute [natural_name "natural number"] Nat
+attribute [natural_name "integer"] Int
 
 macro "default" : tactic => `(tactic| first | trivial | grind | aesop )
 
@@ -29,8 +30,8 @@ macro "default_apply" ts:ident+ : tactic => do
 
 -- English
 
-def singular (s: String) :=
-  if s.back == 's' then s.dropEnd 1 else s
+def singular (s: String) : String :=
+  if s.back == 's' then (s.dropEnd 1).toString else s
 
 -- syntax helpers
 
@@ -146,9 +147,13 @@ def of_id_list : TSyntax `id_list → CoreM (Array Ident)
       pure $ #[id] ++ ids ++ id2.toArray
   | _ => throwError "unknown id_list"
 
+def idents_to_nat_type (n1: Ident) (n2: Option Ident) := match n2 with
+  | .some n2 => s!"{n1.getId.toString} {singular n2.getId.toString}"
+  | .none => singular n1.getId.toString
+
 def of_natural_type : TSyntax `natural_type → CoreM Term
-  | `(natural_type| $n1:ident $n2:ident) => do
-      let s := s!"{n1.getId.toString} {singular n2.getId.toString}"
+  | `(natural_type| $n1:ident $n2:ident ?) => do
+      let s := idents_to_nat_type n1 n2
       let type ← lookup_natural s
       match type with
         | .some type => pure (mkIdent type)
@@ -755,14 +760,19 @@ def aux_ctor_def (typ:Ident) (t: Term): CoreM Command :=
     | _ => throwError "aux_ctor_def: unknown"
 
 def of_type_def : TSyntax `type_def → CoreM Command
-  | `(type_def| The type $i:ident is defined inductively
-                with constructors $cs:constructor and* .) => do
+  | `(type_def| The type $i:ident $[( the $n1:ident $n2:ident ?)]?
+                is defined inductively with constructors
+                $cs:constructor and* .) => do
       let ctors ← cs.getElems.mapM of_constructor
       let mk_def | (n, t) => `(ctor| | $(to_ident n):ident : $t)
       let ctor_defs ← ctors.mapM mk_def
       let ind_decl ← `(inductive $i:ident $ctor_defs:ctor*)
       let aux ← (ctors.map (·.1)).mapM (aux_ctor_def i)
-      let commands := #[ind_decl] ++ aux
+      let att ← n1.mapM (fun n1 =>
+        let t := idents_to_nat_type n1 (n2.get!)
+        `(attribute [natural_name $(mkStrLit t)] $i:ident)
+      )
+      let commands := #[ind_decl] ++ aux ++ att.toArray
       pure $ .mk (mkNullNode commands)
   | _ => throwError "unknown definition"
 

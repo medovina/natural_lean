@@ -1,4 +1,7 @@
+import Lean
 import Natural.Util
+
+open Lean.Parser
 
 sdef const
   | ident
@@ -27,7 +30,10 @@ syntax comma_ahead := lookahead("," <|> "and")
 syntax id_list :=
   ident (atomic("," ident comma_ahead))* (atomic("," ? "and") ident)?
 
-syntax natural_type := ident ident   -- e.g. "natural numbers"
+def novar_ident : Parser :=
+  atomic (ident >> checkStackTop (fun stx => stx.getId.toString.length > 1) "expected long ident")
+
+syntax natural_type := novar_ident novar_ident ?   -- e.g. "natural numbers"
 
 sdef ids_type
   | atomic(ident,+ ":") type
@@ -234,8 +240,8 @@ syntax proof_items := proof_item+
 syntax constructor := const ":" type
 
 syntax type_def :=
-  "The" &"type" ident "is" "defined" "inductively"
-  "with" "constructors" sepBy1(constructor, "and") "."
+  "The" &"type" ident ("(" "the" ident ident ? ")")?
+  "is" "defined" "inductively" "with" "constructors" sepBy1(constructor, "and") "."
 
 syntax top_sentence := prop "." ("[" ident (":" "@" ident)? "]")?
 
