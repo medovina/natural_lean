@@ -6,12 +6,11 @@ Natural Lean is a library that lets you write Lean definitions, theorems, and pr
 
 For a first glimpse of Natural Lean you could look at the file [`examples/nat_num_game.lean`](examples/nat_num_game.lean), which contains a number of problems from the [Natural Number Game](https://adam.math.hhu.de/#/g/leanprover-community/nng4) written in Natural Lean.  (Almost no proofs are needed in this file, since Natural Lean's [default tactic](#tactics) can solve almost all of these problems directly.)  The file [`examples/nat.lean`](examples/nat.lean) is more substantial, and includes a partial development of the natural numbers from first principles in Natural Lean, including a number of theorems with proofs.   (To see the full proofs in this file, you will want to turn on word wrap.  As one possibility, download the file, view it in Visual Studio Code, and press Alt+Z to enable wrapping.)  
 
-Natural Lean is in an __early stage of development__ and is not a practical tool for writing many Lean proofs at this time: the grammar and expressiveness of the language are still extremely limited.  You may nevertheless want to experiment with Natural Lean even in its current state, and your feedback [is welcome](mailto:adam.dingle@mff.cuni.cz).  I am actively developing the library and hope to evolve the controlled natural language to be robust enough for writing large-scale proofs of any nature.
+Natural Lean is in an __early stage of development__ and is not a practical tool for writing many Lean proofs at this time: the grammar and expressiveness of the language are still extremely limited.  You may nevertheless want to experiment with Natural Lean even in its current state.  Your feedback is welcome: you can send me  [email](mailto:adam.dingle@mff.cuni.cz) or open issues in this repository.  I am actively developing the library and hope to evolve the controlled natural language to eventually be robust enough for writing large-scale proofs of any nature.
 
 (Tip: If you are viewing this document on GitHub's web site, click the table of contents icon in the upper right to navigate through the various sections.)
 
-### Getting started with Natural Lean
-
+### Getting started
 In your project's `lakefile.toml` file, write
 
 ```
@@ -64,7 +63,7 @@ Theorem ℕ.succ_ne_self.  For all x : ℕ, S(x) ≠ x.
 Theorem.  For all x : ℕ, S(x) ≠ x.  [ℕ.succ_ne_self]
 ```
 
-I generally find the second style to be more readable.
+I generally find the second style above to be more readable.
 
 A theorem's name must be a valid Lean identifier and is its actual name in Lean.  Additionally a theorem may optionally have a __long name__, which may be any string and appears in quotes:
 
@@ -98,7 +97,7 @@ Theorem.  Let x : ℕ.  x < S(x).  [ℕ.lt_succ]
 Proof.  x + S(0) = S(x).  Therefore x < S(x).
 ```
 
-A `Let` declaration of this nature is automatically included at the beginning of a proof, unless the proof begins with its own `Let` declaration.
+A `Let` declaration of this nature is automatically included at the beginning of a proof, unless the proof already begins with a `Let` declaration.
 #### Theorem groups
 
 Several theorems may appear together in a single __theorem group__:

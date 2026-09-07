@@ -123,3 +123,45 @@ Theorem.  Let a, b, c, d, e, f, g, and h be natural numbers.
   g. 20 + 20 = 40.
 
   h. 2 + 2 ≠ 5.
+
+-- advanced addition world
+
+Theorem.  Let a, b, n, x, and y be natural numbers.
+
+  a. If a + n = b + n then a = b.
+
+  b. If n + a = n + b then a = b.
+
+  c. If x + y = y then x = 0.
+
+  d. If x + y = x then y = 0.
+
+  e. If a + b = 0 then a = 0.
+
+  f. If a + b = 0 then b = 0.
+
+-- ≤ world
+
+Theorem.  Let x, y, and z be natural numbers.
+
+  a. x ≤ x.
+
+  b. 0 ≤ x.
+
+  c. x ≤ succ(x).
+
+  d. If x ≤ y and y ≤ z, then x ≤ z.
+
+  e. If x ≤ 0, then x = 0.
+
+  f. If x ≤ y and y ≤ x, then x = y.
+
+  g. If x = 37 or y = 42, then y = 42 or x = 37.
+
+  h. Either x ≤ y or y ≤ x.
+
+  i. If succ(x) ≤ succ(y) then x ≤ y.
+
+  j. If x ≤ 1 then either x = 0 or x = 1.
+
+  k. If x ≤ 2 then x = 0 or x = 1 or x = 2.
