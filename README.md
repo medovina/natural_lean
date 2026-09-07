@@ -305,6 +305,9 @@ ac + bc
 
 Implicit multiplication is supported: `xy` with no parentheses means `x · y`.  Note that Natural Lean uses the traditional function call syntax `f(x)`, which is different from `f x` as found in native Lean code.  An expression of the form `a(b)` is potentially ambiguous: it may represent either a multiplication or a function call.  Natural Lean resolves this ambiguity based on the type of `a`: if it is a function, then `a(b)` is considered to be a function call, otherwise a multiplication.
 
+Any Lean keyword such as `def` cannot be used as an implicit product in Natural Lean.  So if you want to compute the product of variables `d`, `e`, and `f`, you can write e.g. `d · e · f` or `(de)f`, but not `def`.  Note that `at` is also a Lean keyword, so you must write `a · t` for the product of `a` and `t`.  (I hope to remove this limitation at some future point.)
+
+
 Unicode superscript digits and letters are supported, so you may write e.g. `x²` in place of `x^2`, or `xʸ` in place of `x^y`.  A superscripted expression may include the  `+` operator, so `xⁱ⁺ʲ` is the same as `x ^ (i + j)`.
 
 ### Types

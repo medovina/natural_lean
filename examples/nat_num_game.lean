@@ -165,3 +165,22 @@ Theorem.  Let x, y, and z be natural numbers.
   j. If x ≤ 1 then either x = 0 or x = 1.
 
   k. If x ≤ 2 then x = 0 or x = 1 or x = 2.
+
+-- advanced multiplication world
+
+Theorem.  Let a, b, and t be natural numbers.
+
+  -- We must write "a · t" insted of "at" here, since "at" is a Lean keyword.
+  a. If a ≤ b then a · t ≤ bt.
+
+  b. If ab ≠ 0 then b ≠ 0.
+
+  c. If a ≠ 0 then there is some natural number n such that a = succ(n).
+
+  d. If a ≠ 0 then 1 ≤ a.
+
+Proof.
+
+  a. By Nat.mul_le_mul_right.
+
+  c. By Nat.exists_eq_succ_of_ne_zero.

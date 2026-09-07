@@ -180,16 +180,18 @@ kdef _otherwise = "otherwise"
 
 kdef _any_case = "in all cases" | "in any case" | "in either case"
 
+kdef _and = "and"
+
+sdef and_or_so
+  | (_and _so) <|> _so
+
 declare_syntax_cat assert_step
-syntax (priority := 1) _so ? proof_prop : assert_step
+syntax (priority := 1) and_or_so ? proof_prop : assert_step
 syntax (priority := 2) proof_if_prop : assert_step
 syntax will_show prop : assert_step
 
 sdef clause_intro
   | ("First" <|> "Now" <|> "Second") ","?
-
-sdef and_or_so
-  | ("and" _so) <|> _so
 
 sdef proof_sentence1
   | sepBy1(let_or_assume, "/", "," ? "and")

@@ -21,8 +21,11 @@ macro "default" : tactic => `(tactic| first | trivial | grind | aesop )
 
 macro "default_apply" ts:ident+ : tactic => do
   let aesop_rules ← ts.mapM (fun i => `(Aesop.rule_expr| safe (by rapply $i)))
-  `(tactic| first | (apply_rules [$[$ts:ident],*] ; done) | grind [$[$ts:ident],*] |
-                    aesop (add $aesop_rules,*))
+  `(tactic| first
+      | (apply $(ts[0]!); done)
+      | (apply_rules [$[$ts:ident],*] ; done)
+      | grind [$[$ts:ident],*]
+      | aesop (add $aesop_rules,*))
 
 -- English
 
@@ -432,7 +435,7 @@ def of_proof_if_prop: TSyntax `proof_if_prop → CoreM ProofStep
 def of_assert_step: TSyntax `assert_step → CoreM (List ProofStep)
   | `(assert_step| $p:proof_if_prop) => .singleton <$> of_proof_if_prop p
   | `(assert_step| $_:will_show $_p:prop) => pure []
-  | `(assert_step| $_:_so ? $p:proof_prop) => of_proof_prop p
+  | `(assert_step| $_:and_or_so ? $p:proof_prop) => of_proof_prop p
   | _ => throwError "unknown assert_step"
 
 def of_proof_sentence1: TSyntax `proof_sentence1 → CoreM (List ProofStep)
@@ -884,22 +887,26 @@ def generalize (lets: Option ProofStep) (t: Term) : CoreM Term := match lets wit
       if ids == #[] then pure t else `(∀ $ids:ident* : $type, $t)
   | _ => throwError "generalize: unexpected step"
 
+def translate_proofs (lets: Option ProofStep) (thms_proofs: List (ThmDecl × Option Proof))
+    : CoreM (List (ThmDecl × Option Term)) :=
+  thms_proofs.mapM (fun (decl, proof) => do
+    let thm ← resolve_term (lets_vars lets) decl.thm
+    pure ({decl with thm := ← generalize lets thm},
+          ← proof.mapM (translate_proof lets thm)))
+
 def of_props_proofs (lets: Option ProofStep) (ps: TSyntax `props_proofs) :
         CoreM (List (ThmDecl × Option Term)) :=
   let finalize thm := resolve_term (lets_vars lets) thm >>= generalize lets
   match ps with
     | `(props_proofs| $s:top_sentence $[ Proof. $proof:proof ]?) => do
         let (thm, opt_name, opt_attr) ← of_top_sentence s
-        let proof ← proof.mapM of_proof
         let decl := ThmDecl.mk none (← finalize thm) opt_name opt_attr
-        pure [ (decl, ← proof.mapM (translate_proof lets thm)) ]
+        translate_proofs lets [(decl, ← proof.mapM of_proof)]
     | `(props_proofs| $ps:prop_item* $[ Proof. $pis:proof_items ]?) => do
         let label_thms ← ps.toList.mapM of_prop_item
         let label_proofs := (← pis.mapM of_proof_items).getD []
         let thms_proofs ← match_proofs label_thms label_proofs
-        thms_proofs.mapM (fun (decl, proof) => do
-          pure ({decl with thm := ← finalize decl.thm},
-                ← proof.mapM (translate_proof lets decl.thm)))
+        translate_proofs lets thms_proofs
     | _ => throwError "unknown prop_or_items"
 
 elab t:_theorem : command => do

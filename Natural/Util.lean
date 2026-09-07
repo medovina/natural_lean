@@ -71,6 +71,8 @@ def nat : Parser :=
 
 -- syntax builders
 
+def non_keywords := ["case", "cases", "otherwise", "this", "true", "type"]
+
 macro "kdef" name:ident "=" ks:sepBy1(str, "|") : command => do
   let rec mk_or : List (TSyntax `stx) → MacroM (TSyntax `stx)
     | [] => panic! "empty"
@@ -79,7 +81,7 @@ macro "kdef" name:ident "=" ks:sepBy1(str, "|") : command => do
 
   let mk_stx (s: String) : MacroM (TSyntax `stx) :=
     let i := mkStrLit s
-    if s.length == 1 || ["case", "cases", "otherwise", "this", "true", "type"].elem s
+    if s.length == 1 || non_keywords.elem s
       then `(stx| &$i:str) else `(stx| $i:str)
 
   let seq (ws: List String) : MacroM (TSyntax `stx) := do
