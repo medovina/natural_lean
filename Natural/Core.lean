@@ -558,7 +558,6 @@ partial def resolve1 (le: LocalEnv) (s: Syntax) : CoreM Term := (·.1) <$> resol
 end
 
 def resolve_term (le: LocalEnv) (t: Term) : CoreM Term :=
-  dbg_trace s!"resolving {t}"
   (·.1) <$> resolve le t.raw
 
 partial def resolve_block (le: LocalEnv) : Block → CoreM Block
