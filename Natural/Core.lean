@@ -853,6 +853,11 @@ def match_proofs : List ThmDecl → List (Label × Proof) → CoreM (List (ThmDe
   | decl :: ts, [] => .cons (decl, .none) <$> match_proofs ts []
   | [], (j, _) :: _ => throwError s!"unmatched proof label: {j}"
 
+def lets_vars (lets: Option ProofStep) : LocalEnv := match lets with
+  | .none => []
+  | .some (.let ids type) => ids.map (·, type)
+  | _ => panic! "lets_vars: unexpected step"
+
 def generalize (lets: Option ProofStep) (t: Term) : CoreM Term := match lets with
   | .none => pure t
   | .some (.let ids type) =>
@@ -862,7 +867,7 @@ def generalize (lets: Option ProofStep) (t: Term) : CoreM Term := match lets wit
 
 def of_props_proofs (lets: Option ProofStep) (ps: TSyntax `props_proofs) :
         CoreM (List (ThmDecl × Option Term)) :=
-  let finalize thm := generalize lets thm >>= resolve_term []
+  let finalize thm := resolve_term (lets_vars lets) thm >>= generalize lets
   match ps with
     | `(props_proofs| $s:top_sentence $[ Proof. $proof:proof ]?) => do
         let (thm, opt_name, opt_attr) ← of_top_sentence s

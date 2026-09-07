@@ -48,3 +48,9 @@ Theorem.  Let a, b, c, m, and n be natural numbers.
   e. 1 × m = m.
 
   f. 2 × m = m + m.
+
+  g. a(b + c) = ab + ac.
+
+  h. (a + b) × c = ac + bc.
+
+  i. (ab)c = a(bc).
