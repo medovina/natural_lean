@@ -247,7 +247,7 @@ syntax top_sentence := prop "." ("[" ident (":" "@" ident)? "]")?
 
 syntax prop_item := ident "." top_sentence
 
-kdef binary_op = "+" | "*" | "<"
+kdef binary_op = "+" | "·" | "^" | "<" | "≤"
 
 syntax cases_def :=
   "The" "binary" "operation" binary_op "on" ident

@@ -797,10 +797,14 @@ def of_prop_item : TSyntax `prop_item → CoreM ThmDecl
 
 def of_binary_op : TSyntax `binary_op → CoreM String
   | `(binary_op| +) => pure "+"
+  | `(binary_op| ·) => pure "·"
+  | `(binary_op| ^) => pure "^"
   | `(binary_op| <) => pure "<"
+  | `(binary_op| ≤) => pure "≤"
   | _ => throwError "unknown binary_op"
 
-def op_map := [("+", `add, `Add), ("<", `lt, `LT), ("≤", `le, `LE)]
+def op_map := [("+", `add, `Add), ("·", `mul, `Mul), ("^", `pow, `Pow),
+               ("<", `lt, `LT), ("≤", `le, `LE)]
 
 def parse_def_eq : Term → CoreM (String × Term × Term × Term)
   | `($l = $r)

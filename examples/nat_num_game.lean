@@ -9,7 +9,7 @@ open Nat (succ)
    'grind', which can pick off most of these statements automatically.  Also, we make
    free use of lemmas about Nat that are predefined in Lean, many of which are equivalent
    to the statements here.  So mostly this file serves as a demonstration of Natural Lean's
-   syntax, as well as how to write some short one-line proofs.
+   syntax, as well as how to write some one-line proofs.
 -/
 
 -- tutorial world
