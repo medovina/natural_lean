@@ -89,3 +89,5 @@ Theorem.  Let a, m, and n be natural numbers.
   c. a¹ = a.
 
   d. a² = a × a.
+
+  e. a^(m + n) = aᵐ · aⁿ.

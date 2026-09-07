@@ -33,6 +33,20 @@ def foldr1M [Monad m] [Inhabited α] (f: α → α → m α) (xs: List α) : m �
       f x r
   | _ => panic! "foldr1M"
 
+-- unicode
+
+-- The Unicode superscript characters '⁰' ... '⁹' are not contiguous!
+def super_digits := [('⁰', 0), ('¹', 1), ('²', 2), ('³', 3), ('⁴', 4),
+                    ('⁵', 5), ('⁶', 6), ('⁷', 7), ('⁸', 8), ('⁹', 9)]
+
+-- The Unicode superscript characters 'ᵃ' ... 'ᶻ' are also not contiguous!
+def super_letters :=
+  [('ᵃ', 'a'), ('ᵇ', 'b'), ('ᶜ', 'c'), ('ᵈ', 'd'), ('ᵉ', 'e'), ('ᶠ', 'f'),
+   ('ᵍ', 'g'), ('ʰ', 'h'), ('ⁱ', 'i'), ('ʲ', 'j'), ('ᵏ', 'k'), ('ˡ', 'l'),
+   ('ᵐ', 'm'), ('ⁿ', 'n'), ('ᵒ', 'o'), ('ᵖ', 'p'), ('𐞥', 'q'), ('ʳ', 'r'),
+   ('ˢ', 's'), ('ᵗ', 't'), ('ᵘ', 'u'), ('ᵛ', 'v'), ('ʷ', 'w'), ('ˣ', 'x'),
+   ('ʸ', 'y'), ('ᶻ', 'z')]
+
 -- parsing
 
 -- A parser for numeric literals consisting only of digits.  We need this

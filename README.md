@@ -291,9 +291,7 @@ __Expressions__ represent mathematical values.  In Natural Lean an expression ha
 { <var> : <var> | <prop> }
 ```
 
-Above, `<op>` is a binary operator.  At the moment Natural Lean includes only the +,  · and ^ operators, plus × which is a synonym for ·.  I intend to expand the set of allowed operators soon.
-
-
+Above, `<op>` is a binary operator.  At the moment Natural Lean includes only the `+`,  `·` and `^` operators, plus `×` which is a synonym for `·`.
 Here are some examples of expressions:
 
 ```
@@ -308,7 +306,7 @@ ac + bc
 
 Implicit multiplication is supported: `xy` with no parentheses means `x · y`.  Note that Natural Lean uses the traditional function call syntax `f(x)`, which is different from `f x` as found in native Lean code.  An expression of the form `a(b)` is potentially ambiguous: it may represent either a multiplication or a function call.  Natural Lean resolves this ambiguity based on the type of `a`: if it is a function, then `a(b)` is considered to be a function call, otherwise a multiplication.
 
-Unicode superscript digits are supported, so you may write e.g. `x²` in place of `x^2`.
+Unicode superscript digits and letters are supported, so you may write e.g. `x²` in place of `x^2`, or `xʸ` in place of `x^y`.
 ### Tactics
 
 When an assertion does not contain a reason, or when a theorem does not include a proof at all, Natural Lean will attempt to prove the assertion or theorem using a tactic named `default` which tries each of `trivial`, `grind` and `aesop` in turn.  In the future I intent to make the default tactic configurable by any development in Natural Lean, but for the moment it is fixed.

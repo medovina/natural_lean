@@ -172,22 +172,22 @@ def syntax_atom (t: TSyntax α): String := match t.raw with
 
 def mk_false : Term := mkIdent ``False
 
--- The Unicode superscript characters '⁰' ... '⁹' are not contiguous!
-def super_chars := [('⁰', 0), ('¹', 1), ('²', 2), ('³', 3), ('⁴', 4),
-                    ('⁵', 5), ('⁶', 6), ('⁷', 7), ('⁸', 8), ('⁹', 9)]
+def super_char (s: Syntax) : Char := (s.getArg 0).getAtomVal.front
 
-def super_digit_val (d: TSyntax `super_digit) : Nat :=
-  let s := (d.raw.getArg 0).getAtomVal
-  (super_chars.lookup s.front).get!
+def of_super_expr : TSyntax `super_expr → CoreM Term
+  | `(super_expr| $d:super_digit) =>
+      pure $ mkNatLit (super_digits.lookup (super_char d)).get!
+  | `(super_expr| $d:super_letter) =>
+      let c := (super_letters.lookup (super_char d)).get!.toString
+      pure $ mkIdent (Name.mkSimple c)
+  | _ => throwError "unknown super_expr"
 
 mutual
   partial def of_expr (expr: TSyntax `expr): CoreM Term := do
     let t ← match expr with
       | `(expr| $n:num) => `($n)
       | `(expr| $i:ident) => `($i)
-      | `(expr| $e:expr $s:super_digit) =>
-          let n := super_digit_val s
-          `($(← of_expr e) ^ $(mkNatLit n))
+      | `(expr| $e:expr $s:super_expr) => `($(← of_expr e) ^ $(← of_super_expr s))
       | `(expr| $e:expr ^ $f:expr) => `($(← of_expr e) ^ $(← of_expr f))
       | `(expr| $e:expr $f:expr)
       | `(expr| $e:expr · $f:expr)
