@@ -35,13 +35,6 @@ def singular (s: String) : String :=
 
 -- syntax helpers
 
-def range_info (s: TSyntax α) := match s.raw.getRange? with
-    | .some ⟨pos, endPos⟩ => SourceInfo.synthetic pos endPos
-    | .none => SourceInfo.none
-
-def set_info_from (s: TSyntax α) (t: TSyntax β): Term :=
-  ⟨s.raw.setInfo (range_info t)⟩
-
 def parse_infix_opt : Syntax → Option (Syntax × String × Syntax)
   | .node _ _ #[x, .atom _ op, y] => .some (x, op, y)
   | _ => .none
@@ -196,10 +189,10 @@ partial def of_super_expr : TSyntax `super_expr → CoreM Term
   | _ => throwError "unknown super_expr"
 
 mutual
-  partial def of_expr (expr: TSyntax `expr): CoreM Term := do
-    let t ← match expr with
-      | `(expr| $n:num) => `($n)
-      | `(expr| $i:ident) => `($i)
+  partial def of_expr (expr: TSyntax `expr): CoreM Term := withRef expr do
+    match expr with
+      | `(expr| $n:num) => pure n
+      | `(expr| $i:ident) => pure i
       | `(expr| $e:expr $s:super_expr) => `($(← of_expr e) ^ $(← of_super_expr s))
       | `(expr| $e:expr ^ $f:expr) => `($(← of_expr e) ^ $(← of_expr f))
       | `(expr| $e:expr $f:expr)
@@ -212,38 +205,32 @@ mutual
           `({($x) : $(← of_type type) | $(← of_prop p)})
       | _ => throwError "unknown expr"
 
-    -- Avoid copying SourceInfo to identifiers, which produces spurious
-    -- "variable not referenced" errors.
-    pure (if expr matches `(expr| $_:ident) then t else set_info_from t expr)
-
-  partial def of_rel_prop (prop: TSyntax `rel_prop): CoreM Term := do
+  partial def of_rel_prop (prop: TSyntax `rel_prop): CoreM Term := withRef prop do
     let rec build : List Term → List String → List Term
       | _, [] => []
       | t :: u :: ts, op :: ops =>
           build_infix t op u :: build (u :: ts) ops
       | _, _ => panic! "of_rel_prop"
-    let t ← match prop with
+    match prop with
       | `(rel_prop| $a:expr $[$ops:rel_op $bs:expr]*) => do
             let ts ← (a :: bs.toList).mapM of_expr
             let ops := ops.toList.map syntax_atom
             multi_and (build ts ops)
       | _ => throwError "unknown rel_prop"
-    pure (set_info_from t prop)
 
-  partial def of_multi_or (prop: TSyntax `multi_or): CoreM Term := do
-    let t ← match prop with
-      | `(multi_or| $s:multi_specifier one of $es,* is true) =>
+  partial def of_multi_or (prop: TSyntax `multi_or): CoreM Term := withRef prop do
+    match prop with
+      | `(multi_or| $s:multi_specifier one of $es,* is true) => do
             of_multi_specifier s (← es.getElems.toList.mapM of_rel_prop) >>= multi_and
       | _ => throwError "unknown multi_or"
-    pure (set_info_from t prop)
 
   partial def of_some_or_no : TSyntax `some_or_no → CoreM Bool
     | `(some_or_no| some) => pure true
     | `(some_or_no| no) => pure false
     | _ => throwError "unknown some_or_no"
 
-  partial def of_prop (prop: TSyntax `prop): CoreM Term := do
-    let t ← match prop with
+  partial def of_prop (prop: TSyntax `prop): CoreM Term := withRef prop do
+    match prop with
       | `(prop| $e:rel_prop) => of_rel_prop e
       | `(prop| $p:prop and $q:prop) => do `($(← of_prop p) ∧ $(← of_prop q))
       | `(prop| $_:_either ? $p:prop or $q:prop) => do `($(← of_prop p) ∨ $(← of_prop q))
@@ -267,7 +254,6 @@ mutual
       | `(prop| $m:multi_or) => of_multi_or m
       | `(prop| $_:have_contradiction) => pure mk_false
       | stx => throwError s!"unknown prop: {stx}"
-    pure (set_info_from t prop)
 end
 
 inductive Reason where
@@ -903,18 +889,17 @@ def generalize (lets: Option ProofStep) (t: Term) : CoreM Term := match lets wit
 
 def translate_proofs (lets: Option ProofStep) (thms_proofs: List (ThmDecl × Option Proof))
     : CoreM (List (ThmDecl × Option Term)) :=
-  thms_proofs.mapM (fun (decl, proof) => do
+  thms_proofs.mapM (fun (decl, proof) => withRef decl.thm do
     let thm ← resolve_term (lets_vars lets) decl.thm
     pure ({decl with thm := ← generalize lets thm},
           ← proof.mapM (translate_proof lets thm)))
 
 def of_props_proofs (lets: Option ProofStep) (ps: TSyntax `props_proofs) :
         CoreM (List (ThmDecl × Option Term)) :=
-  let finalize thm := resolve_term (lets_vars lets) thm >>= generalize lets
   match ps with
     | `(props_proofs| $s:top_sentence $[ Proof. $proof:proof ]?) => do
         let (thm, opt_name, opt_attr) ← of_top_sentence s
-        let decl := ThmDecl.mk none (← finalize thm) opt_name opt_attr
+        let decl := ThmDecl.mk none thm opt_name opt_attr
         translate_proofs lets [(decl, ← proof.mapM of_proof)]
     | `(props_proofs| $ps:prop_item* $[ Proof. $pis:proof_items ]?) => do
         let label_thms ← ps.toList.mapM of_prop_item
@@ -929,14 +914,15 @@ elab t:_theorem : command => do
             $[$ls:let_step .]? $ps:props_proofs) => do
         let name := name.map getId
         let thms_proofs ← of_props_proofs (← ls.mapM of_let_step) ps
-        let commands ← thms_proofs.toArray.mapM (fun (⟨label, thm, thm_name, attr⟩, proof) => do
-          let proof := proof.getD (← `(by default))
-          let name := thm_name <|> name.map (fun name => label.elim name (name ++ ·))
-          let a ← attr.mapM (fun a => `(attributes| @[$(mkIdent a):ident]))
-          match name with
-            | Option.some name =>
-                `($a:attributes ? theorem $(mkIdent name) : $thm := $proof)
-            | Option.none => `(example : $thm := $proof))
+        let commands : Array Command ← thms_proofs.toArray.mapM
+          (fun (⟨label, thm, thm_name, attr⟩, proof) => withRef thm do
+            let proof := proof.getD (← `(by default))
+            let name := thm_name <|> name.map (fun name => label.elim name (name ++ ·))
+            let a ← attr.mapM (fun a => `(attributes| @[$(mkIdent a):ident]))
+            match name with
+              | Option.some name =>
+                  `($a:attributes ? theorem $(mkIdent name) : $thm := $proof)
+              | Option.none => `(example : $thm := $proof))
         pure $ .mk (mkNullNode commands)
     | _ => throwError "unknown theorem"
   elabCommand c
