@@ -1,6 +1,8 @@
 import Lean
 open Lean
 
+-- attributes
+
 syntax (name := natural_name) "natural_name " str : attr
 
 initialize naturalExt : SimpleScopedEnvExtension (String × Name) (List (String × Name)) ←
@@ -23,3 +25,8 @@ def lookup_natural (name: String): CoreM (Option Name) := do
   let env ← getEnv
   let map := naturalExt.getState env
   pure (map.lookup name)
+
+-- tracing
+
+initialize
+  registerTraceClass `natural.proof

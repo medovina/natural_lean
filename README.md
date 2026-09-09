@@ -418,8 +418,18 @@ The `try?` tactic is very useful.  If a proof step fails, try adding `by [try?]`
     [apply] grind => instantiate only [Nat.eq_one_of_mul_eq_one_left]
   ```
 
-then you should be able to prove the step by writing `by Nat.eq_one_of_mul_eq_one_left`, since Natural Lean's `default_apply` tactic will call `grind`. 
+then you should be able to prove the step by writing `by Nat.eq_one_of_mul_eq_one_left`, since Natural Lean's `default_apply` tactic will call `grind`.
+
+On the other hand, `try?` may report a large number of theorems to use:
+
+```
+Try these:
+  [apply] grind only [instLEℕ.le_spec_1, ℕ.add_right_cancel, ℕ.lt_of_add_lt_add_right,
+  ℕ.lt_trichotomy, ℕ.add_lt_add_right, ℕ.lt_trans, #187d]
+```
+
+Then  you might be able to prove the step by writing `by` followed by a list of all of those theorems .  However, that seems awkward: the whole point of Natural Lean is that proofs should be readable, and it may not be clear how the theorems in a list such as this can be combined to prove the step.  So in this situation it may be better to break the step into smaller steps, producing a readable proof.
 
 Natural Lean is currently quite lax about plurals, articles, and capitalization, so at the moment you may be able to get away with writing ungrammatical English such as "Let a and b be natural number".  I plan to check grammar more strictly in the future.
 
-If you would like to see the Lean code that is generated from any definition or theorem in Natural Lean, write `set_option trace.Elab.command true in` immediately before the definition or theorem.  The Lean code will be visible in the InfoView window in Visual Studio Code.
+If you would like to see the Lean code that is generated from any definition or theorem in Natural Lean, write `set_option trace.natural.proof true in` immediately before the definition or theorem.  The Lean code will be visible in the InfoView window in Visual Studio Code.

@@ -3,8 +3,8 @@ import Mathlib.Data.Set.Defs
 import Mathlib.Data.Set.Operations
 import Mathlib.Logic.Basic
 
-import Natural.Attribute
 import Natural.Grammar
+import Natural.Init
 
 open Lean
 open Lean.Elab.Command
@@ -919,10 +919,12 @@ elab t:_theorem : command => do
             let proof := proof.getD (← `(by default))
             let name := thm_name <|> name.map (fun name => label.elim name (name ++ ·))
             let a ← attr.mapM (fun a => `(attributes| @[$(mkIdent a):ident]))
-            match name with
+            let command ← match name with
               | Option.some name =>
                   `($a:attributes ? theorem $(mkIdent name) : $thm := $proof)
-              | Option.none => `(example : $thm := $proof))
+              | Option.none => `(example : $thm := $proof)
+            trace[natural.proof] command
+            pure command)
         pure $ .mk (mkNullNode commands)
     | _ => throwError "unknown theorem"
   elabCommand c
