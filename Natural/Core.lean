@@ -18,7 +18,13 @@ infix:50 "≯" => fun x y => ¬(x > y)
 attribute [natural_name "natural number"] Nat
 attribute [natural_name "integer"] Int
 
-macro "default" : tactic => `(tactic| first | trivial | grind | aesop )
+-- Here we reduce the default extent of an Aesop search so that it will succeed or fail
+-- more quickly.
+def aesop_config : Aesop.Options :=
+  { maxRuleApplicationDepth := 10, maxRuleApplications := 50, maxNormIterations := 20 }
+
+macro "default" : tactic =>
+  `(tactic| first | trivial | grind | aesop (config := aesop_config) )
 
 macro "default_apply" ts:ident+ : tactic => do
   let aesop_rules ← ts.mapM (fun i => `(Aesop.rule_expr| safe (by rapply $i)))
@@ -613,6 +619,8 @@ def ex_pattern : List Ident → CoreM Term
       let p ← ex_pattern xs
       `(⟨$x, $p⟩)
 
+def this_term : CoreM Term := `(this)
+
 partial def translate (top: Bool) (parent_ex: List Name) (prev: Term) (concl: Option Term)
       : List Block → CoreM (Term × Term)
   | [] => match concl with
@@ -622,7 +630,7 @@ partial def translate (top: Bool) (parent_ex: List Name) (prev: Term) (concl: Op
           if overlap parent_ex (free_vars prev) then
             let ids := (parent_ex.map Lean.mkIdent).toArray
             `(show ∃ $[$ids:ident]*, $prev by default)
-          else `(this)
+          else this_term
         pure (t, prev)
   | ⟨step, children⟩ :: rest => do
       let ex_decl := match step with
@@ -637,10 +645,10 @@ partial def translate (top: Bool) (parent_ex: List Name) (prev: Term) (concl: Op
             let (c, _) ← translate false [] unit (.some concl) bs
             `(fun (_: $p) => $c)
         | _ => panic! "no assume"
-      let (f, prop) ← match step with
-        | .assert (.term p) rs => do
+      let (decl, prop) ← match step with
+        | .assert (.term p) rs => withRef p do
               let b := with_info (← tactic rs[0]!) p
-              pure $ (fun r => `(have: $p := $b; $r), p)
+              pure $ (← `(letDecl| : $p:term := $b), p)
         | .assert (.eq_chain ts) reasons => do
             let tactics ← reasons.mapM tactic
             let mk_step t tactic :=
@@ -648,39 +656,33 @@ partial def translate (top: Bool) (parent_ex: List Name) (prev: Term) (concl: Op
               `(calcStep| _ = $t := $b)
             let steps ← (ts.drop 2).zipWithM mk_step (tactics.drop 1)
             let b := with_info2 tactics[0]! ts[1]!
-            pure (fun r => `(have: _ := calc $(ts[0]!) = $(ts[1]!) := $b
-                             $(steps.toArray)* ; $r),
+            pure (← `(letDecl| : _ := calc $(ts[0]!) = $(ts[1]!) := $b
+                                      $(steps.toArray)*),
                   ← `($(ts.head!) = $(ts.getLast!)))
         | .let ids type =>
             let ids := ids.toArray.map mkIdent
-            pure (fun r => `(have: _ := fun $ids* : $type => $c; $r),
+            pure (← `(letDecl| : _ := fun $ids* : $type => $c),
                   ← `(∀ $ids:ident* : $type, _))
-        | .let_def id e =>
-            let t := `(let $(mkIdent id) := $e; $c)
-            pure (
-              fun r => do
-                if rest.isEmpty && concl == none then t
-                else `(have: _ := $(← t); $r),
-              child_concl)
+        | .let_def id e => do
+            let t ← `(let $(mkIdent id) := $e; $c)
+            let decl ← `(letDecl| : _ := $t:term)
+            pure (decl, child_concl)
         | .assume p =>
             let vars := (ex_vars p).map (·.1)
             let pat ← ex_pattern vars
-            pure (fun r => `(have: _ := fun ($pat:term : $p) => $c; $r),
-                    ← `($p → _))
+            pure (← `(letDecl| : _ := fun ($pat:term : $p) => $c),
+                  ← `($p → _))
         | .is_some ids type p reason => do
             let b := with_info (← tactic reason) p
             let ids := ids.map mkIdent
-            let vars ← if children.isEmpty then `(this) else ex_pattern ids
+            let vars ← if children.isEmpty then this_term else ex_pattern ids
             let a := ids.toArray
-            let t := `(have $vars:term : (∃ $[$a:ident]* : $type, $p) := $b; $c)
-            pure (
-              fun r => do
-                if rest.isEmpty && concl == none then t
-                else `(have: _ := $(← t); $r),
-                child_concl)
+            let t ← `(have $vars:term : (∃ $[$a:ident]* : $type, $p) := $b; $c)
+            let decl ← `(letDecl| : _ := $t:term)
+            pure (decl, child_concl)
         | .if_otherwise _ _ _ q => do
             let ts ← List.toArray <$> children.mapM (translate_case q)
-            pure (fun r => `(have: _ := Classical.byCases $ts*; $r), q)
+            pure (← `(letDecl| : _ := Classical.byCases $ts*), q)
         | .case cases concl =>
             let ts ← List.toArray <$> children.mapM (translate_case concl)
             let d ← multi_or (cases.map Prod.fst)
@@ -689,11 +691,15 @@ partial def translate (top: Bool) (parent_ex: List Name) (prev: Term) (concl: Op
               | 3 => `Or.elim3
               | _ => panic! "unimplemented"
             let t ← `($f (show $d by default) $ts*)
-            pure (fun r => `(have: _ := $t; $r),
-                  concl)
+            pure (← `(letDecl| : _ := $t), concl)
         | .group _ => panic! "group unexpected"
       let (r, rest_concl) ← translate top parent_ex prop concl rest
-      let t ← f r
+      let t := `(have $decl:letDecl; $r)
+      let t ←
+            if let `(letDecl| : _ := $u) := decl then
+              if r == (← this_term) then pure u    -- shorten proof
+              else t
+            else t
       pure (t, rest_concl)
 
 inductive Proof where
@@ -924,6 +930,7 @@ elab t:_theorem : command => do
                   `($a:attributes ? theorem $(mkIdent name) : $thm := $proof)
               | Option.none => `(example : $thm := $proof)
             trace[natural.proof] command
+            -- dbg_trace (repr command)
             pure command)
         pure $ .mk (mkNullNode commands)
     | _ => throwError "unknown theorem"
