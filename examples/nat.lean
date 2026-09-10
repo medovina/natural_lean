@@ -98,6 +98,12 @@ Proof.  Let x, y : ℕ.  Let
 
   Second, let z : ℕ and assume z ∈ A.  Then x + z = y + z implies x = y.  Now assume x + S(z) = y + S(z).  Then S(x + z) = S(y + z).  Therefore x + z = y + z.  Hence by the inductive hypothesis x = y.  Thus we have shown that x + S(z) = y + S(z) implies x = y, so S(z) ∈ A.  Therefore z ∈ A implies S(z) ∈ A.  By induction z ∈ A for all z : ℕ.
 
+Theorem.  For all x, y, z : ℕ,
+
+  x + z = y + z iff x = y.  [ℕ.add_right_cancel_iff: @simp]
+
+Proof.  By ℕ.add_right_cancel.
+
 Theorem.  For all x, y : ℕ, y ≠ S(x) + y.  [ℕ.not_succ_add]
 
 Proof.  Let x : ℕ.  Let
@@ -186,14 +192,31 @@ Proof.
   e. By ℕ.lt_trichotomy.
   f. By ℕ.lt_trichotomy.
 
-Theorem.  Let x, y, z : ℕ.
+Theorem.  Let x, y, z, u, v : ℕ.
 
-  a. If x ≠ 0 then x > 0.
-  b. x < x + S(y).
-  c. If x < y then x + z < y + z.
+  a. If x ≠ 0 then x > 0.   [ℕ.pos_if_ne_zero]
+  b. x < x + S(y).          [ℕ.lt_add_of_succ]
+  c. If x < y then x + z < y + z.  [ℕ.add_lt_add_right]
+  d. If x + z < y + z then x < y.  [ℕ.lt_of_add_lt_add_right]
+  e. x + z < y + z iff x < y.  [ℕ.add_lt_add_iff_right: @simp]
+  f. x + z ≤ y + z iff x ≤ y.  [ℕ.add_le_add_iff_right: @simp]
+  g. If x < y and u < v then x + u < y + v.  [ℕ.add_lt_add_of_lt_of_lt]
+  h. If x < y and u ≤ v then x + u < y + v.  [ℕ.add_lt_add_of_lt_of_le]
+  i. If x ≤ y and u < v then x + u < y + v.  [ℕ.add_lt_add_of_le_of_lt]
+  j. If x ≤ y and u ≤ v then x + u ≤ y + v.  [ℕ.add_le_add_of_le_of_le]
 
 Proof.
 
   a. Assume that x ≠ 0.  Then by ℕ.is_zero_or_succ there exists some u : ℕ such that x = S(u).  Hence x = 0 + S(u).  Therefore x > 0.
 
   c. Assume that x < y.  Then x + S(w) = y for some w : ℕ.  Hence (x + z) + S(w) = (x + S(w)) + z = y + z.  Then x + z < y + z.
+
+  d. By ℕ.lt_trichotomy and ℕ.add_lt_add_right.
+  e. By ℕ.add_lt_add_right and ℕ.lt_of_add_lt_add_right.
+  f. By ℕ.add_lt_add_iff_right and ℕ.add_right_cancel.
+
+  g. Suppose that x < y and u < v.  By ℕ.add_lt_add_right x + u < y + u and u + y < v + y, so y + u < y + v.  Hence by ℕ.lt_trans x + u < y + v.
+
+  h. By ℕ.add_lt_add_of_lt_of_lt.
+  i. By ℕ.add_lt_add_of_lt_of_lt.
+  j. By ℕ.add_lt_add_of_le_of_lt and ℕ.add_le_add_iff_right.
