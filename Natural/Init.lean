@@ -1,6 +1,8 @@
 import Lean
 open Lean
 
+namespace Natural
+
 -- attributes
 
 syntax (name := natural_name) "natural_name " str : attr

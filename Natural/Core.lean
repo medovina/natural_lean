@@ -15,6 +15,8 @@ open Lean.Syntax
 infix:50 "≮" => fun x y => ¬(x < y)
 infix:50 "≯" => fun x y => ¬(x > y)
 
+namespace Natural
+
 attribute [natural_name "natural number"] Nat
 attribute [natural_name "integer"] Int
 
@@ -141,7 +143,7 @@ partial def of_type : TSyntax `type → CoreM Term
   | `(type| $t:type → $u:type) => do `($(← of_type t) → $(← of_type u))
   | _ => throwError "unknown multi_specifier"
 
-def of_id_list : TSyntax `id_list → CoreM (Array Ident)
+def of_id_list : TSyntax ``id_list → CoreM (Array Ident)
   | `(id_list| $id:ident $[, $ids:ident $_:comma_ahead]* $[$[,]? and $id2:ident]?) => do
       pure $ #[id] ++ ids ++ id2.toArray
   | _ => throwError "unknown id_list"
@@ -150,7 +152,7 @@ def idents_to_nat_type (n1: Ident) (n2: Option Ident) := match n2 with
   | .some n2 => s!"{n1.getId.toString} {singular n2.getId.toString}"
   | .none => singular n1.getId.toString
 
-def of_natural_type : TSyntax `natural_type → CoreM Term
+def of_natural_type : TSyntax ``natural_type → CoreM Term
   | `(natural_type| $n1:ident $n2:ident ?) => do
       let s := idents_to_nat_type n1 n2
       let type ← lookup_natural s
@@ -230,7 +232,7 @@ mutual
             of_multi_specifier s (← es.getElems.toList.mapM of_rel_prop) >>= multi_and
       | _ => throwError "unknown multi_or"
 
-  partial def of_some_or_no : TSyntax `some_or_no → CoreM Bool
+  partial def of_some_or_no : TSyntax ``some_or_no → CoreM Bool
     | `(some_or_no| some) => pure true
     | `(some_or_no| no) => pure false
     | _ => throwError "unknown some_or_no"
@@ -380,7 +382,7 @@ def of_assert_prop: TSyntax `assert_prop → CoreM (ETerm × List (Option Reason
 def assert_step (t: Term) (r: Option Reason): ProofStep :=
   .assert (.term t) [r]
 
-def of_because_prop : TSyntax `because_prop → CoreM ProofStep
+def of_because_prop : TSyntax ``because_prop → CoreM ProofStep
   | `(because_prop| $_:_since $p:prop) => do
        pure $ .assert (.term (← of_prop p)) [none]
   | _ => throwError "unknown because_prop"
@@ -457,7 +459,7 @@ partial def of_otherwise_intro: TSyntax `otherwise_intro → CoreM (Term × List
     | _ => throwError "unknown otherwise_intro"
   | _ => throwError "unknown otherwise_intro"
 
-partial def of_otherwise_unit: TSyntax `otherwise_unit → CoreM ProofStep
+partial def of_otherwise_unit: TSyntax ``otherwise_unit → CoreM ProofStep
   | `(otherwise_unit| $intro:otherwise_intro $_:_otherwise $fs:proof_unit*
                      $_:_any_case $q:prop .) => do
       let (p, ts) ← of_otherwise_intro intro
@@ -471,7 +473,7 @@ partial def of_proof_unit: TSyntax `proof_unit → CoreM (List ProofStep)
   | _ => throwError "unknown proof_unit"
 end
 
-def of_case: TSyntax `case → CoreM (Nat × Term × List ProofStep)
+def of_case: TSyntax ``case → CoreM (Nat × Term × List ProofStep)
   | `(case| Case $n:num : $p:prop . $ts:proof_unit*) => do
       pure (n.getNat, (← of_prop p), (← ts.toList.flatMapM of_proof_unit))
   | _ => throwError "unknown case"
@@ -728,17 +730,17 @@ def of_proof: TSyntax `proof → CoreM Proof
   | `(proof| By $r:reason .) => do pure $ .proof_by (← of_reason r)
   | _ => throwError "unknown proof"
 
-def of_proof_item: TSyntax `proof_item → CoreM (Name × Proof)
+def of_proof_item: TSyntax ``proof_item → CoreM (Name × Proof)
   | `(proof_item| $i:ident . $p:proof) => do pure (i.getId, (← of_proof p))
   | _ => throwError "unknown proof_item"
 
-def of_proof_items: TSyntax `proof_items → CoreM (List (Name × Proof))
+def of_proof_items: TSyntax ``proof_items → CoreM (List (Name × Proof))
   | `(proof_items| $ps:proof_item*) => ps.toList.mapM of_proof_item
   | _ => throwError "unknown proof_items"
 
 -- statements
 
-def of_constructor: TSyntax `constructor → CoreM (Term × Term)
+def of_constructor: TSyntax ``constructor → CoreM (Term × Term)
   | `(constructor| $c:const : $t:type) => do pure (← of_const c, ← of_type t)
   | _ => throwError "unknown constructor"
 
@@ -751,7 +753,7 @@ def aux_ctor_def (typ:Ident) (t: Term): CoreM Command :=
     | `($i:ident) => `(abbrev $i := $(dot i))
     | _ => throwError "aux_ctor_def: unknown"
 
-def of_type_def : TSyntax `type_def → CoreM Command
+def of_type_def : TSyntax ``type_def → CoreM Command
   | `(type_def| The type $i:ident $[( the $n1:ident $n2:ident ?)]?
                 is defined inductively with constructors
                 $cs:constructor and* .) => do
@@ -768,7 +770,7 @@ def of_type_def : TSyntax `type_def → CoreM Command
       pure $ .mk (mkNullNode commands)
   | _ => throwError "unknown definition"
 
-def of_top_sentence : TSyntax `top_sentence → CoreM (Term × Option Name × Option Name)
+def of_top_sentence : TSyntax ``top_sentence → CoreM (Term × Option Name × Option Name)
   | `(top_sentence| $p:prop . $[ [ $i:ident $[ : @ $a:ident ]? ] ]?) => do
       pure (← of_prop p, i.map getId, a.join.map getId)
   | _ => throwError "unknown top_sentence"
@@ -781,13 +783,13 @@ structure ThmDecl where
   name: Option Name
   attr: Option Name
 
-def of_prop_item : TSyntax `prop_item → CoreM ThmDecl
+def of_prop_item : TSyntax ``prop_item → CoreM ThmDecl
   | `(prop_item| $i:ident . $s:top_sentence) => do
       let (thm, name, attr) ← of_top_sentence s
       pure ⟨i.getId, thm, name, attr⟩
   | _ => throwError "unknown prop_item"
 
-def of_binary_op : TSyntax `binary_op → CoreM String
+def of_binary_op : TSyntax ``binary_op → CoreM String
   | `(binary_op| +) => pure "+"
   | `(binary_op| ·) => pure "·"
   | `(binary_op| ^) => pure "^"
@@ -843,7 +845,7 @@ def generate_def (op: String) (args: List Ident) (type: Ident) (eqs: Array Term)
     $i:command
     $a:command)
 
-def of_cases_def : TSyntax `cases_def → CoreM Command
+def of_cases_def : TSyntax ``cases_def → CoreM Command
   | `(cases_def| The binary operation $op:binary_op on $type:ident is defined recursively
                     such that for all $ids_type:ids_type , $items:prop_item*) => do
       let (xs, _type) ← of_ids_type ids_type
@@ -851,7 +853,7 @@ def of_cases_def : TSyntax `cases_def → CoreM Command
       generate_def (← of_binary_op op) xs.toList type eqs
   | _ => throwError "unknown cases_def"
 
-def of_direct_def : TSyntax `direct_def → CoreM Command
+def of_direct_def : TSyntax ``direct_def → CoreM Command
   | `(direct_def| $_:_for_all $ids_type:ids_type , $p:prop .) => do
       let (args, type) ← of_ids_type ids_type
       let eq ← of_prop p

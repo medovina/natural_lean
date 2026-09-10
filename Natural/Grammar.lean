@@ -3,6 +3,8 @@ import Natural.Util
 
 open Lean.Parser
 
+namespace Natural
+
 sdef const
   | ident
   | num

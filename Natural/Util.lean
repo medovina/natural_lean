@@ -7,6 +7,8 @@ open Elab Tactic Meta
 open Elab.Command
 open Lean.Syntax (mkStrLit)
 
+namespace Natural
+
 -- pairs
 
 def map_fst (f : α → γ) (pair : Prod α β) := pair.map f id
@@ -32,6 +34,16 @@ def foldr1M [Monad m] [Inhabited α] (f: α → α → m α) (xs: List α) : m �
       let r ← foldr1M f xs
       f x r
   | _ => panic! "foldr1M"
+
+-- arrays
+
+-- erase repeated elements, keeping the first element of each run
+def _root_.Array.eraseRepsBy {α} (r : α → α → Bool) (as : Array α) : Array α :=
+  if h : 0 < as.size then
+    let ⟨last, acc⟩ := as.foldl (init := (as[0], #[])) fun ⟨last, acc⟩ a =>
+      if r a last then ⟨last, acc⟩ else ⟨a, acc.push last⟩
+    acc.push last
+  else #[]
 
 -- unicode
 
