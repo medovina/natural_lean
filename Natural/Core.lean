@@ -264,13 +264,13 @@ mutual
       | stx => throwError s!"unknown prop: {stx}"
 end
 
-def of_thm_name: TSyntax ``thm_name → CoreM Name
-  | `(thm_name| $i:ident) => pure i.getId
+def of_thm_name: TSyntax ``thm_name → CoreM Ident
+  | `(thm_name| $i:ident) => pure i
   | _ => throwError s!"unknown thm_name"
 
 inductive Reason where
   | tactic (t: Syntax.Tactic)
-  | apply (ns: List Name)
+  | apply (ns: List Ident)
   | induction
 
 def of_reason: TSyntax `reason → CoreM (Option Reason)
@@ -609,7 +609,7 @@ def with_info2 (t: Term) (source: Term): Term :=
 
 def tactic : Option Reason → CoreM Term
   | .some (.tactic t) => `(by { $t })
-  | .some (.apply ns) => `(by default_apply $(ns.toArray.map mkIdent)*)
+  | .some (.apply ns) => `(by default_apply $(ns.toArray)*)
   | .some (.induction) => `(by intro x ; induction x <;> default)
   | .none => `(by default)
 
@@ -778,7 +778,7 @@ def of_type_def : TSyntax ``type_def → CoreM Command
       pure $ .mk (mkNullNode commands)
   | _ => throwError "unknown definition"
 
-def of_top_sentence : TSyntax ``top_sentence → CoreM (Term × Option Name × Option Name)
+def of_top_sentence : TSyntax ``top_sentence → CoreM (Term × Option Ident × Option Name)
   | `(top_sentence| $p:prop . $[ [ $i:thm_name $[ : @ $a:ident ]? ] ]?) => do
       pure (← of_prop p, ← i.mapM of_thm_name, a.join.map getId)
   | _ => throwError "unknown top_sentence"
@@ -788,7 +788,7 @@ abbrev Label := Name
 structure ThmDecl where
   label: Option Label
   thm: Term
-  name: Option Name
+  name: Option Ident
   attr: Option Name
 
 def of_prop_item : TSyntax ``prop_item → CoreM ThmDecl
@@ -933,14 +933,14 @@ elab t:_theorem : command => do
         let commands : Array Command ← thms_proofs.toArray.mapM
           (fun (⟨label, thm, thm_name, attr⟩, proof) => withRef thm do
             let proof := proof.getD (← `(by default))
-            let name := thm_name <|> name.map (fun name => label.elim name (name ++ ·))
+            let name := thm_name <|> name.map (fun name =>
+              label.elim name (mkIdent $ name.getId ++ ·))
             let a ← attr.mapM (fun a => `(attributes| @[$(mkIdent a):ident]))
             let command ← match name with
               | Option.some name =>
-                  `($a:attributes ? theorem $(mkIdent name) : $thm := $proof)
+                  `($a:attributes ? theorem $name : $thm := $proof)
               | Option.none => `(example : $thm := $proof)
             trace[natural.proof] command
-            -- dbg_trace (repr command)
             pure command)
         pure $ .mk (mkNullNode commands)
     | _ => throwError "unknown theorem"
