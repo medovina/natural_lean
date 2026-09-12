@@ -53,7 +53,10 @@ def parse_infix (t: Term): CoreM (Term × String × Term) :=
     | .none => throwError "infix expression expected"
 
 def build_infix (t: Term) (op: String) (u: Term) : Term :=
-  ⟨mkNode (.mkSimple s!"term_{op}_") #[t, mkAtom op, u]⟩
+  let info := match t.raw.getPos?, u.raw.getTailPos? with
+    | .some startPos, .some endPos => SourceInfo.synthetic startPos endPos
+    | _, _ => SourceInfo.none
+  ⟨Syntax.node info (.mkSimple s!"term_{op}_") #[t, mkAtom op, u]⟩
 
 partial def syntax_replace_infix (op: String) (name: Ident) :=
   let rec repl (t: Syntax): Syntax :=
