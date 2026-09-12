@@ -83,7 +83,7 @@ def nat : Parser :=
 
 -- syntax builders
 
-def non_keywords := ["case", "cases", "otherwise", "this", "true", "type"]
+def non_keywords := ["case", "cases", "now", "otherwise", "some", "this", "true", "type"]
 
 macro "kdef" name:ident "=" ks:sepBy1(str, "|") : command => do
   let rec mk_or : List (TSyntax `stx) → MacroM (TSyntax `stx)

@@ -97,7 +97,7 @@ sdef multi_or
 
 kdef _either = "either"
 
-syntax some_or_no := "some" <|> "no"
+syntax some_or_no := &"some" <|> "no"
 
 kdef _is_have = "this is" | "we have"
 
@@ -115,7 +115,7 @@ sdef_extend prop
   | _for_all ids_type "," prop
   | prop _for_all ids_type
   | _there _exists some_or_no ? ids_type "such" "that" prop
-  | prop _for "some" ids_type
+  | prop _for &"some" ids_type
   | multi_or
   | have_contradiction
 
@@ -124,9 +124,11 @@ sdef_extend prop
 sdef _thm
   | "Lemma" <|> "Theorem"
 
+syntax thm_name := ident
+
 sdef reason
   | "[" tactic "]"
-  | sepBy1(ident, "and")
+  | sepBy1(thm_name, "and")
   | "induction"
   | "the" "inductive" "hypothesis"
 
@@ -150,7 +152,7 @@ syntax because_prop := _since prop
 kdef _by = "by"
 
 sdef which_is_contradiction
-  | atomic("," "again"? "contradicting") ident because_prop ?
+  | atomic("," "again"? "contradicting") thm_name because_prop ?
 
 sdef proof_prop
   | because_prop ? (_by reason)? _have ? assert_prop
@@ -233,7 +235,9 @@ sdef proof
   | case_unit+
   | "By" reason "."
 
-syntax proof_item := ident "." proof
+syntax label := ident
+
+syntax proof_item := label "." proof
 
 syntax proof_items := proof_item+
 
@@ -245,9 +249,9 @@ syntax type_def :=
   "The" &"type" ident ("(" "the" ident ident ? ")")?
   "is" "defined" "inductively" "with" "constructors" sepBy1(constructor, "and") "."
 
-syntax top_sentence := prop "." ("[" ident (":" "@" ident)? "]")?
+syntax top_sentence := prop "." ("[" thm_name (":" "@" ident)? "]")?
 
-syntax prop_item := ident "." top_sentence
+syntax prop_item := label "." top_sentence
 
 kdef binary_op = "+" | "·" | "^" | "<" | "≤"
 
@@ -264,13 +268,13 @@ sdef definition
   | cases_def
   | direct_def
 
-syntax definition_stmt := "Definition." definition
+syntax definition_stmt := "Definition" "." definition
 
 -- theorems
 
 sdef props_proofs
-  | top_sentence ("Proof." proof)?
-  | prop_item+ ("Proof." proof_items)?
+  | top_sentence ("Proof" "." proof)?
+  | prop_item+ ("Proof" "." proof_items)?
 
 sdef _theorem
-  | _thm ident ? str ? "." (let_step ".")? props_proofs
+  | _thm thm_name ? str ? "." (let_step ".")? props_proofs

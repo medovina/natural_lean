@@ -2,6 +2,7 @@
 --   https://github.com/leanprover/verso
 
 import Lean
+import Natural.Grammar
 import Natural.Util
 
 open Lean
@@ -29,12 +30,17 @@ structure SemanticTokenEntry where
   line : Nat
   startChar : Nat
   length : Nat
-  type : Option Nat
+  type : Nat
   modifierMask : Nat
 deriving Inhabited, Repr
 
-protected meta def SemanticTokenEntry.ordLt (a b : SemanticTokenEntry) : Bool :=
-  a.line < b.line ∨ (a.line = b.line ∧ a.startChar < b.startChar)
+instance: ToString SemanticTokenEntry where
+  toString e :=
+    let type := SemanticTokenType.names[e.type]!
+    s!"[line = {e.line}, start = {e.startChar}, length = {e.length}, type = {type}]"
+
+protected meta def SemanticTokenEntry.ordLe (a b : SemanticTokenEntry) : Bool :=
+  a.line < b.line ∨ (a.line = b.line ∧ a.startChar <= b.startChar)
 
 protected meta def SemanticTokenEntry.posEq (a b : SemanticTokenEntry) : Bool :=
   (a.line, a.startChar) == (b.line, b.startChar)
@@ -46,8 +52,7 @@ meta def encodeTokenEntries (entries : Array SemanticTokenEntry) : Array Nat := 
   for ⟨line, char, len, type, modMask⟩ in entries do
     let deltaLine := line - lastLine
     let deltaStart := if line = lastLine then char - lastChar else char
-    if let .some type := type then
-      data := data ++ #[deltaLine, deltaStart, len, type, modMask]
+    data := data ++ #[deltaLine, deltaStart, len, type, modMask]
     lastLine := line; lastChar := char
   return data
 
@@ -60,15 +65,17 @@ meta def decodeLeanTokens (data : Array Nat) : Array SemanticTokenEntry := Id.ru
       | return entries -- If this happens, something is wrong with Lean, but we don't really care
     line := line + deltaLine
     char := if deltaLine = 0 then char + deltaStart else deltaStart
-    entries := entries.push ⟨line, char, len, .some type, modMask⟩
+    entries := entries.push ⟨line, char, len, type, modMask⟩
   return entries
 
 meta partial def naturalTokens (text : FileMap) (stx : Syntax) : Array SemanticTokenEntry :=
-  Id.run do match stx with
+  match stx with
+    | `(definition_stmt| Definition . $_d)
+    | `(_theorem| $_:_thm $_name:thm_name ? $_:str ? . $[$ls:let_step .]? $_ps:props_proofs) =>
+          gather stx
     | _ => stx.getArgs.flatMap (naturalTokens text)
 where
-  mkTok (text : FileMap) (tokenType : SemanticTokenType) (stx : Syntax)
-        : Array SemanticTokenEntry := Id.run do
+  mkTok (tokenType : SemanticTokenType) (stx : Syntax) : Array SemanticTokenEntry := Id.run do
     let (some startPos, some endPos) := (stx.getPos?, stx.getTailPos?)
       | return #[]
     let startLspPos := text.utf8PosToLspPos startPos
@@ -85,10 +92,21 @@ where
       }]
     else #[]
 
-meta def mergeTokens (mine : Array SemanticTokenEntry) (leans : SemanticTokens) : Array Nat:=
+  keywords := ["Definition", "Lemma", "Proof", "Theorem"]
+
+  gather (stx: Syntax) := match stx with
+  | `(thm_name| $i:ident)
+  | `(label| $i:ident) => mkTok .function i
+  | _ => match stx with
+    | .ident .. => mkTok .operator stx
+    | .atom _ val => mkTok (if keywords.elem val then .keyword else .operator) stx
+    | _ => stx.getArgs.flatMap gather
+
+meta def mergeTokens (mine : Array SemanticTokenEntry) (leans : SemanticTokens) : Array Nat :=
   let toks := decodeLeanTokens leans.data
-  encodeTokenEntries (mine ++ toks |>.mergeSort (·.ordLt ·)   -- need a stable sort here
-                                   |>.eraseRepsBy SemanticTokenEntry.posEq)
+  let sorted := mine ++ toks |>.mergeSort (·.ordLe ·)   -- need a stable sort here
+  let merged := sorted.eraseRepsBy SemanticTokenEntry.posEq
+  encodeTokenEntries merged
 
 meta def snapshotTokens (beginPos : String.Pos.Raw) (text : FileMap)
       (snap : Snapshots.Snapshot) : Array SemanticTokenEntry :=
@@ -122,7 +140,7 @@ where
   mergeIntoPrev (toks : RequestTask (Array SemanticTokenEntry)) :=
     mergeResponses toks prev fun
       | none, none => SemanticTokens.mk none #[]
-      | some xs, none => SemanticTokens.mk none <| encodeTokenEntries <| xs.qsort (·.ordLt ·)
+      | some xs, none => SemanticTokens.mk none <| encodeTokenEntries <| xs.mergeSort (·.ordLe ·)
       | none, some r => r
       | some mine, some leans => {leans with data := mergeTokens mine leans}
 

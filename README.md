@@ -22,7 +22,11 @@ Natural Lean is in an __early stage of development__ and is not a practical tool
 - [Types](#types)
 - [Natural names](#natural-names)
 - [Tactics](#tactics)
+- [Visual Studio Code integration](#visual-studio-code-integration)
 - [Hints and tips](#hints-and-tips)
+  - [Proving steps](#proving-steps)
+  - [Grammar](#grammar)
+  - [Debugging](#debugging)
      
 (Tip: If you are viewing this document on GitHub's web site, you can also click the table of contents icon in the upper right to navigate through the various sections.)
 
@@ -404,13 +408,47 @@ As described above, an assertion or theorem may have a reason indicating one or 
 But x + S(z) ≠ x by ℕ.not_succ_add and ℕ.add_comm.
 ```
 
-In this situation Natural Lean will invoke the tactic `default_apply` with the given theorem names, e.g. using the Lean code `(by default_apply ℕ.not_succ_add ℕ.add_comm)`.  `default_apply` is a tactic that calls each of `apply_rules`, `grind` and `aesop` in turn, passing the given theorems as arguments.  (I also intend to make this tactic configurable in the future.)
+In this situation Natural Lean will invoke the tactic `default_apply` with the given theorem names  `default_apply` is a tactic that calls each of `apply_rules`, `grind` and `aesop` in turn, passing the given theorems as arguments.  (I also intend to make this tactic configurable in the future.)
 
-### Hints and tips
+### Visual Studio Code integration
 
 You may notice that Visual Studio Code doesn't display a double checkmark beside natural-language theorems that have been proven.  That's due to a [bug](https://github.com/leanprover/lean4/issues/15044) in Lean.  I have submitted a [pull request](https://github.com/leanprover/lean4/pull/15045) that will fix it, so hopefully that will land soon.
 
-The `try?` tactic is very useful.  If a proof step fails, try adding `by [try?]`to that step.  If that succeeds, the information in the InfoView will often reveal which theorem(s) you will need to use to prove the step without `try?`.  For example, if the InfoView shows
+When you first open a file with Natural Lean code, Visual Studio Code will display its default syntax highlighting, which colors many words in natural-language text:
+
+![default highlighting](images/default_highlighting.png)
+
+In my opinion this is not easy to read.  As soon as you make any edit to the file, Natural Lean's own syntax highlighting will appear instead:
+
+![natural highlighting](images/natural_highlighting.png)
+
+Instead of editing the file, you can alternatively produce the natural highlighting by switching to any other tab in the same editor pane, then switching back.
+
+It would be nicer if the natural highlighting appeared as soon as you open the file, however a [bug in Lean](https://github.com/leanprover/lean4/issues/15118) currently prevents this from happening.
+
+Natural Lean's syntax highlighting shows natural-language text using the token type `operator`, which by default appears as pure black (in a light theme) or pure white (in a dark theme).  In my opinion this is a bit too strong.  To dim the text a bit, include this in your `settings.json` file:
+
+```
+    "editor.semanticTokenColorCustomizations": {
+        "[*Light*]": {
+            "rules": {
+                "operator:lean4": "#3B3B3B"
+            }
+        }, "[*Dark*]": {
+            "rules": {
+                "operator:lean4": "#C4C4C4"
+            }
+        }
+    },
+```
+
+(It would be nicer to have a separate token type such as `natural` for natural-language text, however Lean does not allow a library to add custom token types, so we fall back on `operator` instead.)
+
+### Hints and tips
+
+#### Proving steps
+
+The `try?` tactic is very useful.  If a proof step fails, try adding `by [try?]`to that step.  If that succeeds, the information in the InfoView may reveal which theorem(s) you will need to use to prove the step without `try?`.  For example, if the InfoView shows
 
   ```
   Try these:
@@ -430,6 +468,10 @@ Try these:
 
 Then  you might be able to prove the step by writing `by` followed by a list of all of those theorems .  However, that seems awkward: the whole point of Natural Lean is that proofs should be readable, and it may not be clear how the theorems in a list such as this can be combined to prove the step.  So in this situation it may be better to break the step into smaller steps, producing a readable proof.
 
+#### Grammar
+
 Natural Lean is currently quite lax about plurals, articles, and capitalization, so at the moment you may be able to get away with writing ungrammatical English such as "Let a and b be natural number".  I plan to check grammar more strictly in the future.
+
+#### Debugging
 
 If you would like to see the Lean code that is generated from any definition or theorem in Natural Lean, write `set_option trace.natural.proof true in` immediately before the definition or theorem.  The Lean code will be visible in the InfoView window in Visual Studio Code.

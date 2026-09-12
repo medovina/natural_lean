@@ -264,6 +264,10 @@ mutual
       | stx => throwError s!"unknown prop: {stx}"
 end
 
+def of_thm_name: TSyntax ``thm_name → CoreM Name
+  | `(thm_name| $i:ident) => pure i.getId
+  | _ => throwError s!"unknown thm_name"
+
 inductive Reason where
   | tactic (t: Syntax.Tactic)
   | apply (ns: List Name)
@@ -271,8 +275,8 @@ inductive Reason where
 
 def of_reason: TSyntax `reason → CoreM (Option Reason)
   | `(reason| [ $t:tactic ]) => pure (Reason.tactic t)
-  | `(reason| $[$n:ident] and*) =>
-        pure (Reason.apply (n.toList.map TSyntax.getId))
+  | `(reason| $[$n:thm_name] and*) =>
+        .some <$> Reason.apply <$> n.toList.mapM of_thm_name
   | `(reason| induction) => pure Reason.induction
   | `(reason| the inductive hypothesis) => pure .none
   | _ => throwError "unknown reason"
@@ -389,9 +393,9 @@ def of_because_prop : TSyntax ``because_prop → CoreM ProofStep
 
 def of_which_is_contradiction: TSyntax `which_is_contradiction → CoreM (List ProofStep)
   | `(which_is_contradiction|
-          , $[again]? contradicting $i:ident $b:because_prop ?) => do
+          , $[again]? contradicting $i:thm_name $b:because_prop ?) => do
         let because ← b.toList.mapM of_because_prop
-        let s := assert_step mk_false (.some (.apply [i.getId]))
+        let s := assert_step mk_false (.some (.apply [← of_thm_name i]))
         pure (because ++ [s])
   | _ => throwError "unknown which_is_contradiction"
 
@@ -704,11 +708,11 @@ partial def translate (top: Bool) (parent_ex: List Name) (prev: Term) (concl: Op
             else t
       pure (t, rest_concl)
 
-inductive Proof where
+inductive _Proof where
   | steps (l: List ProofStep)
   | proof_by (r: Option Reason)
 
-def translate_proof (lets: Option ProofStep) (thm: Term): Proof → CoreM Term
+def translate_proof (lets: Option ProofStep) (thm: Term): _Proof → CoreM Term
   | .steps steps => do
       let steps ← match lets with
         | .none => pure steps
@@ -724,17 +728,21 @@ def translate_proof (lets: Option ProofStep) (thm: Term): Proof → CoreM Term
       Prod.fst <$> translate True [] (← `(())) none blocks
   | .proof_by r => tactic r
 
-def of_proof: TSyntax `proof → CoreM Proof
+def of_proof: TSyntax `proof → CoreM _Proof
   | `(proof| $steps:case_unit*) => do
         pure $ .steps $ List.flatten (← steps.toList.mapM of_case_unit)
   | `(proof| By $r:reason .) => do pure $ .proof_by (← of_reason r)
   | _ => throwError "unknown proof"
 
-def of_proof_item: TSyntax ``proof_item → CoreM (Name × Proof)
-  | `(proof_item| $i:ident . $p:proof) => do pure (i.getId, (← of_proof p))
+def of_label: TSyntax ``label → CoreM Name
+  | `(label| $i:ident) => pure i.getId
+  | _ => throwError "unknown label"
+
+def of_proof_item: TSyntax ``proof_item → CoreM (Name × _Proof)
+  | `(proof_item| $i:label . $p:proof) => do pure (← of_label i, (← of_proof p))
   | _ => throwError "unknown proof_item"
 
-def of_proof_items: TSyntax ``proof_items → CoreM (List (Name × Proof))
+def of_proof_items: TSyntax ``proof_items → CoreM (List (Name × _Proof))
   | `(proof_items| $ps:proof_item*) => ps.toList.mapM of_proof_item
   | _ => throwError "unknown proof_items"
 
@@ -771,8 +779,8 @@ def of_type_def : TSyntax ``type_def → CoreM Command
   | _ => throwError "unknown definition"
 
 def of_top_sentence : TSyntax ``top_sentence → CoreM (Term × Option Name × Option Name)
-  | `(top_sentence| $p:prop . $[ [ $i:ident $[ : @ $a:ident ]? ] ]?) => do
-      pure (← of_prop p, i.map getId, a.join.map getId)
+  | `(top_sentence| $p:prop . $[ [ $i:thm_name $[ : @ $a:ident ]? ] ]?) => do
+      pure (← of_prop p, ← i.mapM of_thm_name, a.join.map getId)
   | _ => throwError "unknown top_sentence"
 
 abbrev Label := Name
@@ -784,9 +792,9 @@ structure ThmDecl where
   attr: Option Name
 
 def of_prop_item : TSyntax ``prop_item → CoreM ThmDecl
-  | `(prop_item| $i:ident . $s:top_sentence) => do
+  | `(prop_item| $i:label . $s:top_sentence) => do
       let (thm, name, attr) ← of_top_sentence s
-      pure ⟨i.getId, thm, name, attr⟩
+      pure ⟨← of_label i, thm, name, attr⟩
   | _ => throwError "unknown prop_item"
 
 def of_binary_op : TSyntax ``binary_op → CoreM String
@@ -871,11 +879,11 @@ def of_definition : TSyntax `definition → CoreM Command
 
 elab d:definition_stmt : command => do
   let c ← match d with
-    | `(definition_stmt| Definition. $d) => liftCoreM (of_definition d)
+    | `(definition_stmt| Definition . $d) => liftCoreM (of_definition d)
     | _ => throwError "unknown definition_stmt"
   elabCommand c
 
-def match_proofs : List ThmDecl → List (Label × Proof) → CoreM (List (ThmDecl × Option Proof))
+def match_proofs : List ThmDecl → List (Label × _Proof) → CoreM (List (ThmDecl × Option _Proof))
   | [], [] => pure []
   | decl :: ts, (j, proof) :: ps =>
       if decl.label == j then .cons (decl, .some proof) <$> match_proofs ts ps
@@ -895,7 +903,7 @@ def generalize (lets: Option ProofStep) (t: Term) : CoreM Term := match lets wit
       if ids == #[] then pure t else `(∀ $ids:ident* : $type, $t)
   | _ => throwError "generalize: unexpected step"
 
-def translate_proofs (lets: Option ProofStep) (thms_proofs: List (ThmDecl × Option Proof))
+def translate_proofs (lets: Option ProofStep) (thms_proofs: List (ThmDecl × Option _Proof))
     : CoreM (List (ThmDecl × Option Term)) :=
   thms_proofs.mapM (fun (decl, proof) => withRef decl.thm do
     let thm ← resolve_term (lets_vars lets) decl.thm
@@ -905,11 +913,11 @@ def translate_proofs (lets: Option ProofStep) (thms_proofs: List (ThmDecl × Opt
 def of_props_proofs (lets: Option ProofStep) (ps: TSyntax `props_proofs) :
         CoreM (List (ThmDecl × Option Term)) :=
   match ps with
-    | `(props_proofs| $s:top_sentence $[ Proof. $proof:proof ]?) => do
+    | `(props_proofs| $s:top_sentence $[ Proof . $proof:proof ]?) => do
         let (thm, opt_name, opt_attr) ← of_top_sentence s
         let decl := ThmDecl.mk none thm opt_name opt_attr
         translate_proofs lets [(decl, ← proof.mapM of_proof)]
-    | `(props_proofs| $ps:prop_item* $[ Proof. $pis:proof_items ]?) => do
+    | `(props_proofs| $ps:prop_item* $[ Proof . $pis:proof_items ]?) => do
         let label_thms ← ps.toList.mapM of_prop_item
         let label_proofs := (← pis.mapM of_proof_items).getD []
         let thms_proofs ← match_proofs label_thms label_proofs
@@ -918,9 +926,9 @@ def of_props_proofs (lets: Option ProofStep) (ps: TSyntax `props_proofs) :
 
 elab t:_theorem : command => do
   let c : Command ← liftCoreM $ match t with
-    | `(_theorem| $_:_thm $name:ident ? $_:str ? .
+    | `(_theorem| $_:_thm $name:thm_name ? $_:str ? .
             $[$ls:let_step .]? $ps:props_proofs) => do
-        let name := name.map getId
+        let name ← name.mapM of_thm_name
         let thms_proofs ← of_props_proofs (← ls.mapM of_let_step) ps
         let commands : Array Command ← thms_proofs.toArray.mapM
           (fun (⟨label, thm, thm_name, attr⟩, proof) => withRef thm do
