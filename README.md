@@ -183,6 +183,13 @@ A proof step may be any of the following:
     ```
   (In addition to the reasons listed above, an assertion in a proof by induction may use the reason `by the inductive hypothesis`.)
 
+  If an assertion leads to a contradiction, it may say so:
+
+   ```
+   So x < x, contradicting ℕ.lt_irrefl.
+   We have S(y) ≤ y, which is a contradiction to ℕ.lt_succ and ℕ.lt_trichotomy.
+   ```
+
 - A __let declaration__ introduces one or more universally quantified variables of a given type.  Examples:
 
     ```
@@ -204,7 +211,7 @@ A proof step may be any of the following:
     Suppose that z = 0 .
     ```
   
-  If an assumption does not appear at the beginning of an if/otherwise block, then Natural Lean will infer its scope heuristically.
+  Natural Lean will infer an assumption's scope heuristically unless it appears at the beginning of an if/otherwise block (as described below).
 
 In addition, the following are __compound steps__ that group proof steps together:
 

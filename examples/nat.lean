@@ -221,13 +221,12 @@ Proof.
   i. By ℕ.add_lt_add_of_lt_of_lt.
   j. By ℕ.add_lt_add_of_le_of_lt and ℕ.add_le_add_iff_right.
 
--- set_option trace.natural.proof true
--- Theorem.  Let x, y : ℕ.
+Theorem.  Let x, y : ℕ.
 
---   a. x < S(y) if and only if x ≤ y.
+  a. x < S(y) if and only if x ≤ y.
 
--- Proof.
+Proof.
 
---   a. Suppose that x < S(y).  If x > y then y < x < S(y), which is a contradiction to ℕ.discrete.  So by ℕ.lt_trichotomy we have x ≤ y.
+  a. Suppose that x < S(y).  If x > y then y < x < S(y), which is a contradiction to ℕ.discrete.  So by ℕ.lt_trichotomy we have x ≤ y.
 
---   Conversely, suppose that x ≤ y.  If x ≥ S(y) then by ℕ.le_trans we deduce that S(y) ≤ y, which is a contradiction to ℕ.lt_succ.  So it must be that x < S(y).
+  Conversely, suppose that x ≤ y.  If x ≥ S(y) then by ℕ.le_trans we deduce that S(y) ≤ y, which is a contradiction to ℕ.lt_succ and ℕ.lt_trichotomy.  So by ℕ.lt_trichotomy it must be that x < S(y).

@@ -271,6 +271,10 @@ def of_thm_name: TSyntax ``thm_name → CoreM Ident
   | `(thm_name| $i:ident) => pure i
   | _ => throwError s!"unknown thm_name"
 
+def of_thm_names: TSyntax ``thm_names → CoreM (List Ident)
+  | `(thm_names| $[$n:thm_name] and*) => n.toList.mapM of_thm_name
+  | _ => throwError s!"unknown thm_names"
+
 inductive Reason where
   | tactic (t: Syntax.Tactic)
   | apply (ns: List Ident)
@@ -278,8 +282,7 @@ inductive Reason where
 
 def of_reason: TSyntax `reason → CoreM (Option Reason)
   | `(reason| [ $t:tactic ]) => pure (Reason.tactic t)
-  | `(reason| $[$n:thm_name] and*) =>
-        .some <$> Reason.apply <$> n.toList.mapM of_thm_name
+  | `(reason| $n:thm_names) => .some <$> Reason.apply <$> of_thm_names n
   | `(reason| induction) => pure Reason.induction
   | `(reason| the inductive hypothesis) => pure .none
   | _ => throwError "unknown reason"
@@ -401,9 +404,9 @@ def of_because_prop : TSyntax ``because_prop → CoreM ProofStep
 def of_which_is_contradiction (stx: TSyntax `which_is_contradiction) : CoreM (List ProofStep) :=
   withRef stx do match stx with
     | `(which_is_contradiction|
-            , $[which is]? $[again]? $_:contradicting $i:thm_name $b:because_prop ?) => do
+            , $[which is]? $[again]? $_:contradicting $i:thm_names $b:because_prop ?) => do
           let because ← b.toList.mapM of_because_prop
-          let s := assert_step (← `(False)) (.some (.apply [← of_thm_name i]))
+          let s := assert_step (← `(False)) (.some (.apply $ ← of_thm_names i))
           pure (because ++ [s])
     | _ => throwError "unknown which_is_contradiction"
 

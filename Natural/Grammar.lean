@@ -126,9 +126,11 @@ sdef _thm
 
 syntax thm_name := ident
 
+syntax thm_names := sepBy1(thm_name, "and")
+
 sdef reason
   | "[" tactic "]"
-  | sepBy1(thm_name, "and")
+  | thm_names
   | "induction"
   | "the" "inductive" "hypothesis"
 
@@ -154,7 +156,7 @@ kdef _by = "by"
 kdef contradicting = "contradicting" | "a contradiction to"
 
 sdef which_is_contradiction
-  | atomic("," ("which" "is")? "again"? contradicting) thm_name because_prop ?
+  | atomic("," ("which" "is")? "again"? contradicting) thm_names because_prop ?
 
 sdef proof_prop
   | because_prop ? (_by reason)? _have ? assert_prop
