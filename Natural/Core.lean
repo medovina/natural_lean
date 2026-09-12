@@ -778,9 +778,13 @@ def of_type_def : TSyntax ``type_def → CoreM Command
       pure $ .mk (mkNullNode commands)
   | _ => throwError "unknown definition"
 
-def of_top_sentence : TSyntax ``top_sentence → CoreM (Term × Option Ident × Option Name)
-  | `(top_sentence| $p:prop . $[ [ $i:thm_name $[ : @ $a:ident ]? ] ]?) => do
-      pure (← of_prop p, ← i.mapM of_thm_name, a.join.map getId)
+def of_attrib: TSyntax ``attrib → CoreM Ident
+  | `(attrib| @ $i:ident) => pure i
+  | _ => throwError "unknown attrib"
+
+def of_top_sentence : TSyntax ``top_sentence → CoreM (Term × Option Ident × Option Ident)
+  | `(top_sentence| $p:prop . $[ [ $i:thm_name $[ : $a:attrib ]? ] ]?) => do
+      pure (← of_prop p, ← i.mapM of_thm_name, ← a.join.mapM of_attrib)
   | _ => throwError "unknown top_sentence"
 
 abbrev Label := Name
@@ -789,7 +793,7 @@ structure ThmDecl where
   label: Option Label
   thm: Term
   name: Option Ident
-  attr: Option Name
+  attr: Option Ident
 
 def of_prop_item : TSyntax ``prop_item → CoreM ThmDecl
   | `(prop_item| $i:label . $s:top_sentence) => do
@@ -935,7 +939,7 @@ elab t:_theorem : command => do
             let proof := proof.getD (← `(by default))
             let name := thm_name <|> name.map (fun name =>
               label.elim name (mkIdent $ name.getId ++ ·))
-            let a ← attr.mapM (fun a => `(attributes| @[$(mkIdent a):ident]))
+            let a ← attr.mapM (fun a => `(attributes| @[$a:ident]))
             let command ← match name with
               | Option.some name =>
                   `($a:attributes ? theorem $name : $thm := $proof)

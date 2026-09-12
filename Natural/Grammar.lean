@@ -249,7 +249,9 @@ syntax type_def :=
   "The" &"type" ident ("(" "the" ident ident ? ")")?
   "is" "defined" "inductively" "with" "constructors" sepBy1(constructor, "and") "."
 
-syntax top_sentence := prop "." ("[" thm_name (":" "@" ident)? "]")?
+syntax attrib := "@" ident
+
+syntax top_sentence := prop "." ("[" thm_name (":" attrib)? "]")?
 
 syntax prop_item := label "." top_sentence
 

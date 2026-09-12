@@ -94,9 +94,14 @@ where
 
   keywords := ["Definition", "Lemma", "Proof", "Theorem"]
 
+  gather_kw (stx: Syntax) := match stx with
+    | .ident .. | .atom .. => mkTok .keyword stx
+    | _ => stx.getArgs.flatMap gather_kw
+
   gather (stx: Syntax) := match stx with
   | `(thm_name| $i:ident)
   | `(label| $i:ident) => mkTok .function i
+  | `(attrib| @ $_:ident) => gather_kw stx
   | _ => match stx with
     | .ident .. => mkTok .operator stx
     | .atom _ val => mkTok (if keywords.elem val then .keyword else .operator) stx
