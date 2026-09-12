@@ -444,6 +444,17 @@ Natural Lean's syntax highlighting shows natural-language text using the token t
 
 (It would be nicer to have a separate token type such as `natural` for natural-language text, however Lean does not allow a library to add custom token types, so we fall back on `operator` instead.)
 
+When working with Natural Lean, you might even want to configure Visual Studio Code to display your text in a variable-width font, e.g. like this:
+
+```
+"[lean4]": {
+    "editor.fontFamily": "'DejaVu Sans', Sans",
+    "editor.fontSize": 13,
+},
+```
+
+In my opinion this is the nicest way to view and edit natural-language mathematics.  However the setting above will also cause all code in any Lean file to be displayed in variable width, which may not be ideal.
+
 ### Hints and tips
 
 #### Proving steps
