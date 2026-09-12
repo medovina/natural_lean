@@ -305,6 +305,7 @@ inductive ProofStep where
   | assume (p: Term)
   | is_some (ids: List Name) (type: Term) (p: Term) (reason: Option Reason)
   | if_otherwise (p: Term) (if_true: List ProofStep) (if_false: List ProofStep) (concl: Term)
+  | biconditional (p: Term) (forward: List ProofStep) (q: Term) (reverse: List ProofStep)
   | case (cases: List (Term × List ProofStep)) (concl: Term)
   | group (steps: List ProofStep)
 deriving Nonempty
@@ -320,8 +321,9 @@ partial def step_mapM [Monad m] (f: Term → m Term) (step: ProofStep) : m Proof
     | .assume p => pure $ .assume (← f p)
     | .is_some ids type p r => pure $ .is_some ids type (← f p) r
     | .if_otherwise p ts fs concl =>
-        pure $
-        .if_otherwise (← f p) (← map_steps ts) (← map_steps fs) (← f concl)
+        pure $ .if_otherwise (← f p) (← map_steps ts) (← map_steps fs) (← f concl)
+    | .biconditional p forward q reverse =>
+        pure $ .biconditional (← f p) (← map_steps forward) (← f q) (← map_steps reverse)
     | .case cases concl => do
         pure $ .case (← cases.mapM (fun (t, steps) => do pure $ (← f t, ← map_steps steps)))
                      (← f concl)
@@ -351,7 +353,8 @@ partial def step_free_vars : ProofStep → List Name
   | .let_def _ e => free_vars e
   | .assume p => free_vars p
   | .is_some ids _ p _ => (free_vars p).removeAll ids
-  | .if_otherwise p t f q => ([p, q].flatMap free_vars ++ [t, f].flatMap all_free_vars).eraseDups
+  | .if_otherwise p t f q
+  | .biconditional p t q f => ([p, q].flatMap free_vars ++ [t, f].flatMap all_free_vars).eraseDups
   | .case cases concl =>
       let (ts, steps) := cases.unzip
       (concl :: ts).flatMap free_vars ++ steps.flatMap all_free_vars
@@ -371,6 +374,7 @@ instance: ToString ProofStep where
     | .assume _ => s!"assume"
     | .is_some id .. => s!"is_some {id}"
     | .if_otherwise .. => "if_otherwise"
+    | .biconditional .. => "biconditional"
     | .case _ _ => "case"
     | .group _ => "group"
 
@@ -391,13 +395,14 @@ def of_because_prop : TSyntax ``because_prop → CoreM ProofStep
        pure $ .assert (.term (← of_prop p)) [none]
   | _ => throwError "unknown because_prop"
 
-def of_which_is_contradiction: TSyntax `which_is_contradiction → CoreM (List ProofStep)
-  | `(which_is_contradiction|
-          , $[again]? contradicting $i:thm_name $b:because_prop ?) => do
-        let because ← b.toList.mapM of_because_prop
-        let s := assert_step mk_false (.some (.apply [← of_thm_name i]))
-        pure (because ++ [s])
-  | _ => throwError "unknown which_is_contradiction"
+def of_which_is_contradiction (stx: TSyntax `which_is_contradiction) : CoreM (List ProofStep) :=
+  withRef stx do match stx with
+    | `(which_is_contradiction|
+            , $[which is]? $[again]? $_:contradicting $i:thm_name $b:because_prop ?) => do
+          let because ← b.toList.mapM of_because_prop
+          let s := assert_step (← `(False)) (.some (.apply [← of_thm_name i]))
+          pure (because ++ [s])
+    | _ => throwError "unknown which_is_contradiction"
 
 def mk_step (t: Term) (r: Option Reason): ProofStep := match t with
   | `(∃ $[$xs:ident]* : $type, $p) =>
@@ -470,9 +475,16 @@ partial def of_otherwise_unit: TSyntax ``otherwise_unit → CoreM ProofStep
       pure $ ProofStep.if_otherwise p ts (← fs.toList.flatMapM of_proof_unit) (← of_prop q)
   | _ => throwError "unknown otherwise_unit"
 
+partial def of_biconditional_unit: TSyntax ``biconditional_unit → CoreM ProofStep
+  | `(biconditional_unit| $_:_assume $p:prop . $fs:proof_unit* Conversely $[,]?
+                          $_:_assume $q:prop . $rs:proof_unit*) => do
+      pure $ ProofStep.biconditional (← of_prop p) (← fs.toList.flatMapM of_proof_unit)
+                                     (← of_prop q) (← rs.toList.flatMapM of_proof_unit)
+  | _ => throwError "unknown biconditional_unit"
+
 partial def of_proof_unit: TSyntax `proof_unit → CoreM (List ProofStep)
-  | `(proof_unit| $o:otherwise_unit) =>
-      List.singleton <$> of_otherwise_unit o
+  | `(proof_unit| $o:otherwise_unit) => List.singleton <$> of_otherwise_unit o
+  | `(proof_unit| $b:biconditional_unit) => List.singleton <$> of_biconditional_unit b
   | `(proof_unit| $s:proof_sentence) => of_proof_sentence s
   | _ => throwError "unknown proof_unit"
 end
@@ -527,6 +539,11 @@ partial def infer_blocks (steps: List ProofStep): List Block :=
                   let tb := ⟨.assume p, infer_blocks ts⟩
                   let fb := ⟨.assume (Syntax.mkCApp ``Not #[p]), infer_blocks fs⟩
                   let block := ⟨.if_otherwise p [] [] q, [tb, fb]⟩
+                  ([block], rest)
+              | .biconditional p fwd q rev =>
+                  let fb := ⟨.assume p, infer_blocks fwd⟩
+                  let rb := ⟨.assume q, infer_blocks rev⟩
+                  let block := ⟨.biconditional p [] q [], [fb, rb]⟩
                   ([block], rest)
               | .case cases concl =>
                   let bs := cases.map (fun (p, steps) => ⟨.assume p, infer_blocks steps⟩)
@@ -689,6 +706,10 @@ partial def translate (top: Bool) (parent_ex: List Name) (prev: Term) (concl: Op
         | .if_otherwise _ _ _ q => do
             let ts ← List.toArray <$> children.mapM (translate_case q)
             pure (← `(letDecl| : _ := Classical.byCases $ts*), q)
+        | .biconditional p _ q _ => do
+            let [fb, rb] := children | panic! "bad biconditional"
+            let ts := #[← translate_case q fb, ← translate_case p rb]
+            pure (← `(letDecl| : _ := Iff.intro $ts*), ← `(p ↔ q))
         | .case cases concl =>
             let ts ← List.toArray <$> children.mapM (translate_case concl)
             let d ← multi_or (cases.map Prod.fst)

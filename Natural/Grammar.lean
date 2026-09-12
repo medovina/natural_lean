@@ -142,8 +142,8 @@ syntax (priority := 2) atomic(expr eq_expr_by eq_expr_by+) : assert_prop
 kdef _so = "but" | "hence" | "so" | "that is" | "then" | "therefore" | "thus"
 
 kdef _have =
-  "clearly" | "it follows that" |
-  "we have shown that" | "we have" | "we know that" | "we must have"
+  "clearly" | "it follows that" | "it must be that" |
+  "we deduce that" | "we have shown that" | "we have" | "we know that" | "we must have"
 
 kdef _since = "since"
 
@@ -151,8 +151,10 @@ syntax because_prop := _since prop
 
 kdef _by = "by"
 
+kdef contradicting = "contradicting" | "a contradiction to"
+
 sdef which_is_contradiction
-  | atomic("," "again"? "contradicting") thm_name because_prop ?
+  | atomic("," ("which" "is")? "again"? contradicting) thm_name because_prop ?
 
 sdef proof_prop
   | because_prop ? (_by reason)? _have ? assert_prop
@@ -219,8 +221,13 @@ sdef otherwise_intro
 syntax otherwise_unit :=
   atomic(otherwise_intro _otherwise) proof_unit+ _any_case prop "."
 
+syntax biconditional_unit :=
+  atomic(_assume prop "." proof_unit+ "Conversely") ","?
+  _assume prop "." proof_unit+
+
 sdef_extend proof_unit
   | otherwise_unit
+  | biconditional_unit
   | proof_sentence
 
 syntax case := "Case" num ":" prop "." proof_unit+

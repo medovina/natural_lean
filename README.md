@@ -227,7 +227,7 @@ In addition, the following are __compound steps__ that group proof steps togethe
     ```
     Assume A. (<proof_step>)+  Otherwise (<proof_step>)+  In either case B.
 
-    If A then (<assertion>)+.  Otherwise (<proof_step>)+  In either case B.
+    If A then <assertion>.  Otherwise (<proof_step>)+  In either case B.
     ```
 
   Here is an if/otherwise block expressed using each of the forms above, which are equivalent:
@@ -240,6 +240,22 @@ In addition, the following are __compound steps__ that group proof steps togethe
     If x < y then there is some w : ℕ such that x + S(w) = y.  Otherwise x = y,
       so x + 0 = y.  In either case there is some z : ℕ such that x + z = y.
     ```
+
+- A __biconditional__ block proves a statement of the form `P iff Q`.  It has this form:
+
+    ```
+    Assume P.  (<proof_step>)+  Conversely, assume Q.  (<proof_step>)+
+    ```
+  
+  For example, here is a proof excerpt that proves that `x < S(x) iff x < S(y)`:
+
+  ```
+  Assume that x < S(y).  If x > y then y < x < S(y), which is a contradiction
+  to ℕ.discrete.  So by ℕ.lt_trichotomy we have x ≤ y.
+
+  Conversely, assume that x ≤ y.  If x ≥ S(y) then by ℕ.le_trans we deduce that
+  S(y) ≤ y, which is a contradiction to ℕ.lt_succ.  So it must be that x < S(y).
+  ```
 
 - A __cases__ block allows a proof to consider several mutually exclusive possibilities:
 
