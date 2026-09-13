@@ -830,13 +830,13 @@ def of_prop_item : TSyntax ``prop_item → CoreM ThmDecl
 
 def of_binary_op : TSyntax ``binary_op → CoreM String
   | `(binary_op| +) => pure "+"
-  | `(binary_op| ·) => pure "·"
+  | `(binary_op| ·) => pure "*"
   | `(binary_op| ^) => pure "^"
   | `(binary_op| <) => pure "<"
   | `(binary_op| ≤) => pure "≤"
   | _ => throwError "unknown binary_op"
 
-def op_map := [("+", `add, `Add), ("·", `mul, `Mul), ("^", `pow, `Pow),
+def op_map := [("+", `add, `Add), ("*", `mul, `Mul), ("^", `pow, `Pow),
                ("<", `lt, `LT), ("≤", `le, `LE)]
 
 def parse_def_eq : Term → CoreM (String × Term × Term × Term)
@@ -858,7 +858,7 @@ def as_ident (t: Term): CoreM Ident := match t.raw with
 
 def generate_def (op: String) (args: List Ident) (type: Ident) (eqs: Array Term)
     : CoreM Command := do
-  let (op_name, cl) := (op_map.lookup op).get!
+  let (op_name, cl) ← (op_map.lookup op).getDM $ throwError "generate_def: no op"
   let fname := mkIdent (type.getId ++ op_name)
   let eqs ← eqs.mapM (resolve_term (args.map (·.getId, type)))
   let d ← match eqs with
@@ -869,7 +869,8 @@ def generate_def (op: String) (args: List Ident) (type: Ident) (eqs: Array Term)
         `(def $fname ($ix $iy : $type) := $r)
     | _ =>  -- by cases
         let alts ← eqs.mapM (eq_to_alt_expr op fname)
-        `(def $fname : $type → $type → $type
+        `(set_option linter.unusedVariables false in
+          def $fname : $type → $type → $type
             $alts:matchAlt*)
 
   let instName := Name.mkSimple ("inst" ++ cl.toString ++ type.getId.toString)
@@ -880,9 +881,12 @@ def generate_def (op: String) (args: List Ident) (type: Ident) (eqs: Array Term)
   )
   let spec := instName ++ Name.mkSimple (op_name.toString ++ "_spec")
   let a ← `(attribute [grind =] $(mkIdent spec))
-  `($d:command
-    $i:command
-    $a:command)
+  let commands := #[d, i, a]
+  let ctrace cmd := do
+    trace[natural] cmd
+    pure ()
+  commands.forM ctrace
+  pure $ .mk (mkNullNode commands)
 
 def of_cases_def : TSyntax ``cases_def → CoreM Command
   | `(cases_def| The binary operation $op:binary_op on $type:ident is defined recursively
@@ -971,7 +975,7 @@ elab t:_theorem : command => do
               | Option.some name =>
                   `($a:attributes ? theorem $name : $thm := $proof)
               | Option.none => `(example : $thm := $proof)
-            trace[natural.proof] command
+            trace[natural] command
             pure command)
         pure $ .mk (mkNullNode commands)
     | _ => throwError "unknown theorem"

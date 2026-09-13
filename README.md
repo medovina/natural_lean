@@ -508,4 +508,4 @@ Natural Lean is currently quite lax about plurals, articles, and capitalization,
 
 #### Debugging
 
-If you would like to see the Lean code that is generated from any definition or theorem in Natural Lean, write `set_option trace.natural.proof true in` immediately before the definition or theorem.  The Lean code will be visible in the InfoView window in Visual Studio Code.
+If you would like to see the Lean code that is generated from any definition or theorem in Natural Lean, write `set_option trace.natural true in` immediately before the definition or theorem.  The Lean code will be visible in the InfoView window in Visual Studio Code.

@@ -223,10 +223,22 @@ Proof.
 
 Theorem.  Let x, y : ℕ.
 
-  a. x < S(y) if and only if x ≤ y.
+  a. x < S(y) if and only if x ≤ y.   [ℕ.le_iff_lt_add_one]
+  b. x < y if and only if S(x) ≤ y.   [ℕ.lt_iff_add_one_le]
 
 Proof.
 
   a. Suppose that x < S(y).  If x > y then y < x < S(y), which is a contradiction to ℕ.discrete.  So by ℕ.lt_trichotomy we have x ≤ y.
 
   Conversely, suppose that x ≤ y.  If x ≥ S(y) then by ℕ.le_trans we deduce that S(y) ≤ y, which is a contradiction to ℕ.lt_succ and ℕ.lt_trichotomy.  So by ℕ.lt_trichotomy it must be that x < S(y).
+
+  b. Suppose that x < y.  If S(x) > y then x < y < S(x), which is a contradiction to ℕ.discrete.  So by ℕ.lt_trichotomy it must be that S(x) ≤ y.
+
+  Conversely, suppose that S(x) ≤ y.  If x ≥ y then by ℕ.le_trans we deduce that S(x) ≤ x, which is a contradiction to ℕ.lt_succ and ℕ.lt_trichotomy.  So by ℕ.lt_trichotomy it must be that x < y.
+
+-- Multiplication
+
+Definition.  The binary operation · on ℕ is defined recursively such that for all x, y : ℕ,
+
+  a. x · 0 = 0.
+  b. x · S(y) = (x · y) + x.

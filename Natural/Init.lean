@@ -31,4 +31,4 @@ def lookup_natural (name: String): CoreM (Option Name) := do
 -- tracing
 
 initialize
-  registerTraceClass `natural.proof
+  registerTraceClass `natural
