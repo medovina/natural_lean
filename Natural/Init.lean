@@ -1,9 +1,10 @@
 import Lean
 open Lean
+open Lean.Elab
 
 namespace Natural
 
--- attributes
+-- natural_name attribute
 
 syntax (name := natural_name) "natural_name " str : attr
 
@@ -27,6 +28,14 @@ def lookup_natural (name: String): CoreM (Option Name) := do
   let env ← getEnv
   let map := naturalExt.getState env
   pure (map.lookup name)
+
+-- natural_elab attribute
+
+abbrev NaturalElab := Syntax → CoreM Term
+
+unsafe initialize naturalElabAttribute : KeyedDeclsAttribute NaturalElab ←
+  mkElabAttribute NaturalElab `builtin_natural_elab `natural_elab
+    `Natural `Natural.NaturalElab "expr"
 
 -- tracing
 

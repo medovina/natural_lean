@@ -7,6 +7,7 @@ import Natural.Grammar
 import Natural.Init
 
 open Lean
+open Lean.Elab
 open Lean.Elab.Command
 open Lean.Parser.Command
 open Lean.Parser.Term
@@ -16,9 +17,6 @@ infix:50 "≮" => fun x y => ¬(x < y)
 infix:50 "≯" => fun x y => ¬(x > y)
 
 namespace Natural
-
-attribute [natural_name "natural number"] Nat
-attribute [natural_name "integer"] Int
 
 -- Here we reduce the default extent of an Aesop search so that it will succeed or fail
 -- more quickly.
@@ -212,9 +210,18 @@ mutual
       | `(expr| $e:expr + $f:expr) => `($(← of_expr e) + $(← of_expr f))
       | `(expr| $e:expr ( $f:expr )) => `(app_or_mul $(← of_expr e) $(← of_expr f))
       | `(expr| ( $e:expr )) => of_expr e
-      | `(expr| { $x:ident : $type:type | $p:prop }) =>
-          `({($x) : $(← of_type type) | $(← of_prop p)})
-      | _ => throwError "unknown expr"
+      | _ =>
+        let elabFns := naturalElabAttribute.getEntries (← getEnv) expr.raw.getKind
+        for elabFn in elabFns do
+          try
+            return (← elabFn.value expr)
+          catch ex =>
+            match ex with
+            | .internal id _ =>
+              if id == unsupportedSyntaxExceptionId then continue
+              else throw ex
+            | _ => throw ex
+        throwError "unknown expr"
 
   partial def of_rel_prop (prop: TSyntax `rel_prop): CoreM Term := withRef prop do
     let rec build : List Term → List String → List Term
