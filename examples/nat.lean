@@ -1,5 +1,13 @@
 import Natural
 
+-- This file defines the natural numbers inductively and develops their elementary
+-- theory including addition, ordering, and multiplication.  It is entirely independent
+-- of Lean's built-in Nat type.
+--
+-- The development here loosely follows Mendelson, _Number Systems and the
+-- Foundations of Analysis_ (1973).  However in Mendelson 1 is the first natural
+-- number and we begin with 0, so a number of proofs here are somewhat different.
+
 -- definition of natural numbers
 
 Definition.  The type ℕ (the natural numbers) is defined inductively with constructors 0 : ℕ and S : ℕ → ℕ.
@@ -242,3 +250,37 @@ Definition.  The binary operation · on ℕ is defined recursively such that for
 
   a. x · 0 = 0.
   b. x · S(y) = (x · y) + x.
+
+Theorem.  Let x, y, z : ℕ.
+
+  a. x · (y + z) = x · y + x · z.    [ℕ.mul_add]
+  b. (y + z) · x = y · x + z · x.    [ℕ.add_mul]
+
+Proof.
+
+  a. Let x, y : ℕ.  Let
+
+        B = { z : ℕ | x · (y + z) = x · y + x · z }.
+
+  Clearly 0 ∈ B.  Let z : ℕ, and assume that z ∈ B.  Then x · (y + z) = x · y + x · z.  Therefore
+
+    x · (y + S(z)) = x · S(y + z)
+                   = x · (y + z) + x
+                   = (x · y + x · z) + x    by the inductive hypothesis
+                   = x · y + (x · z + x)
+                   = x · y + x · S(z).
+
+  Thus S(z) ∈ B.  We have shown that for all z : ℕ, z ∈ B implies S(z) ∈ B.  Hence by induction z ∈ B for all z : ℕ.
+
+  b. Let y, z : ℕ.  Let
+
+        A = { x : ℕ | (y + z) · x = y · x + z · x }.
+
+  Clearly 0 ∈ A.  Second, Let x : ℕ, and assume that x ∈ A.  Then (y + z) · x = y · x + z · x.  Hence
+
+    (y + z) · S(x) = ((y + z) · x) + (y + z)
+                   = (y · x + z · x) + (y + z)  by the inductive hypothesis
+                   = (y · x + y) + (z · x + z)
+                   = y · S(x) + z · S(x).
+
+  Thus S(x) ∈ A.  We have shown that for all x : ℕ, x ∈ A implies S(x) ∈ A.  By induction x ∈ A for all x : ℕ.
