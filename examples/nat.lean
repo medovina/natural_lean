@@ -1,4 +1,5 @@
 import Natural
+import Natural.Set
 
 -- This file defines the natural numbers inductively and develops their elementary
 -- theory including addition, ordering, and multiplication.  It is entirely independent

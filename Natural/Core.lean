@@ -13,6 +13,10 @@ open Lean.Syntax
 infix:50 "≮" => fun x y => ¬(x < y)
 infix:50 "≯" => fun x y => ¬(x > y)
 
+-- from Mathlib
+theorem Or.elim3 {c d : Prop} (h : a ∨ b ∨ c) (ha : a → d) (hb : b → d) (hc : c → d) : d :=
+  Or.elim h ha fun h₂ ↦ Or.elim h₂ hb hc
+
 namespace Natural
 
 -- Here we reduce the default extent of an Aesop search so that it will succeed or fail
@@ -729,8 +733,8 @@ partial def translate (top: Bool) (parent_ex: List Name) (prev: Term) (concl: Op
             let ts ← List.toArray <$> children.mapM (translate_case concl)
             let d ← multi_or (cases.map Prod.fst)
             let f := Lean.mkIdent $ match ts.size with
-              | 2 => `Or.elim
-              | 3 => `Or.elim3
+              | 2 => ``Or.elim
+              | 3 => ``Or.elim3
               | _ => panic! "unimplemented"
             let t ← `($f (show $d by default) $ts*)
             pure (← `(letDecl| : _ := $t), concl)

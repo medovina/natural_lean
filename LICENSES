@@ -1,5 +1,8 @@
-Some code in Natural/Lsp.lean is derived from Verso (https://github.com/leanprover/verso),
-whose license follows:
+Some code in Natural/Lsp.lean is derived from Verso:
+    https://github.com/leanprover/verso
+
+Some code in Natural/Set.lean is derived from mathlib4:
+    https://github.com/leanprover-community/mathlib4
 
 Apache License 2.0 (Apache)
 Apache License

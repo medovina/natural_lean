@@ -2,9 +2,14 @@ name = "natural"
 defaultTargets = ["Natural"]
 
 [[require]]
-name = "mathlib"
+name = "aesop"
 scope = "leanprover-community"
-rev = "v4.34.0-rc2"
+rev = "master"
+
+[[require]]
+name = "batteries"
+scope = "leanprover-community"
+rev = "main"
 
 [[lean_lib]]
 name = "Natural"
