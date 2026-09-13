@@ -31,7 +31,7 @@ def lookup_natural (name: String): CoreM (Option Name) := do
 
 -- natural_elab attribute
 
-abbrev NaturalElab := Syntax → CoreM Term
+abbrev NaturalElab := Syntax → CoreM (Term × Array Ident × Term)
 
 unsafe initialize naturalElabAttribute : KeyedDeclsAttribute NaturalElab ←
   mkElabAttribute NaturalElab `builtin_natural_elab `natural_elab

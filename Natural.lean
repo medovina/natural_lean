@@ -1,3 +1,7 @@
+import Mathlib.Data.Set.Defs
+import Mathlib.Data.Set.Operations
+import Mathlib.Logic.Basic
+
 import Natural.Core
 import Natural.Lsp
 
@@ -10,6 +14,7 @@ syntax (name := set_comp) "{" ident ":" type "|" prop "}" : expr
 
 @[natural_elab set_comp]
 def set_comp_elab : NaturalElab
-  | `(expr| { $x:ident : $t:type  | $p:prop }) => do
-      `({ ($x:ident) : $(← of_type t) | $(← of_prop p)})
+  | `(expr| { $x:ident : $type:type  | $p:prop }) => do
+      let type ← of_type type
+      (·, #[x], type) <$> `({ ($x:ident) : $type | $(← of_prop p)})
   | _ => Lean.Elab.throwUnsupportedSyntax

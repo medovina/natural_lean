@@ -1,7 +1,4 @@
 import Aesop
-import Mathlib.Data.Set.Defs
-import Mathlib.Data.Set.Operations
-import Mathlib.Logic.Basic
 
 import Natural.Grammar
 import Natural.Init
@@ -74,12 +71,10 @@ def replace_infix (op: String) (name: Ident) (t: Term) : Term :=
 inductive BinderType
   | all
   | exists
-  | set_comp
 
 def match_binder : Syntax → Option (BinderType × List Name × Term × Term)
   | `(∀ $xs:ident* : $type, $t) => .some (.all, xs.toList.map TSyntax.getId, type, t)
   | `(∃ $[$xs:ident]* : $type, $t) => .some (.exists, xs.toList.map TSyntax.getId, type, t)
-  | `({($x:ident) : $type | $t}) => .some (.set_comp, [x.getId], type, t)
   | _ => .none
 
 def mk_binder (bt: BinderType) (xs: List Name) (type: Term) (t: Term) : CoreM Term :=
@@ -87,17 +82,19 @@ def mk_binder (bt: BinderType) (xs: List Name) (type: Term) (t: Term) : CoreM Te
   match bt with
     | .all => `(∀ $xs* : $type, $t)
     | .exists => `(∃ $[$xs:ident]* : $type, $t)
-    | .set_comp => match xs with
-        | #[x] => `({($x) : $type | $t})
-        | _ => panic! "mk_binder"
+
+syntax "bind" ident+ "," term "," term : term
 
 partial def syntax_free_vars (s: Syntax): List Name := match match_binder s with
   | .some (_bt, xs, _type, t) => (syntax_free_vars t).removeAll xs
   | _ => match s with
-    | .missing => []
-    | .node _ _ args => args.toList.flatMap syntax_free_vars |>.eraseDups
-    | .ident _ _ _ _ => [s.getId]
-    | .atom _ _ => []
+    | `(bind $xs:ident*, $_:term, $t:term) =>
+        (syntax_free_vars t).removeAll (xs.toList.map TSyntax.getId)
+    | _ => match s with
+      | .missing => []
+      | .node _ _ args => args.toList.flatMap syntax_free_vars |>.eraseDups
+      | .ident _ _ _ _ => [s.getId]
+      | .atom _ _ => []
 
 def free_vars (t: Term): List Name := syntax_free_vars (t.raw)
 
@@ -214,7 +211,8 @@ mutual
         let elabFns := naturalElabAttribute.getEntries (← getEnv) expr.raw.getKind
         for elabFn in elabFns do
           try
-            return (← elabFn.value expr)
+            let (stx, bound, type) ← elabFn.value expr
+            return (← `(bind $bound:ident*, $type:term, $stx:term))
           catch ex =>
             match ex with
             | .internal id _ =>
@@ -604,10 +602,14 @@ partial def resolve (le: LocalEnv) (s: Syntax) : CoreM (Term × Bool) := match s
         let vars := xs.map (·, type)
         pure $ (← mk_binder bt xs type (← resolve1 (vars ++ le) t), false)
     | .none => match s with
-      | .node info kind args => do
-          let args ← args.mapM (resolve1 le)
-          pure (⟨.node info kind args⟩, false)
-      | _ => pure (⟨s⟩, false)
+      | `(bind $xs:ident*, $type, $t) =>
+          let vars := xs.toList.map (·.getId, type)
+          resolve (vars ++ le) t
+      | _ => match s with
+        | .node info kind args => do
+            let args ← args.mapM (resolve1 le)
+            pure (⟨.node info kind args⟩, false)
+        | _ => pure (⟨s⟩, false)
 
 partial def resolve1 (le: LocalEnv) (s: Syntax) : CoreM Term := (·.1) <$> resolve le s
 end
