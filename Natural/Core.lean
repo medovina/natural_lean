@@ -18,18 +18,22 @@ namespace Natural
 -- Here we reduce the default extent of an Aesop search so that it will succeed or fail
 -- more quickly.
 def aesop_config : Aesop.Options :=
-  { maxRuleApplicationDepth := 10, maxRuleApplications := 50, maxNormIterations := 20 }
+  { maxRuleApplicationDepth := 10, maxRuleApplications := 50, maxNormIterations := 20,
+    terminal := true, warnOnNonterminal := false }
 
 macro "default" : tactic =>
-  `(tactic| first | trivial | grind | aesop (config := aesop_config) )
+  `(tactic| first | trivial | grind | aesop (config := aesop_config) |
+            fail "default tactic could not prove goal")
 
 macro "default_apply" ts:ident+ : tactic => do
   let aesop_rules ← ts.mapM (fun i => `(Aesop.rule_expr| safe (by rapply $i)))
+  let t : Ident := ts[0]?.getD (panic! "default_apply")
   `(tactic| first
-      | (apply $(ts[0]!); done)
+      | (apply $t; done)
       | (apply_rules [$[$ts:ident],*] ; done)
       | grind [$[$ts:ident],*]
-      | aesop (add $aesop_rules,*))
+      | aesop (config := aesop_config) (add $aesop_rules,*)
+      | fail "default_apply could not prove goal")
 
 -- syntax helpers
 
@@ -273,9 +277,10 @@ def of_thm_name: TSyntax ``thm_name → CoreM Ident
   | `(thm_name| $i:ident) => pure i
   | _ => throwError s!"unknown thm_name"
 
-def of_thm_names: TSyntax ``thm_names → CoreM (List Ident)
-  | `(thm_names| $[$n:thm_name] and*) => n.toList.mapM of_thm_name
-  | _ => throwError s!"unknown thm_names"
+def of_reference: TSyntax `reference → CoreM (List Ident)
+  | `(reference| $[$n:thm_name] and*) => n.toList.mapM of_thm_name
+  | `(reference| the assumption that $_p:prop) => pure []
+  | _ => throwError s!"unknown reference"
 
 inductive Reason where
   | tactic (t: Syntax.Tactic)
@@ -284,7 +289,7 @@ inductive Reason where
 
 def of_reason: TSyntax `reason → CoreM (Option Reason)
   | `(reason| [ $t:tactic ]) => pure (Reason.tactic t)
-  | `(reason| $n:thm_names) => .some <$> Reason.apply <$> of_thm_names n
+  | `(reason| $r:reference) => .some <$> Reason.apply <$> of_reference r
   | `(reason| induction) => pure Reason.induction
   | `(reason| the inductive hypothesis) => pure .none
   | _ => throwError "unknown reason"
@@ -403,13 +408,19 @@ def of_because_prop : TSyntax ``because_prop → CoreM ProofStep
        pure $ .assert (.term (← of_prop p)) [none]
   | _ => throwError "unknown because_prop"
 
-def of_which_is_contradiction (stx: TSyntax `which_is_contradiction) : CoreM (List ProofStep) :=
+def of_which_is_contra (stx: TSyntax `which_is_contra): CoreM ProofStep :=
+  let contra r := do
+    pure $ assert_step (← `(False)) (.some (.apply $ ← r.toList.flatMapM of_reference))
+  match stx with
+    | `(which_is_contra| $_:which_is a contradiction $[to $r:reference]?) => contra r
+    | `(which_is_contra| $_:which_is contradicting $r:reference) => contra (some r)
+    | _ => throwError "unknown which_is_contra"
+
+def of_which_is_contradiction (stx: TSyntax ``which_is_contradiction) : CoreM (List ProofStep) :=
   withRef stx do match stx with
-    | `(which_is_contradiction|
-            , $[which is]? $[again]? $_:contradicting $i:thm_names $b:because_prop ?) => do
+    | `(which_is_contradiction| $c:which_is_contra $b:because_prop ?) => do
           let because ← b.toList.mapM of_because_prop
-          let s := assert_step (← `(False)) (.some (.apply $ ← of_thm_names i))
-          pure (because ++ [s])
+          pure (because ++ [← of_which_is_contra c])
     | _ => throwError "unknown which_is_contradiction"
 
 def mk_step (t: Term) (r: Option Reason): ProofStep := match t with
@@ -637,10 +648,11 @@ def with_info2 (t: Term) (source: Term): Term :=
     ⟨t.raw.setInfo (adjust_info 2 (get_info source))⟩
 
 def tactic : Option Reason → CoreM Term
-  | .some (.tactic t) => `(by { $t })
+  | .none
+  | .some (.apply []) => `(by default)
   | .some (.apply ns) => `(by default_apply $(ns.toArray)*)
+  | .some (.tactic t) => `(by { $t })
   | .some (.induction) => `(by intro x ; induction x <;> default)
-  | .none => `(by default)
 
 def produces_let : ProofStep → Bool
   | .let_def .. | .is_some .. => true
@@ -682,7 +694,7 @@ partial def translate (top: Bool) (parent_ex: List Name) (prev: Term) (concl: Op
         | _ => panic! "no assume"
       let (decl, prop) ← match step with
         | .assert (.term p) rs => withRef p do
-              let b := with_info (← tactic rs[0]!) p
+              let b := with_info (← tactic (rs[0]?.getD (panic! "translate"))) p
               pure $ (← `(letDecl| : $p:term := $b), p)
         | .assert (.eq_chain ts) reasons => do
             let tactics ← reasons.mapM tactic

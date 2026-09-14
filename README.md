@@ -93,7 +93,9 @@ Theorem.  For all x : ℕ, S(x) ≠ x.  [ℕ.succ_ne_self]
 
 I generally find the second style above to be more readable.
 
-A theorem's name must be a valid Lean identifier and is its actual name in Lean.  Additionally a theorem may optionally have a __long name__, which may be any string and appears in quotes:
+The keywords `Lemma` and `Corollary` are synonyms for `Theorem`.
+
+A theorem's name must be a valid Lean identifier and is its actual name in Lean.  Additionally a theorem may optionally have a __natural name__, which may be any string and appears in quotes:
 
 ```
 Theorem "Associativity of Addition".  For all x, y, z: ℕ,
@@ -101,7 +103,7 @@ Theorem "Associativity of Addition".  For all x, y, z: ℕ,
   x + (y + z) = (x + y) + z.  [ℕ.add_assoc]
 ```
 
-(At the moment a long theorem name is just documentation; it's not possible to refer to it as a reason in a proof step.)
+(At the moment a natural theorem name is just documentation; it's not possible to refer to it as a reason in a proof step.)
 
 A theorem name in brackets may optionally be followed by a Lean attribute to attach to the theorem:
 

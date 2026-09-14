@@ -92,7 +92,7 @@ where
       }]
     else #[]
 
-  keywords := ["Definition", "Lemma", "Proof", "Theorem"]
+  keywords := ["Corollary", "Definition", "Lemma", "Proof", "Theorem"]
 
   gather_kw (stx: Syntax) := match stx with
     | .ident .. | .atom .. => mkTok .keyword stx

@@ -121,15 +121,17 @@ sdef_extend prop
 -- proof steps
 
 sdef _thm
-  | "Lemma" <|> "Theorem"
+  | "Corollary" | "Lemma" <|> "Theorem"
 
 syntax thm_name := ident
 
-syntax thm_names := sepBy1(thm_name, "and")
+sdef reference
+  | sepBy1(thm_name, "and")
+  | "the" "assumption" "that" prop
 
 sdef reason
   | "[" tactic "]"
-  | thm_names
+  | reference
   | "induction"
   | "the" "inductive" "hypothesis"
 
@@ -152,10 +154,13 @@ syntax because_prop := _because prop
 
 kdef _by = "by"
 
-kdef contradicting = "contradicting" | "a contradiction to"
+syntax which_is := "," ("which" "is")? "again"?
 
-sdef which_is_contradiction
-  | atomic("," ("which" "is")? "again"? contradicting) thm_names because_prop ?
+sdef which_is_contra
+  | atomic(which_is &"a" "contradiction") ("to" reference)?
+  | atomic(which_is "contradicting") reference
+
+syntax which_is_contradiction := which_is_contra because_prop ?
 
 sdef proof_prop
   | (because_prop "," ?)? (_by reason)? _have ? assert_prop
@@ -191,7 +196,7 @@ kdef will_show =
 
 kdef _otherwise = "otherwise"
 
-kdef _any_case = "in all cases" | "in any case" | "in either case"
+kdef _any_case = "in all cases" | "in any case" | "in both cases" | "in either case"
 
 kdef _and = "and"
 
