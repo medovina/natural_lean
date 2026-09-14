@@ -250,30 +250,11 @@ Definition.  The binary operation · on ℕ is defined recursively such that for
   a. x · 0 = 0.
   b. x · S(y) = (x · y) + x.
 
-Theorem.  Let x, y, z : ℕ.
+Theorem.  For all x, y, z : ℕ, (y + z) · x = y · x + z · x.    [ℕ.add_mul]
 
-  a. x · (y + z) = x · y + x · z.    [ℕ.mul_add]
-  b. (y + z) · x = y · x + z · x.    [ℕ.add_mul]
+Proof.  Let y, z : ℕ.  Let
 
-Proof.
-
-  a. Let x, y : ℕ.  Let
-
-        B = { z : ℕ | x · (y + z) = x · y + x · z }.
-
-  Clearly 0 ∈ B.  Let z : ℕ, and assume that z ∈ B.  Then x · (y + z) = x · y + x · z.  Therefore
-
-    x · (y + S(z)) = x · S(y + z)
-                   = x · (y + z) + x
-                   = (x · y + x · z) + x    by the inductive hypothesis
-                   = x · y + (x · z + x)
-                   = x · y + x · S(z).
-
-  Thus S(z) ∈ B.  We have shown that for all z : ℕ, z ∈ B implies S(z) ∈ B.  Hence by induction z ∈ B for all z : ℕ.
-
-  b. Let y, z : ℕ.  Let
-
-        A = { x : ℕ | (y + z) · x = y · x + z · x }.
+    A = { x : ℕ | (y + z) · x = y · x + z · x }.
 
   Clearly 0 ∈ A.  Second, Let x : ℕ, and assume that x ∈ A.  Then (y + z) · x = y · x + z · x.  Hence
 
@@ -286,10 +267,28 @@ Proof.
 
 Lemma.  Let x : ℕ.
 
-  a. 0 · x = 0.
-  b. 1 · x = x.
+  a. 0 · x = 0.   [ℕ.zero_mul: @simp]
+  b. 1 · x = x.   [ℕ.one_mul: @simp]
 
 Proof.
 
   a. By induction.
   b. By induction.
+
+Theorem "Commutativity of Multiplication".  For all x, y : ℕ,
+
+    x · y = y · x.  [ℕ.mul_comm]
+
+Proof.  Let x : ℕ.  Let A = { y : ℕ | x · y = y · x }.  Clearly 0 ∈ A.  Now let y : ℕ, and assume that y ∈ A.  Thus x · y = y · x.  Hence
+
+    x · S(y) = (x · y) + x
+             = (y · x) + x           by the inductive hypothesis
+             = (y · x) + (1 · x)     by ℕ.one_mul
+             = (y + 1) · x           by ℕ.add_mul
+             = S(y) · x.
+
+Thus S(y) ∈ A.  We have shown that for all y : ℕ, y ∈ A implies S(y) ∈ A.  By induction y ∈ A for all y : ℕ.
+
+Theorem.  For all x, y, z : ℕ, x · (y + z) = x · y + x · z.
+
+Proof.  By ℕ.add_mul and ℕ.mul_comm.
