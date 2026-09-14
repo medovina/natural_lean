@@ -213,31 +213,34 @@ instance: Std.LawfulOrderLT ℕ where
 Theorem.  Let x, y, z, u, v : ℕ.
 
   a. If x ≠ 0 then x > 0.   [ℕ.pos_if_ne_zero]
-  b. x < x + S(y).          [ℕ.lt_add_of_succ]
-  c. If x < y then x + z < y + z.  [ℕ.add_lt_add_right]
-  d. If x + z < y + z then x < y.  [ℕ.lt_of_add_lt_add_right]
-  e. x + z < y + z iff x < y.  [ℕ.add_lt_add_iff_right: @simp]
-  f. x + z ≤ y + z iff x ≤ y.  [ℕ.add_le_add_iff_right: @simp]
-  g. If x < y and u < v then x + u < y + v.  [ℕ.add_lt_add_of_lt_of_lt]
-  h. If x < y and u ≤ v then x + u < y + v.  [ℕ.add_lt_add_of_lt_of_le]
-  i. If x ≤ y and u < v then x + u < y + v.  [ℕ.add_lt_add_of_le_of_lt]
-  j. If x ≤ y and u ≤ v then x + u ≤ y + v.  [ℕ.add_le_add_of_le_of_le]
+  b. x ≮ 0.                 [ℕ.not_lt_zero: @simp]
+  c. x < x + S(y).          [ℕ.lt_add_of_succ]
+  d. If x < y then x + z < y + z.  [ℕ.add_lt_add_right]
+  e. If x + z < y + z then x < y.  [ℕ.lt_of_add_lt_add_right]
+  f. x + z < y + z iff x < y.  [ℕ.add_lt_add_iff_right: @simp]
+  g. x + z ≤ y + z iff x ≤ y.  [ℕ.add_le_add_iff_right: @simp]
+  h. If x < y and u < v then x + u < y + v.  [ℕ.add_lt_add_of_lt_of_lt]
+  i. If x < y and u ≤ v then x + u < y + v.  [ℕ.add_lt_add_of_lt_of_le]
+  j. If x ≤ y and u < v then x + u < y + v.  [ℕ.add_lt_add_of_le_of_lt]
+  k. If x ≤ y and u ≤ v then x + u ≤ y + v.  [ℕ.add_le_add_of_le_of_le]
 
 Proof.
 
   a. Assume that x ≠ 0.  Then by ℕ.is_zero_or_succ there exists some u : ℕ such that x = S(u).  Hence x = 0 + S(u).  Therefore x > 0.
 
-  c. Assume that x < y.  Then x + S(w) = y for some w : ℕ.  Hence (x + z) + S(w) = (x + S(w)) + z = y + z.  Then x + z < y + z.
+  b. By ℕ.pos_if_ne_zero and ℕ.lt_trichotomy.
 
-  d. By ℕ.lt_trichotomy and ℕ.add_lt_add_right.
-  e. By ℕ.add_lt_add_right and ℕ.lt_of_add_lt_add_right.
-  f. By ℕ.add_lt_add_iff_right and ℕ.add_right_cancel.
+  d. Assume that x < y.  Then x + S(w) = y for some w : ℕ.  Hence (x + z) + S(w) = (x + S(w)) + z = y + z.  Then x + z < y + z.
 
-  g. Suppose that x < y and u < v.  By ℕ.add_lt_add_right x + u < y + u and u + y < v + y, so y + u < y + v.  Hence by ℕ.lt_trans x + u < y + v.
+  e. By ℕ.lt_trichotomy and ℕ.add_lt_add_right.
+  f. By ℕ.add_lt_add_right and ℕ.lt_of_add_lt_add_right.
+  g. By ℕ.add_lt_add_iff_right and ℕ.add_right_cancel.
 
-  h. By ℕ.add_lt_add_of_lt_of_lt.
+  h. Suppose that x < y and u < v.  By ℕ.add_lt_add_right x + u < y + u and u + y < v + y, so y + u < y + v.  Hence by ℕ.lt_trans x + u < y + v.
+
   i. By ℕ.add_lt_add_of_lt_of_lt.
-  j. By ℕ.add_lt_add_of_le_of_lt and ℕ.add_le_add_iff_right.
+  j. By ℕ.add_lt_add_of_lt_of_lt.
+  k. By ℕ.add_lt_add_of_le_of_lt and ℕ.add_le_add_iff_right.
 
 Theorem.  Let x, y : ℕ.
 
@@ -302,6 +305,8 @@ Proof.  Let x : ℕ.  Let A = { y : ℕ | x · y = y · x }.  Clearly 0 ∈ A.  
 
 Thus S(y) ∈ A.  We have shown that for all y : ℕ, y ∈ A implies S(y) ∈ A.  By induction y ∈ A for all y : ℕ.
 
+instance: Std.Commutative (α := ℕ) (· * ·) := ⟨by default_apply ℕ.mul_comm⟩
+
 Theorem.  For all x, y, z : ℕ, x · (y + z) = x · y + x · z.  [ℕ.mul_add]
 
 Proof.  By ℕ.add_mul and ℕ.mul_comm.
@@ -323,10 +328,12 @@ Clearly 0 ∈ B.  Let z : ℕ, and suppose that z ∈ B.  Thus x · (y · z) = (
 
 Thus S(z) ∈ B.  We have shown that for all z : ℕ, z ∈ B implies S(z) ∈ B.  By induction z ∈ B for all z : ℕ.
 
+instance: Std.Associative (α := ℕ) (· * ·) := ⟨by default_apply ℕ.mul_assoc⟩
+
 Theorem.  Let x, y, z : ℕ.
 
     a. If x < y and z ≠ 0, then x · z < y · z.  [ℕ.mul_lt_mul_of_pos_right]
-    b. If x · z < y · z, then x < y.
+    b. If x · z < y · z, then x < y.  [ℕ.lt_of_mul_lt_mul_right]
 
 Proof.
 
@@ -339,3 +346,46 @@ Proof.
   So y · z = x · z + S(S(u) · w + u).  It follows that x · z < y · z.
 
   b. Assume that x · z < y · z.  If z = 0 then x · 0 < y · 0, so 0 < 0, which is a contradiction. Assume x ≮ y.  Then by ℕ.lt_trichotomy either x = y or y < x.  If x = y then x · z = y · z, contradicting the assumption that x · z < y · z.  Otherwise y < x.  Then by ℕ.mul_lt_mul_of_pos_right y · z < x · z, contradicting the assumption that x · z < y · z.  In both cases we have a contradiction.
+
+Theorem "Cancellation Law for Multiplication".  Let x, y, z : ℕ.
+
+    If x · z = y · z and z ≠ 0 then x = y.  [ℕ.mul_right_cancel]
+
+Proof.  Assume that x · z = y · z and z ≠ 0.  Also assume that x ≠ y.  Then by ℕ.lt_trichotomy either x < y or y < x.  If x < y then by ℕ.mul_lt_mul_of_pos_right x · z < y · z, contradicting our assumption that x · z = y · z.  If y < x then by ℕ.mul_lt_mul_of_pos_right y · z < x · z, contradicting our assumption that x · z = y · z.
+
+Theorem.  Let x, y, z, u, v : ℕ.
+
+  a. If x ≤ y, then x · z ≤ y · z.  [ℕ.mul_le_mul_right]
+  b. If x · z ≤ y · z and z ≠ 0, then x ≤ y.  [ℕ.le_of_mul_le_mul_right]
+  c. If y ≠ 0 then z ≤ y · z.   [ℕ.le_mul_of_pos_left]
+  d. If y > 1 and z ≠ 0 then z < y · z.  [ℕ.le_mul_of_gt_one_left]
+  e. If x < u and y < v then x · y < u · v.  [ℕ.mul_lt_mul_of_lt_of_lt]
+  f. If x < u and y ≤ v and v ≠ 0, then x · y < u · v.  [ℕ.mul_lt_mul_of_lt_of_le]
+  g. If x ≤ u and y < v and u ≠ 0, then x · y < u · v.  [ℕ.mul_lt_mul_of_le_of_lt]
+  h. If x ≤ u and y ≤ v, then x · y ≤ u · v.
+
+Proof.
+
+  a.  Suppose that x ≤ y.  If z = 0 or x = y then x · z = y · z.  Otherwise z ≠ 0 and x < y, so x · z < y · z by ℕ.mul_lt_mul_of_pos_right.  In either case x · z ≤ y · z.
+
+  b.  Suppose that x · z ≤ y · z and z ≠ 0.  If x · z < y · z, then by ℕ.lt_of_mul_lt_mul_right we have x < y, so x ≤ y.  Otherwise x · z = y · z, so by ℕ.mul_right_cancel we have x = y, so x ≤ y.  In any case x ≤ y.
+
+  c. Suppose that y ≠ 0.  Then y > 0 by ℕ.pos_if_ne_zero, so y ≥ S(0) by ℕ.lt_iff_add_one_le.  Then by ℕ.mul_le_mul_right we know that 1 · z ≤ y · z, so z ≤ y · z.
+
+  d. Suppose that y > 1 and z ≠ 0.  Then by ℕ.mul_lt_mul_of_pos_right 1 · z < y · z, so z < y · z.
+
+  e. Suppose that x < u and y < v.  Then x ≤ u, so by ℕ.mul_le_mul_right we have x · y ≤ u · y.  Because x < u, we know that u ≠ 0.  So by ℕ.mul_lt_mul_of_pos_right we have y · u < v · u, so u · y < u · v.  Then by ℕ.lt_of_le_of_lt it follows that x · y < u · v.
+
+  f. Suppose that x < u and y ≤ v and v ≠ 0.  If y < v, then by ℕ.mul_lt_mul_of_lt_of_lt x · y < u · v.  Otherwise y = v, so by ℕ.mul_lt_mul_of_pos_right x · v < u · v, so x · y < u · v.  In either case x · y < u · v.
+
+  g. Suppose that x ≤ u and y < v and u ≠ 0.  Then by ℕ.mul_lt_mul_of_lt_of_le we know that y · x < v · u.  Then x · y < u · v.
+
+  h. Suppose that x ≤ u and y ≤ v.
+
+  Case 1: x = u.  Then y · x ≤ v · x by ℕ.mul_le_mul_right, so y · x ≤ v · u, so x · y ≤ u · v.
+
+  Case 2: y = v.  Then x · y ≤ u · y by ℕ.mul_le_mul_right, so x · y ≤ u · v.
+
+  Case 3: x ≠ u and y ≠ v.  Then x < u and y < v, so x · y < u · v by ℕ.mul_lt_mul_of_lt_of_lt, so x · y ≤ u · v.
+
+  In every case x · y ≤ u · v.

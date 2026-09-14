@@ -125,9 +125,11 @@ sdef _thm
 
 syntax thm_name := ident
 
+syntax assumption_that := ("our" <|> "the") "assumption" "that"
+
 sdef reference
   | sepBy1(thm_name, "and")
-  | "the" "assumption" "that" prop
+  | assumption_that prop
 
 sdef reason
   | "[" tactic "]"
@@ -196,7 +198,8 @@ kdef will_show =
 
 kdef _otherwise = "otherwise"
 
-kdef _any_case = "in all cases" | "in any case" | "in both cases" | "in either case"
+kdef _any_case =
+  "in all cases" | "in any case" | "in both cases" | "in either case" | "in every case"
 
 kdef _and = "and"
 

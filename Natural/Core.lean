@@ -279,7 +279,7 @@ def of_thm_name: TSyntax ``thm_name → CoreM Ident
 
 def of_reference: TSyntax `reference → CoreM (List Ident)
   | `(reference| $[$n:thm_name] and*) => n.toList.mapM of_thm_name
-  | `(reference| the assumption that $_p:prop) => pure []
+  | `(reference| $_:assumption_that $_p:prop) => pure []
   | _ => throwError s!"unknown reference"
 
 inductive Reason where
