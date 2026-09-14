@@ -399,7 +399,7 @@ def assert_step (t: Term) (r: Option Reason): ProofStep :=
   .assert (.term t) [r]
 
 def of_because_prop : TSyntax ``because_prop → CoreM ProofStep
-  | `(because_prop| $_:_since $p:prop) => do
+  | `(because_prop| $_:_because $p:prop) => do
        pure $ .assert (.term (← of_prop p)) [none]
   | _ => throwError "unknown because_prop"
 
@@ -418,7 +418,7 @@ def mk_step (t: Term) (r: Option Reason): ProofStep := match t with
   | _ => assert_step t r
 
 def of_proof_prop: TSyntax `proof_prop → CoreM (List ProofStep)
-  | `(proof_prop| $b:because_prop ? $[$_:_by $r:reason]? $[$_:_have]? $p:assert_prop
+  | `(proof_prop| $[$b:because_prop $[,]?]? $[$_:_by $r:reason]? $[$_:_have]? $p:assert_prop
           $[by $r2:reason]? $w:which_is_contradiction ?) => do
         let because ← b.toList.mapM of_because_prop
         let (e, rs) ← of_assert_prop p
@@ -661,12 +661,12 @@ partial def translate (top: Bool) (parent_ex: List Name) (prev: Term) (concl: Op
   | [] => match concl with
       | .some c => do pure (← `(show $c by default), c)
       | _ => do
-        let t ← if top then `(by default) else
+        if top then pure (← `(by default), prev) else
           if overlap parent_ex (free_vars prev) then
             let ids := (parent_ex.map Lean.mkIdent).toArray
-            `(show ∃ $[$ids:ident]*, $prev by default)
-          else this_term
-        pure (t, prev)
+            let ex ← `(∃ $[$ids:ident]*, $prev)
+            pure (← `(show $ex by default), ex)
+          else pure (← this_term, prev)
   | ⟨step, children⟩ :: rest => do
       let ex_decl := match step with
         | .is_some ids .. => ids
@@ -758,7 +758,7 @@ def translate_proof (lets: Option ProofStep) (thm: Term): _Proof → CoreM Term
             pure $ .let vars type :: steps
         | _ => throwError "of_proof: unexpected step"
       let blocks := infer_blocks steps
-      -- dbg_trace (show_blocks blocks)
+      trace[natural.tree] show_blocks blocks
       let blocks ← blocks.mapM (resolve_block [])
       Prod.fst <$> translate True [] (← `(())) none blocks
   | .proof_by r => tactic r

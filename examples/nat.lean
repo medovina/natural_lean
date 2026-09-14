@@ -289,6 +289,37 @@ Proof.  Let x : ℕ.  Let A = { y : ℕ | x · y = y · x }.  Clearly 0 ∈ A.  
 
 Thus S(y) ∈ A.  We have shown that for all y : ℕ, y ∈ A implies S(y) ∈ A.  By induction y ∈ A for all y : ℕ.
 
-Theorem.  For all x, y, z : ℕ, x · (y + z) = x · y + x · z.
+Theorem.  For all x, y, z : ℕ, x · (y + z) = x · y + x · z.  [ℕ.mul_add]
 
 Proof.  By ℕ.add_mul and ℕ.mul_comm.
+
+Theorem "Associativity of Multiplication".  For all x, y, z : ℕ,
+
+    x · (y · z) = (x · y) · z.  [ℕ.mul_assoc]
+
+Proof.  Let x, y : ℕ.  Let
+
+  B = { z : ℕ | x · (y · z) = (x · y) · z }.
+
+Clearly 0 ∈ B.  Let z : ℕ, and suppose that z ∈ B.  Thus x · (y · z) = (x · y) · z.  Hence
+
+    x · (y · S(z)) = x · (y · z + y)
+                   = x · (y · z) + x · y   by ℕ.mul_add
+                   = (x · y) · z + x · y   by the inductive hypothesis
+                   = (x · y) · S(z).
+
+Thus S(z) ∈ B.  We have shown that for all z : ℕ, z ∈ B implies S(z) ∈ B.  By induction z ∈ B for all z : ℕ.
+
+Theorem.  Let x, y, z : ℕ.
+
+    a. If x < y and z ≠ 0, then x · z < y · z.
+
+Proof.
+
+    a. Assume that x < y and z ≠ 0.  Then y = x + S(u) for some u : ℕ.  Hence we have y · z = (x + S(u)) · z = (x · z) + (S(u) · z) by ℕ.add_mul.  Because z ≠ 0, by ℕ.is_zero_or_succ we have z = S(w) for some w : ℕ.  Then
+
+        S(u) · z = S(u) · S(w)
+                 = S(u) · w + S(u)
+                 = S(S(u) · w + u).
+
+    So y · z = x · z + S(S(u) · w + u).  It follows that x · z < y · z.

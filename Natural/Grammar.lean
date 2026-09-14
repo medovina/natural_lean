@@ -146,9 +146,9 @@ kdef _have =
   "clearly" | "it follows that" | "it must be that" |
   "we deduce that" | "we have shown that" | "we have" | "we know that" | "we must have"
 
-kdef _since = "since"
+kdef _because = "because" | "since"
 
-syntax because_prop := _since prop
+syntax because_prop := _because prop
 
 kdef _by = "by"
 
@@ -158,7 +158,7 @@ sdef which_is_contradiction
   | atomic("," ("which" "is")? "again"? contradicting) thm_names because_prop ?
 
 sdef proof_prop
-  | because_prop ? (_by reason)? _have ? assert_prop
+  | (because_prop "," ?)? (_by reason)? _have ? assert_prop
     ("by" reason)? which_is_contradiction ?
 
 kdef _let = "let"

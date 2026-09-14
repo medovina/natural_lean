@@ -517,3 +517,5 @@ Natural Lean is currently quite lax about plurals, articles, and capitalization,
 #### Debugging
 
 If you would like to see the Lean code that is generated from any definition or theorem in Natural Lean, write `set_option trace.natural true in` immediately before the definition or theorem.  The Lean code will be visible in the InfoView window in Visual Studio Code.
+
+When Natural Lean translates a natural-language proof into native Lean, as a first step it infers a tree structure for the proof, which determines the scope of every variable introduced in the proof. To see this structure, write `set_option trace.natural.tree true in` immediately before a theorem.  Sometimes this can be helpful in debugging to check that the inferred structure makes sense.

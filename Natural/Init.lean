@@ -40,4 +40,4 @@ unsafe initialize naturalElabAttribute : KeyedDeclsAttribute NaturalElab ←
 -- tracing
 
 initialize
-  registerTraceClass `natural
+   forM [`natural, `natural.tree] registerTraceClass
