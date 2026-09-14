@@ -28,6 +28,8 @@ Definition.  The binary operation + on ℕ is defined recursively such that for 
   a.  x + 0 = x.
   b.  x + S(y) = S(x + y).
 
+Corollary.  For all x : ℕ, x + 0 = x.  [ℕ.add_zero: @simp]
+
 -- addition: theorems
 
 Theorem "Associativity of Addition".  For all x, y, z: ℕ,
@@ -127,7 +129,7 @@ Definition.  For all x, y : ℕ, x < y iff there is some z : ℕ such that x + S
 
 Theorem.  Let x, y, z : ℕ.
 
-  a. x ≮ x.  [ℕ.lt_irrefl]
+  a. x ≮ x.  [ℕ.lt_irrefl: @simp]
   b. x < y and y < z implies x < z.  [ℕ.lt_trans]
 
 Proof.
@@ -199,6 +201,15 @@ Proof.
   e. By ℕ.lt_trichotomy.
   f. By ℕ.lt_trichotomy.
 
+instance: Std.IsLinearOrder ℕ where
+  le_refl := ℕ.le_refl
+  le_trans := by (default_apply ℕ.le_trans)
+  le_antisymm := by (default_apply ℕ.le_antisymm)
+  le_total := ℕ.le_or_ge
+
+instance: Std.LawfulOrderLT ℕ where
+  lt_iff := by (default_apply ℕ.lt_trichotomy)
+
 Theorem.  Let x, y, z, u, v : ℕ.
 
   a. If x ≠ 0 then x > 0.   [ℕ.pos_if_ne_zero]
@@ -249,6 +260,8 @@ Definition.  The binary operation · on ℕ is defined recursively such that for
 
   a. x · 0 = 0.
   b. x · S(y) = (x · y) + x.
+
+Corollary.  For all x : ℕ, x · 0 = 0.   [ℕ.mul_zero: @simp]
 
 Theorem.  For all x, y, z : ℕ, (y + z) · x = y · x + z · x.    [ℕ.add_mul]
 
@@ -312,14 +325,17 @@ Thus S(z) ∈ B.  We have shown that for all z : ℕ, z ∈ B implies S(z) ∈ B
 
 Theorem.  Let x, y, z : ℕ.
 
-    a. If x < y and z ≠ 0, then x · z < y · z.
+    a. If x < y and z ≠ 0, then x · z < y · z.  [ℕ.mul_lt_mul_of_pos_right]
+    b. If x · z < y · z, then x < y.
 
 Proof.
 
-    a. Assume that x < y and z ≠ 0.  Then y = x + S(u) for some u : ℕ.  Hence we have y · z = (x + S(u)) · z = (x · z) + (S(u) · z) by ℕ.add_mul.  Because z ≠ 0, by ℕ.is_zero_or_succ we have z = S(w) for some w : ℕ.  Then
+  a. Assume that x < y and z ≠ 0.  Then y = x + S(u) for some u : ℕ.  Hence we have y · z = (x + S(u)) · z = (x · z) + (S(u) · z) by ℕ.add_mul.  Because z ≠ 0, by ℕ.is_zero_or_succ we have z = S(w) for some w : ℕ.  Then
 
-        S(u) · z = S(u) · S(w)
-                 = S(u) · w + S(u)
-                 = S(S(u) · w + u).
+      S(u) · z = S(u) · S(w)
+                = S(u) · w + S(u)
+                = S(S(u) · w + u).
 
-    So y · z = x · z + S(S(u) · w + u).  It follows that x · z < y · z.
+  So y · z = x · z + S(S(u) · w + u).  It follows that x · z < y · z.
+
+  b. Assume that x · z < y · z.  If z = 0 then x · 0 < y · 0, so 0 < 0, which is a contradiction. Assume x ≮ y.  Then by ℕ.lt_trichotomy either x = y or y < x.  If x = y then x · z = y · z, contradicting the assumption that x · z < y · z.  Otherwise y < x.  Then by ℕ.mul_lt_mul_of_pos_right y · z < x · z, contradicting the assumption that x · z < y · z.  In both cases we have a contradiction.
