@@ -59,6 +59,11 @@ def super_letters :=
    ('ˢ', 's'), ('ᵗ', 't'), ('ᵘ', 'u'), ('ᵛ', 'v'), ('ʷ', 'w'), ('ˣ', 'x'),
    ('ʸ', 'y'), ('ᶻ', 'z')]
 
+-- English
+
+def singular (s: String) : String :=
+  if s.back == 's' then (s.dropEnd 1).toString else s
+
 -- parsing
 
 -- A parser for numeric literals consisting only of digits.  We need this
@@ -156,3 +161,9 @@ def rapply (goal : MVarId) (e : Expr) : MetaM (List MVarId) := do
 elab "rapply" e:term : tactic => do
   let e ← Term.elabTerm e none
   Tactic.liftMetaTactic (rapply · e)
+
+end Natural
+
+-- from Mathlib
+theorem Or.elim3 {c d : Prop} (h : a ∨ b ∨ c) (ha : a → d) (hb : b → d) (hc : c → d) : d :=
+  Or.elim h ha fun h₂ ↦ Or.elim h₂ hb hc

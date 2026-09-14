@@ -270,8 +270,9 @@ syntax cases_def :=
   "is" "defined" "recursively" "such" "that" "for" "all" ids_type ","
   prop_item+
 
-syntax direct_def :=
-  _for_all ids_type "," prop "."
+sdef direct_def
+  | _for_all ids_type "," prop "."
+  | num ":" type "=" expr "."
 
 sdef definition
   | type_def

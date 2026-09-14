@@ -13,10 +13,6 @@ open Lean.Syntax
 infix:50 "≮" => fun x y => ¬(x < y)
 infix:50 "≯" => fun x y => ¬(x > y)
 
--- from Mathlib
-theorem Or.elim3 {c d : Prop} (h : a ∨ b ∨ c) (ha : a → d) (hb : b → d) (hc : c → d) : d :=
-  Or.elim h ha fun h₂ ↦ Or.elim h₂ hb hc
-
 namespace Natural
 
 -- Here we reduce the default extent of an Aesop search so that it will succeed or fail
@@ -34,11 +30,6 @@ macro "default_apply" ts:ident+ : tactic => do
       | (apply_rules [$[$ts:ident],*] ; done)
       | grind [$[$ts:ident],*]
       | aesop (add $aesop_rules,*))
-
--- English
-
-def singular (s: String) : String :=
-  if s.back == 's' then (s.dropEnd 1).toString else s
 
 -- syntax helpers
 
@@ -275,6 +266,8 @@ mutual
       | `(prop| $_:have_contradiction) => pure mk_false
       | stx => throwError s!"unknown prop: {stx}"
 end
+
+-- proof steps
 
 def of_thm_name: TSyntax ``thm_name → CoreM Ident
   | `(thm_name| $i:ident) => pure i
@@ -748,6 +741,8 @@ partial def translate (top: Bool) (parent_ex: List Name) (prev: Term) (concl: Op
             else t
       pure (t, rest_concl)
 
+-- proofs
+
 inductive _Proof where
   | steps (l: List ProofStep)
   | proof_by (r: Option Reason)
@@ -786,22 +781,31 @@ def of_proof_items: TSyntax ``proof_items → CoreM (List (Name × _Proof))
   | `(proof_items| $ps:proof_item*) => ps.toList.mapM of_proof_item
   | _ => throwError "unknown proof_items"
 
--- statements
+-- definitions
 
 def of_constructor: TSyntax ``constructor → CoreM (Term × Term)
   | `(constructor| $c:const : $t:type) => do pure (← of_const c, ← of_type t)
   | _ => throwError "unknown constructor"
 
+def nat_instance (type: Term) (num: NumLit) (expr: Term) : CoreM Command :=
+  `(instance: $(mkIdent ``OfNat) $type $num where
+              $(mkIdent `ofNat):ident := $expr)
+
 def aux_ctor_def (typ:Ident) (t: Term): CoreM Command :=
   let dot (i: Ident) := mkIdent (typ.getId ++ i.getId)
   match t with
-    | `($_:num) =>
-        `(instance: $(mkIdent ``OfNat) $typ $t where
-            $(mkIdent `ofNat):ident := $(dot (to_ident t)))
+    | `($n:num) => nat_instance typ n (dot (to_ident t))
     | `($i:ident) => `(abbrev $i := $(dot i))
     | _ => throwError "aux_ctor_def: unknown"
 
-def of_type_def : TSyntax ``type_def → CoreM Command
+def command_set (commands: List Command) : CoreM Command := do
+  let ctrace cmd := do
+    trace[natural] cmd
+    pure ()
+  commands.forM ctrace
+  pure $ .mk (mkNullNode commands.toArray)
+
+def of_type_def : TSyntax ``type_def → CoreM (List Command)
   | `(type_def| The type $i:ident $[( the $n1:ident $n2:ident ?)]?
                 is defined inductively with constructors
                 $cs:constructor and* .) => do
@@ -814,8 +818,7 @@ def of_type_def : TSyntax ``type_def → CoreM Command
         let t := idents_to_nat_type n1 (n2.get!)
         `(attribute [natural_name $(mkStrLit t)] $i:ident)
       )
-      let commands := #[ind_decl] ++ aux ++ att.toArray
-      pure $ .mk (mkNullNode commands)
+      pure $ [ind_decl] ++ aux.toList ++ att.toList
   | _ => throwError "unknown definition"
 
 def of_attrib: TSyntax ``attrib → CoreM Ident
@@ -870,7 +873,7 @@ def as_ident (t: Term): CoreM Ident := match t.raw with
   | _ => throwError "identifier expected"
 
 def generate_def (op: String) (args: List Ident) (type: Ident) (eqs: Array Term)
-    : CoreM Command := do
+    : CoreM (List Command) := do
   let (op_name, cl) ← (op_map.lookup op).getDM $ throwError "generate_def: no op"
   let fname := mkIdent (type.getId ++ op_name)
   let eqs ← eqs.mapM (resolve_term (args.map (·.getId, type)))
@@ -894,14 +897,9 @@ def generate_def (op: String) (args: List Ident) (type: Ident) (eqs: Array Term)
   )
   let spec := instName ++ Name.mkSimple (op_name.toString ++ "_spec")
   let a ← `(attribute [grind =] $(mkIdent spec))
-  let commands := #[d, i, a]
-  let ctrace cmd := do
-    trace[natural] cmd
-    pure ()
-  commands.forM ctrace
-  pure $ .mk (mkNullNode commands)
+  pure [d, i, a]
 
-def of_cases_def : TSyntax ``cases_def → CoreM Command
+def of_cases_def : TSyntax ``cases_def → CoreM (List Command)
   | `(cases_def| The binary operation $op:binary_op on $type:ident is defined recursively
                     such that for all $ids_type:ids_type , $items:prop_item*) => do
       let (xs, _type) ← of_ids_type ids_type
@@ -909,7 +907,7 @@ def of_cases_def : TSyntax ``cases_def → CoreM Command
       generate_def (← of_binary_op op) xs.toList type eqs
   | _ => throwError "unknown cases_def"
 
-def of_direct_def : TSyntax ``direct_def → CoreM Command
+def of_direct_def : TSyntax `direct_def → CoreM (List Command)
   | `(direct_def| $_:_for_all $ids_type:ids_type , $p:prop .) => do
       let (args, type) ← of_ids_type ids_type
       let eq ← of_prop p
@@ -917,19 +915,26 @@ def of_direct_def : TSyntax ``direct_def → CoreM Command
       match type with
         | `($i:ident) => generate_def op args.toList i #[eq]
         | _ => throwError "simple type expected"
+  | `(direct_def| $n:num : $type:type = $e:expr .) => do
+      let e ← of_expr e >>= resolve_term []
+      pure [← nat_instance (← of_type type) n e]
   | _ => throwError "unknown direct_def"
 
-def of_definition : TSyntax `definition → CoreM Command
+def of_definition : TSyntax `definition → CoreM (List Command)
   | `(definition| $d:type_def) => of_type_def d
   | `(definition| $e:cases_def) => of_cases_def e
   | `(definition| $d:direct_def) => of_direct_def d
   | _ => throwError "unknown definition"
 
 elab d:definition_stmt : command => do
-  let c ← match d with
-    | `(definition_stmt| Definition . $d) => liftCoreM (of_definition d)
-    | _ => throwError "unknown definition_stmt"
+  let c : Command ← liftCoreM $ do
+    let commands ← match d with
+      | `(definition_stmt| Definition . $d) => of_definition d
+      | _ => throwError "unknown definition_stmt"
+    command_set commands
   elabCommand c
+
+-- theorems
 
 def match_proofs : List ThmDecl → List (Label × _Proof) → CoreM (List (ThmDecl × Option _Proof))
   | [], [] => pure []
@@ -978,7 +983,7 @@ elab t:_theorem : command => do
             $[$ls:let_step .]? $ps:props_proofs) => do
         let name ← name.mapM of_thm_name
         let thms_proofs ← of_props_proofs (← ls.mapM of_let_step) ps
-        let commands : Array Command ← thms_proofs.toArray.mapM
+        let commands : List Command ← thms_proofs.mapM
           (fun (⟨label, thm, thm_name, attr⟩, proof) => withRef thm do
             let proof := proof.getD (← `(by default))
             let name := thm_name <|> name.map (fun name =>
@@ -988,8 +993,7 @@ elab t:_theorem : command => do
               | Option.some name =>
                   `($a:attributes ? theorem $name : $thm := $proof)
               | Option.none => `(example : $thm := $proof)
-            trace[natural] command
             pure command)
-        pure $ .mk (mkNullNode commands)
+        command_set commands
     | _ => throwError "unknown theorem"
   elabCommand c

@@ -51,10 +51,24 @@ After that, you can mix natural-language mathematics with native Lean code freel
 
 ### Definitions
 
-A definition begins with the capitalized word `Definition`.  Three limited kinds of definitions are currently supported.  An _inductive type definition_ defines a new type with one or more constructors:
+A definition begins with the capitalized word `Definition`. 
+
+ An _inductive type definition_ defines a new type with one or more constructors:
 
 ```
 Definition.  The type ℕ is defined inductively with constructors 0 : ℕ and S : ℕ → ℕ.
+```
+
+A _constant definition_ defines a numeric constant:
+
+```
+Definition.  1 : ℕ = S(0).
+```
+
+A _direct definition_ defines a function non-recursively, using a single formula.  Currently the function must be a supported [relational operator](#propositions):
+
+```
+Definition.  For all x, y : ℕ, x < y iff there is some z : ℕ such that x + S(z) = y.
 ```
 
 A _definition by cases_ defines a function recursively with one or more cases.  Currently the function must be a supported [arithmetic operator](#expressions):
@@ -65,12 +79,6 @@ Definition.  The binary operation + on ℕ is defined recursively such that
 
   a.  x + 0 = x.
   b.  x + S(y) = S(x + y).
-```
-
-A _direct definition_ defines a function non-recursively, using a single formula.  Currently the function must be a supported [relational operator](#propositions):
-
-```
-Definition.  For all x, y : ℕ, x < y iff there is some z : ℕ such that x + S(z) = y.
 ```
 
 ### Theorems

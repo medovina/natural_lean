@@ -1,17 +1,15 @@
 import Natural
 import Natural.Set
 
--- This file defines the natural numbers inductively and develops their elementary
--- theory including addition, ordering, and multiplication.  It is entirely independent
--- of Lean's built-in Nat type.
---
--- The development here loosely follows Mendelson, _Number Systems and the
--- Foundations of Analysis_ (1973).  However in Mendelson 1 is the first natural
--- number and we begin with 0, so a number of proofs here are somewhat different.
+-- This file defines the natural numbers inductively and develops their elementary theory including addition, ordering, and multiplication.  It is entirely independent of Lean's built-in Nat type.
+
+-- The development here loosely follows Mendelson, _Number Systems and the Foundations of Analysis_ (1973).  However in Mendelson 1 is the first natural number and we begin with 0, so a number of proofs here are somewhat different.
 
 -- definition of natural numbers
 
 Definition.  The type ℕ (the natural numbers) is defined inductively with constructors 0 : ℕ and S : ℕ → ℕ.
+
+Definition.  1 : ℕ = S(0).
 
 -- theorems about successor function
 
@@ -285,3 +283,13 @@ Proof.
                    = y · S(x) + z · S(x).
 
   Thus S(x) ∈ A.  We have shown that for all x : ℕ, x ∈ A implies S(x) ∈ A.  By induction x ∈ A for all x : ℕ.
+
+Lemma.  Let x : ℕ.
+
+  a. 0 · x = 0.
+  b. 1 · x = x.
+
+Proof.
+
+  a. By induction.
+  b. By induction.
