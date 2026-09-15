@@ -14,6 +14,7 @@ Natural Lean is in an __early stage of development__ and is not a practical tool
 - [Definitions](#definitions)
 - [Theorems](#theorems)
   - [Theorem groups](#theorem-groups)
+  - [Corollaries](#corollaries)
 - [Proofs](#proofs)
   - [Sequences of proof steps](#sequences-of-proof-steps)
 - [Propositions](#propositions)
@@ -21,6 +22,7 @@ Natural Lean is in an __early stage of development__ and is not a practical tool
 - [Expressions](#expressions)
 - [Types](#types)
 - [Natural names](#natural-names)
+- [Type classes](#type-classes)
 - [Tactics](#tactics)
 - [Visual Studio Code integration](#visual-studio-code-integration)
 - [Hints and tips](#hints-and-tips)
@@ -93,14 +95,14 @@ Theorem.  For all x : ℕ, S(x) ≠ x.  [ℕ.succ_ne_self]
 
 I generally find the second style above to be more readable.
 
-The keywords `Lemma` and `Corollary` are synonyms for `Theorem`.
+The keyword `Lemma` is a synonym for `Theorem`.
 
 A theorem's name must be a valid Lean identifier and is its actual name in Lean.  Additionally a theorem may optionally have a __natural name__, which may be any string and appears in quotes:
 
 ```
-Theorem "Associativity of Addition".  For all x, y, z: ℕ,
+Theorem "Cancellation Law for Addition".  For all x, y, z: ℕ,
 
-  x + (y + z) = (x + y) + z.  [ℕ.add_assoc]
+  x + z = y + z implies x = y.  [ℕ.add_right_cancel]
 ```
 
 (At the moment a natural theorem name is just documentation; it's not possible to refer to it as a reason in a proof step.)
@@ -130,6 +132,7 @@ Proof.  x + S(0) = S(x).  Therefore x < S(x).
 ```
 
 A `Let` declaration of this nature is automatically included at the beginning of a proof, unless the proof already begins with a `Let` declaration.
+
 #### Theorem groups
 
 Several theorems may appear together in a single __theorem group__:
@@ -165,7 +168,31 @@ Proof.
   ...
 ```
 
-A `Let` declaration at the top of a theorem group will automatically be included at the beginning of each proof in the group, unless that proof already begins with its own `Let` declaration. 
+A `Let` declaration at the top of a theorem group will automatically be included at the beginning of each proof in the group, unless that proof already begins with its own `Let` declaration.
+
+#### Corollaries
+
+A theorem may be followed by one or more __corollaries__. A corollary is just like an ordinary theorem, except that if it has no proof, the preceding theorem is automatically applied as a proof reason.  For example,
+
+```
+Theorem.  For all x, y, z : ℕ, if x < y and y ≤ z then x < z.  [ℕ.lt_of_lt_of_le]
+
+Proof.  ...
+
+Corollary.  For all x, y, z : ℕ, if x ≤ y and y ≤ z then x ≤ z.  [ℕ.le_trans]
+```
+
+is equivalent to
+
+```
+Theorem.  For all x, y, z : ℕ, if x < y and y ≤ z then x < z.  [ℕ.lt_of_lt_of_le]
+
+Proof.  ...
+
+Theorem.  For all x, y, z : ℕ, if x ≤ y and y ≤ z then x ≤ z.  [ℕ.le_trans]
+
+Proof.  By ℕ.lt_of_lt_of_le.
+```
 
 ### Proofs
 
@@ -409,6 +436,8 @@ For all x : Nat, x < x + 1.
 For all natural numbers x, x < x + 1.
 ```
 
+In Visual Studio Code, if you hover the mouse over a natural name (such as "natural numbers" in the preceding statement) then a pop-up window will appear showing you the corresponding Lean type.
+
 You can use an attribute to assign a natural name to a type that already exists in Lean:
 
 ```
@@ -429,8 +458,34 @@ Definition.  The type ℕ (the natural numbers) is defined inductively
 
 
 
-This particular definition redefines the name "natural number" so that it refers to the inductive type that it is defining, rather than Lean's built-in `Nat` type.
+(This particular definition redefines the name "natural number" so that it refers to the inductive type that it is defining, rather than Lean's built-in `Nat` type.)
 
+### Type classes
+
+It is not possible to define a type class in Natural Lean at this time.  However, you may give a natural name to an existing type class using a `natural_name` attribute:
+
+```
+attribute [natural_name "associative"] Std.Associative
+attribute [natural_name "commutative"] Std.Commutative
+```
+
+In fact the preceding two attributes are predefined in Natural Lean.
+
+You may declare that an operator belongs to a type class, using the type class's natural name:
+
+```
+Theorem.  For all x, y, z: ℕ,
+
+  (x + y) + z = x + (y + z).  [ℕ.add_assoc]
+
+Proof. ...
+
+Corollary.  The operator + is associative on ℕ.
+```
+
+Above, the word "associative" is the natural name of the `Std.Associative` type class, so this definition declares that the `+` operator belongs to that type class.  As in this example, you will typically write this sort of statement as a collorary to a theorem.  Then the theorem will be automatically be used to justify the type class declaration.
+
+Natural Lean's default tactic uses `grind`, which notices which type classes operators belong to and can take advantage of this information.  For this reason, it is often important to declare that operators belong to type classes such as `Std.Associative` and `Std.Commutative`.
 ### Tactics
 
 When an assertion does not contain a reason, or when a theorem does not include a proof at all, Natural Lean will attempt to prove the assertion or theorem using a tactic named `default` which tries each of `trivial`, `grind` and `aesop` in turn.  In the future I intend to make the default tactic configurable by any development in Natural Lean, but for the moment it is fixed.
@@ -519,5 +574,7 @@ Natural Lean is currently quite lax about plurals, articles, and capitalization,
 #### Debugging
 
 If you would like to see the Lean code that is generated from any definition or theorem in Natural Lean, write `set_option trace.natural true in` immediately before the definition or theorem.  The Lean code will be visible in the InfoView window in Visual Studio Code.
+
+Note that you cannot write `set_option` immediately before a corollary.  That's because a corollary is parsed together with its preceding theorem as a single unit. Instead, write `set_option` before the theorem, and then the InfoView window will show you the Lean translation both of the theorem and of any corollaries that follow it.
 
 When Natural Lean translates a natural-language proof into native Lean, as a first step it infers a tree structure for the proof, which determines the scope of every variable introduced in the proof. To see this structure, write `set_option trace.natural.tree true in` immediately before a theorem.  Sometimes this can be helpful in debugging to check that the inferred structure makes sense.

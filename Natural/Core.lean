@@ -104,10 +104,7 @@ def of_natural_type (ntype: TSyntax ``natural_type) : CoreM Term :=
   withRef ntype do match ntype with
     | `(natural_type| $n1:ident $n2:ident ?) => do
         let s := idents_to_nat_type n1 n2
-        let type ← lookup_natural s
-        match type with
-          | .some type => mkIdentFromRef type (canonical := true)
-          | _ => throwError s!"unknown type: {s}"
+        mkIdentFromRef (← lookup_natural s) (canonical := true)
     | _ => throwError "unknown natural_type"
 
 def of_ids_type : TSyntax `ids_type → CoreM (Array Ident × Term)
@@ -890,14 +887,6 @@ def of_definition : TSyntax `definition → CoreM (List Command)
   | `(definition| $d:direct_def) => of_direct_def d
   | _ => throwError "unknown definition"
 
-elab d:definition_stmt : command => do
-  let c : Command ← liftCoreM $ do
-    let commands ← match d with
-      | `(definition_stmt| Definition . $d) => of_definition d
-      | _ => throwError "unknown definition_stmt"
-    command_set commands
-  elabCommand c
-
 -- theorems
 
 def match_proofs : List ThmDecl → List (Label × _Proof) → CoreM (List (ThmDecl × Option _Proof))
@@ -930,34 +919,59 @@ def translate_proofs (lets: Option ProofStep) (thms_proofs: List (ThmDecl × Opt
 def of_props_proofs (lets: Option ProofStep) (ps: TSyntax `props_proofs) :
         CoreM (List (ThmDecl × Option Term)) :=
   match ps with
-    | `(props_proofs| $s:top_sentence $[ Proof . $proof:proof ]?) => do
+    | `(props_proofs| $s:top_sentence $[ $_:_proof_dot $proof:proof ]?) => do
         let (thm, opt_name, opt_attr) ← of_top_sentence s
         let decl := ThmDecl.mk none thm opt_name opt_attr
         translate_proofs lets [(decl, ← proof.mapM of_proof)]
-    | `(props_proofs| $ps:prop_item* $[ Proof . $pis:proof_items ]?) => do
+    | `(props_proofs| $ps:prop_item* $[ $_:_proof_dot $pis:proof_items ]?) => do
         let label_thms ← ps.toList.mapM of_prop_item
         let label_proofs := (← pis.mapM of_proof_items).getD []
         let thms_proofs ← match_proofs label_thms label_proofs
         translate_proofs lets thms_proofs
     | _ => throwError "unknown prop_or_items"
 
-elab t:_theorem : command => do
-  let c : Command ← liftCoreM $ match t with
-    | `(_theorem| $_:_thm $name:thm_name ? $_:str ? .
-            $[$ls:let_step .]? $ps:props_proofs) => do
+def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
+          (body: TSyntax `theorem_body) : CoreM (List Command × List Ident) := do
+    let default ← tactic (.some (.apply corollary_of))
+    match body with
+      | `(theorem_body| $[$ls:let_step .]? $ps:props_proofs) => do
+          let thms_proofs ← of_props_proofs (← ls.mapM of_let_step) ps
+          let (commands, names) := List.unzip $ ← thms_proofs.mapM
+            (fun (⟨label, thm, thm_name, attr⟩, proof) => withRef thm do
+              let proof := proof.getD default
+              let name := thm_name <|> name.map (fun name =>
+                label.elim name (mkIdent $ name.getId ++ ·))
+              let a ← attr.mapM (fun a => `(attributes| @[$a:ident]))
+              let command ← match name with
+                | Option.some name =>
+                    `($a:attributes ? theorem $name : $thm := $proof)
+                | Option.none => `(example : $thm := $proof)
+              pure (command, name))
+          pure (commands, (names.flatMap Option.toList))
+      | `(theorem_body| The $_:_operator $op:binary_op is $cls:natural_type on $type:ident .) => do
+          let cls ← of_natural_type cls
+          let apply_op := build_infix (← `(x)) (← of_binary_op op) (← `(y))
+          let cmd ← `(instance: $cls (fun x y : $type => $apply_op) := ⟨$default⟩)
+          pure ([cmd], [])
+      | _ => throwError "unknown theorem"
+
+def of_theorem (corollary_of: List Ident)
+            : TSyntax ``_theorem → CoreM (List Command × List Ident)
+    | `(_theorem| $name:thm_name ? $_:str ? . $b:theorem_body) => do
         let name ← name.mapM of_thm_name
-        let thms_proofs ← of_props_proofs (← ls.mapM of_let_step) ps
-        let commands : List Command ← thms_proofs.mapM
-          (fun (⟨label, thm, thm_name, attr⟩, proof) => withRef thm do
-            let proof := proof.getD (← `(by default))
-            let name := thm_name <|> name.map (fun name =>
-              label.elim name (mkIdent $ name.getId ++ ·))
-            let a ← attr.mapM (fun a => `(attributes| @[$a:ident]))
-            let command ← match name with
-              | Option.some name =>
-                  `($a:attributes ? theorem $name : $thm := $proof)
-              | Option.none => `(example : $thm := $proof)
-            pure command)
-        command_set commands
+        of_theorem_body name corollary_of b
     | _ => throwError "unknown theorem"
-  elabCommand c
+
+def of_top_decl : TSyntax `top_decl → CoreM (List Command × List Ident)
+  | `(top_decl| Definition . $d) => (·, []) <$> of_definition d
+  | `(top_decl| $_:_thm $t:_theorem) => of_theorem [] t
+  | _ => throwError "unknown top_decl"
+
+elab t:top : command => do
+  let cs : Command ← liftCoreM $ command_set =<< match t with
+    | `(top| $d:top_decl $[Corollary $ts:_theorem]*) => do
+        let (commands, names) ← of_top_decl d
+        let corrs ← List.map (·.1) <$> ts.toList.mapM (of_theorem names)
+        pure $ commands ++ corrs.flatten
+    | _ => throwError "unknown top"
+  elabCommand cs

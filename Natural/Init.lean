@@ -24,10 +24,10 @@ initialize registerBuiltinAttribute {
       | _ => throwError "natural_name: unexpected"
 }
 
-def lookup_natural (name: String): CoreM (Option Name) := do
+def lookup_natural (name: String): CoreM Name := do
   let env ← getEnv
   let map := naturalExt.getState env
-  pure (map.lookup name)
+  (map.lookup name).getDM (throwError s!"unknown type: {name}")
 
 -- natural_elab attribute
 

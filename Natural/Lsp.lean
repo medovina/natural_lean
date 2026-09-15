@@ -70,9 +70,7 @@ meta def decodeLeanTokens (data : Array Nat) : Array SemanticTokenEntry := Id.ru
 
 meta partial def naturalTokens (text : FileMap) (stx : Syntax) : Array SemanticTokenEntry :=
   match stx with
-    | `(definition_stmt| Definition . $_d)
-    | `(_theorem| $_:_thm $_name:thm_name ? $_:str ? . $[$ls:let_step .]? $_ps:props_proofs) =>
-          gather stx
+    | `(top| $_d:top_decl $[Corollary $ts:_theorem]*) => gather stx
     | _ => stx.getArgs.flatMap (naturalTokens text)
 where
   mkTok (tokenType : SemanticTokenType) (stx : Syntax) : Array SemanticTokenEntry := Id.run do

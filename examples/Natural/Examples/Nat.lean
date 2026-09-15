@@ -32,7 +32,7 @@ Corollary.  For all x : ℕ, x + 0 = x.  [ℕ.add_zero: @simp]
 
 -- addition: theorems
 
-Theorem "Associativity of Addition".  For all x, y, z: ℕ,
+Theorem.  For all x, y, z: ℕ,
 
   (x + y) + z = x + (y + z).  [ℕ.add_assoc]
 
@@ -49,7 +49,7 @@ Proof. Let x, y : ℕ.  Let
 
   Thus S(z) ∈ A.  We have shown that z ∈ A implies S(z) ∈ A.  Hence by induction z ∈ A for all z: ℕ.
 
-instance: Std.Associative (α := ℕ) (· + ·) := ⟨ℕ.add_assoc⟩
+Corollary.  The operator + is associative on ℕ.
 
 Lemma.  Let x, y : ℕ.
 
@@ -72,7 +72,7 @@ Proof.
 
   So S(y) ∈ B.  Hence by induction y ∈ B for all y: ℕ.
 
-Theorem "Commutativity of Addition".  For all x, y : ℕ,
+Theorem.  For all x, y : ℕ,
 
   x + y = y + x.  [ℕ.add_comm]
 
@@ -93,7 +93,7 @@ Proof.  Let y : ℕ.  Let
 
   So S(x) ∈ C.  Hence by induction x ∈ C for all x : ℕ.
 
-instance : Std.Commutative (α := ℕ) (· + ·) := ⟨ℕ.add_comm⟩
+Corollary.  The operator + is commutative on ℕ.
 
 Theorem "Cancellation Law for Addition".  For all x, y, z: ℕ,
 
@@ -291,7 +291,7 @@ Proof.
   a. By induction.
   b. By induction.
 
-Theorem "Commutativity of Multiplication".  For all x, y : ℕ,
+Theorem.  For all x, y : ℕ,
 
     x · y = y · x.  [ℕ.mul_comm]
 
@@ -305,13 +305,13 @@ Proof.  Let x : ℕ.  Let A = { y : ℕ | x · y = y · x }.  Clearly 0 ∈ A.  
 
 Thus S(y) ∈ A.  We have shown that y ∈ A implies S(y) ∈ A.  By induction y ∈ A for all y : ℕ.
 
-instance: Std.Commutative (α := ℕ) (· * ·) := ⟨by default_apply ℕ.mul_comm⟩
+Corollary.  The operator · is commutative on ℕ.
 
 Theorem.  For all x, y, z : ℕ, x · (y + z) = x · y + x · z.  [ℕ.mul_add]
 
 Proof.  By ℕ.add_mul and ℕ.mul_comm.
 
-Theorem "Associativity of Multiplication".  For all x, y, z : ℕ,
+Theorem.  For all x, y, z : ℕ,
 
     x · (y · z) = (x · y) · z.  [ℕ.mul_assoc]
 
@@ -328,7 +328,7 @@ Clearly 0 ∈ B.  Let z : ℕ, and suppose that z ∈ B.  Thus x · (y · z) = (
 
 Thus S(z) ∈ B.  We have shown that z ∈ B implies S(z) ∈ B.  By induction z ∈ B for all z : ℕ.
 
-instance: Std.Associative (α := ℕ) (· * ·) := ⟨by default_apply ℕ.mul_assoc⟩
+Corollary.  The operator · is associative on ℕ.
 
 Theorem.  Let x, y, z : ℕ.
 

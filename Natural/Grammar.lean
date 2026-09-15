@@ -120,8 +120,7 @@ sdef_extend prop
 
 -- proof steps
 
-sdef _thm
-  | "Corollary" | "Lemma" <|> "Theorem"
+syntax _thm := "Lemma" <|> "Theorem"
 
 syntax thm_name := ident
 
@@ -289,13 +288,22 @@ sdef definition
   | cases_def
   | direct_def
 
-syntax definition_stmt := "Definition" "." definition
-
 -- theorems
 
-sdef props_proofs
-  | top_sentence ("Proof" "." proof)?
-  | prop_item+ ("Proof" "." proof_items)?
+syntax _proof_dot := "Proof" "."
 
-sdef _theorem
-  | _thm thm_name ? str ? "." (let_step ".")? props_proofs
+sdef props_proofs
+  | top_sentence (_proof_dot proof)?
+  | prop_item+ (_proof_dot proof_items)?
+
+sdef theorem_body
+  | (let_step ".")? props_proofs
+  | "The" _operator binary_op "is" natural_type "on" ident "."
+
+syntax _theorem := thm_name ? str ? "." theorem_body
+
+sdef top_decl
+  | "Definition" "." definition
+  | _thm _theorem
+
+syntax top := top_decl ("Corollary" _theorem)*
