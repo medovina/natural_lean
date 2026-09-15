@@ -23,6 +23,7 @@ Proof.  By induction.
 
 -- addition: definition
 
+set_option trace.natural true in
 Definition.  The binary operation + on ℕ is defined recursively such that for all x, y : ℕ,
 
   a.  x + 0 = x.

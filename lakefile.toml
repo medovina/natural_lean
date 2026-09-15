@@ -13,3 +13,7 @@ rev = "main"
 
 [[lean_lib]]
 name = "Natural"
+
+[[lean_lib]]
+name = "Natural.Examples"
+srcDir = "examples"
