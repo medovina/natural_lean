@@ -273,8 +273,10 @@ syntax prop_item := label "." top_sentence
 
 kdef binary_op = "+" | "·" | "^" | "<" | "≤"
 
+syntax _operator := "binary" ? ("operation" <|> "operator")
+
 syntax cases_def :=
-  "The" "binary" "operation" binary_op "on" ident
+  "The" _operator binary_op "on" ident
   "is" "defined" "recursively" "such" "that" "for" "all" ids_type ","
   prop_item+
 

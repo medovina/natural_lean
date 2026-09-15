@@ -2,6 +2,7 @@ import Aesop
 
 import Natural.Grammar
 import Natural.Init
+import Natural.Util
 
 open Lean
 open Lean.Elab
@@ -9,9 +10,6 @@ open Lean.Elab.Command
 open Lean.Parser.Command
 open Lean.Parser.Term
 open Lean.Syntax
-
-infix:50 "≮" => fun x y => ¬(x < y)
-infix:50 "≯" => fun x y => ¬(x > y)
 
 namespace Natural
 
@@ -34,53 +32,6 @@ macro "default_apply" ts:ident+ : tactic => do
       | grind [$[$ts:ident],*]
       | aesop (config := aesop_config) (add $aesop_rules,*)
       | fail "default_apply could not prove goal")
-
--- syntax helpers
-
-def parse_infix_opt : Syntax → Option (Syntax × String × Syntax)
-  | .node _ _ #[x, .atom _ op, y] => .some (x, op, y)
-  | _ => .none
-
-def parse_infix (t: Term): CoreM (Term × String × Term) :=
-  match parse_infix_opt t.raw with
-    | .some (x, op, y) => pure (⟨x⟩, op, ⟨y⟩)
-    | .none => throwError "infix expression expected"
-
-def build_infix (t: Term) (op: String) (u: Term) : Term :=
-  let info := match t.raw.getPos?, u.raw.getTailPos? with
-    | .some startPos, .some endPos => SourceInfo.synthetic startPos endPos
-    | _, _ => SourceInfo.none
-  ⟨Syntax.node info (.mkSimple s!"term_{op}_") #[t, mkAtom op, u]⟩
-
-partial def syntax_replace_infix (op: String) (name: Ident) :=
-  let rec repl (t: Syntax): Syntax :=
-    let recurse (t: Syntax): Syntax := match t with
-      | .node i k args => .node i k (args.map repl)
-      | t => t
-    match parse_infix_opt t with
-      | .some (x, op', y) =>
-          if op == op' then (mkApp name #[⟨repl x⟩, ⟨repl y⟩]).raw
-          else recurse t
-      | _ => recurse t
-  repl
-
-def replace_infix (op: String) (name: Ident) (t: Term) : Term :=
-  ⟨syntax_replace_infix op name t.raw⟩
-
-inductive BinderType
-  | all
-  | exists
-
-def match_binder : Syntax → Option (BinderType × List Name × Term × Term)
-  | `(∀ $xs:ident* : $type, $t) => .some (.all, xs.toList.map TSyntax.getId, type, t)
-  | `(∃ $[$xs:ident]* : $type, $t) => .some (.exists, xs.toList.map TSyntax.getId, type, t)
-  | _ => .none
-
-def mk_binder (bt: BinderType) (xs: List Name) (type: Term) (t: Term) : CoreM Term :=
-  let xs := xs.toArray.map mkIdent
-  match bt with
-    | .all => `(∀ $xs* : $type, $t)
-    | .exists => `(∃ $[$xs:ident]* : $type, $t)
 
 syntax "bind" ident+ "," term "," term : term
 
@@ -913,7 +864,7 @@ def generate_def (op: String) (args: List Ident) (type: Ident) (eqs: Array Term)
   pure [d, i, a]
 
 def of_cases_def : TSyntax ``cases_def → CoreM (List Command)
-  | `(cases_def| The binary operation $op:binary_op on $type:ident is defined recursively
+  | `(cases_def| The $_:_operator $op:binary_op on $type:ident is defined recursively
                     such that for all $ids_type:ids_type , $items:prop_item*) => do
       let (xs, _type) ← of_ids_type ids_type
       let eqs ← Array.map ThmDecl.thm <$> items.mapM of_prop_item

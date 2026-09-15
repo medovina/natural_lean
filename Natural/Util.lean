@@ -2,10 +2,13 @@ import Lean
 import Batteries.Data.List.Basic
 
 open Lean hiding mkStrLit
-open Lean.Parser
+open Lean.Parser hiding mkIdent
 open Elab Tactic Meta
 open Elab.Command
-open Lean.Syntax (mkStrLit)
+open Lean.Syntax
+
+infix:50 "≮" => fun x y => ¬(x < y)
+infix:50 "≯" => fun x y => ¬(x > y)
 
 namespace Natural
 
@@ -85,6 +88,53 @@ attribute [combinator_parenthesizer rawNumLitNoAntiquot] PrettyPrinter.Parenthes
 @[run_parser_attribute_hooks]
 def nat : Parser :=
   withAntiquot (mkAntiquot "num" numLitKind) rawNumLitNoAntiquot
+
+-- syntax helpers
+
+def parse_infix_opt : Syntax → Option (Syntax × String × Syntax)
+  | .node _ _ #[x, .atom _ op, y] => .some (x, op, y)
+  | _ => .none
+
+def parse_infix (t: Term): CoreM (Term × String × Term) :=
+  match parse_infix_opt t.raw with
+    | .some (x, op, y) => pure (⟨x⟩, op, ⟨y⟩)
+    | .none => throwError "infix expression expected"
+
+def build_infix (t: Term) (op: String) (u: Term) : Term :=
+  let info := match t.raw.getPos?, u.raw.getTailPos? with
+    | .some startPos, .some endPos => SourceInfo.synthetic startPos endPos
+    | _, _ => SourceInfo.none
+  ⟨Syntax.node info (.mkSimple s!"term_{op}_") #[t, mkAtom op, u]⟩
+
+partial def syntax_replace_infix (op: String) (name: Ident) :=
+  let rec repl (t: Syntax): Syntax :=
+    let recurse (t: Syntax): Syntax := match t with
+      | .node i k args => .node i k (args.map repl)
+      | t => t
+    match parse_infix_opt t with
+      | .some (x, op', y) =>
+          if op == op' then (mkApp name #[⟨repl x⟩, ⟨repl y⟩]).raw
+          else recurse t
+      | _ => recurse t
+  repl
+
+def replace_infix (op: String) (name: Ident) (t: Term) : Term :=
+  ⟨syntax_replace_infix op name t.raw⟩
+
+inductive BinderType
+  | all
+  | exists
+
+def match_binder : Syntax → Option (BinderType × List Name × Term × Term)
+  | `(∀ $xs:ident* : $type, $t) => .some (.all, xs.toList.map TSyntax.getId, type, t)
+  | `(∃ $[$xs:ident]* : $type, $t) => .some (.exists, xs.toList.map TSyntax.getId, type, t)
+  | _ => .none
+
+def mk_binder (bt: BinderType) (xs: List Name) (type: Term) (t: Term) : CoreM Term :=
+  let xs := xs.toArray.map mkIdent
+  match bt with
+    | .all => `(∀ $xs* : $type, $t)
+    | .exists => `(∃ $[$xs:ident]* : $type, $t)
 
 -- syntax builders
 
