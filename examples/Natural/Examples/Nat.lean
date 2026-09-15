@@ -23,7 +23,6 @@ Proof.  By induction.
 
 -- addition: definition
 
-set_option trace.natural true in
 Definition.  The binary operation + on ℕ is defined recursively such that for all x, y : ℕ,
 
   a.  x + 0 = x.
@@ -120,7 +119,7 @@ Proof.  Let x : ℕ.  Let
 
     A = { y : ℕ | y ≠ S(x) + y }.
 
-  0 ≠ S(x), so 0 ∈ A.  Now let y : ℕ, and assume that y ∈ A.  Then y ≠ S(x) + y.  Hence S(y) ≠ S(S(x) + y).  But S(S(x) + y) = S(x) + S(y).  Hence S(y) ≠ S(x) + S(y), so S(y) ∈ A.  Thus we have shown that for all y : ℕ, y ∈ A implies S(y) ∈ A.  By induction y ∈ A for all y : ℕ.
+  0 ≠ S(x), so 0 ∈ A.  Now let y : ℕ, and assume that y ∈ A.  Then y ≠ S(x) + y.  Hence S(y) ≠ S(S(x) + y).  But S(S(x) + y) = S(x) + S(y).  Hence S(y) ≠ S(x) + S(y), so S(y) ∈ A.  Thus we have shown that y ∈ A implies S(y) ∈ A.  By induction y ∈ A for all y : ℕ.
 
 -- ordering: definition
 
@@ -164,7 +163,7 @@ Case 2: v = y.  Then S(v) = S(y) = y + S(0).  So y < S(v).
 
 Case 3: y < v.  Then v = y + S(u) for some u : ℕ.  Hence S(v) = S(y + S(u)) = y + S(S(u)).  Thus y < S(v).
 
-In all cases S(v) < y or S(v) = y or y < S(v).  Hence S(v) ∈ A.  We have shown that for all v : ℕ, v ∈ A implies S(v) ∈ A.  By induction x ∈ A for all x : ℕ.  So at least one of x < y, x = y, y < x is true.
+In all cases S(v) < y or S(v) = y or y < S(v).  Hence S(v) ∈ A.  We have shown that v ∈ A implies S(v) ∈ A.  By induction x ∈ A for all x : ℕ.  So at least one of x < y, x = y, y < x is true.
 
 Theorem.  Let x : ℕ.
 
@@ -280,7 +279,7 @@ Proof.  Let y, z : ℕ.  Let
                    = (y · x + y) + (z · x + z)
                    = y · S(x) + z · S(x).
 
-  Thus S(x) ∈ A.  We have shown that for all x : ℕ, x ∈ A implies S(x) ∈ A.  By induction x ∈ A for all x : ℕ.
+  Thus S(x) ∈ A.  We have shown that x ∈ A implies S(x) ∈ A.  By induction x ∈ A for all x : ℕ.
 
 Lemma.  Let x : ℕ.
 
@@ -304,7 +303,7 @@ Proof.  Let x : ℕ.  Let A = { y : ℕ | x · y = y · x }.  Clearly 0 ∈ A.  
              = (y + 1) · x           by ℕ.add_mul
              = S(y) · x.
 
-Thus S(y) ∈ A.  We have shown that for all y : ℕ, y ∈ A implies S(y) ∈ A.  By induction y ∈ A for all y : ℕ.
+Thus S(y) ∈ A.  We have shown that y ∈ A implies S(y) ∈ A.  By induction y ∈ A for all y : ℕ.
 
 instance: Std.Commutative (α := ℕ) (· * ·) := ⟨by default_apply ℕ.mul_comm⟩
 
@@ -327,7 +326,7 @@ Clearly 0 ∈ B.  Let z : ℕ, and suppose that z ∈ B.  Thus x · (y · z) = (
                    = (x · y) · z + x · y   by the inductive hypothesis
                    = (x · y) · S(z).
 
-Thus S(z) ∈ B.  We have shown that for all z : ℕ, z ∈ B implies S(z) ∈ B.  By induction z ∈ B for all z : ℕ.
+Thus S(z) ∈ B.  We have shown that z ∈ B implies S(z) ∈ B.  By induction z ∈ B for all z : ℕ.
 
 instance: Std.Associative (α := ℕ) (· * ·) := ⟨by default_apply ℕ.mul_assoc⟩
 
