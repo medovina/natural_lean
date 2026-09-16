@@ -8,12 +8,12 @@ namespace Natural
 def Set (α : Type u) := α → Prop
 
 @[implicit_reducible]
-def Set.ofPred {α : Type u} (p : α → Prop) : Set α := p
-
-@[implicit_reducible]
 def Mem (s : Set α) (a : α) : Prop := s a
 
 instance : Membership α (Set α) := ⟨Mem⟩
+
+@[implicit_reducible]
+def Set.ofPred {α : Type u} (p : α → Prop) : Set α := p
 
 notation "{" x ":" type "|" body "}" => Set.ofPred fun x : type => body
 

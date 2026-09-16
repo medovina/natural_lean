@@ -1,5 +1,5 @@
 import Natural
-import Natural.Set
+import Natural.Examples.Set
 
 -- This file defines the natural numbers inductively and develops their elementary theory including addition, ordering, and multiplication.  It is entirely independent of Lean's built-in Nat type.
 
@@ -123,7 +123,6 @@ Proof.  Let x : ℕ.  Let
 
 -- ordering: definition
 
-set_option trace.natural true in
 Definition.  For all x, y : ℕ, x < y iff there is some z : ℕ such that x + S(z) = y.
 
 -- ordering: theorems
