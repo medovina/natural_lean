@@ -771,20 +771,51 @@ def command_set (commands: List Command) : CoreM Command := do
   commands.forM ctrace
   pure $ .mk (mkNullNode commands.toArray)
 
+def of_binary_op (op: TSyntax α): String :=
+  match syntax_atom op with
+    | "·" => "*"
+    | op => op
+
+def op_fun (op: TSyntax α) (type: Term) : CoreM Term := do
+  let apply_op := build_infix (← `(x)) (of_binary_op op) (← `(y))
+  `(fun x y : $type => $apply_op)
+
+def of_inductive_def (name: Ident): TSyntax ``inductive_def → CoreM (List Command)
+  | `(inductive_def| inductively with constructors $cs:constructor and* .) => do
+    let ctors ← cs.getElems.mapM of_constructor
+    let mk_def | (n, t) => `(ctor| | $(to_ident n):ident : $t)
+    let ctor_defs ← ctors.mapM mk_def
+    let ind_decl ← `(inductive $name:ident $ctor_defs:ctor*)
+    let aux ← (ctors.map (·.1)).mapM (aux_ctor_def name)
+    pure $ [ind_decl] ++ aux.toList
+  | _ => throwError "unknown inductive_def"
+
+def of_quotient_def (i: Ident): TSyntax ``quotient_def → CoreM (List Command)
+  | `(quotient_def| as the quotient $t:type / $op:rel_op .
+                    Justification . By $thm:thm_name .) => do
+      let type ← of_type t
+      let inst_name := mkIdent (i.getId ++ `Setoid)
+      let inst_cmd ← `(instance $inst_name:ident : Setoid ($type) where
+        r := $(← op_fun op type)
+        iseqv := $(← proof_by (.some (← of_thm_name thm))))
+      let quot_cmd ← `(def $i := Quotient ($inst_name))
+      pure [inst_cmd, quot_cmd]
+  | _ => throwError "unknown quotient_def"
+
+def of_type_spec (i: Ident): TSyntax `type_spec → CoreM (List Command)
+  | `(type_spec| $id:inductive_def) => of_inductive_def i id
+  | `(type_spec| $qd:quotient_def) => of_quotient_def i qd
+  | _ => throwError "unknown type_spec"
+
 def of_type_def : TSyntax ``type_def → CoreM (List Command)
   | `(type_def| The type $i:ident $[( the $n1:ident $n2:ident ?)]?
-                is defined inductively with constructors
-                $cs:constructor and* .) => do
-      let ctors ← cs.getElems.mapM of_constructor
-      let mk_def | (n, t) => `(ctor| | $(to_ident n):ident : $t)
-      let ctor_defs ← ctors.mapM mk_def
-      let ind_decl ← `(inductive $i:ident $ctor_defs:ctor*)
-      let aux ← (ctors.map (·.1)).mapM (aux_ctor_def i)
+                is defined $ts:type_spec) => do
+      let commands ← of_type_spec i ts
       let att ← n1.mapM (fun n1 =>
         let t := idents_to_nat_type n1 (n2.get!)
         `(attribute [natural_name $(mkStrLit t)] $i:ident)
       )
-      pure $ [ind_decl] ++ aux.toList ++ att.toList
+      pure $ commands ++ att.toList
   | _ => throwError "unknown definition"
 
 def of_attrib: TSyntax ``attrib → CoreM Ident
@@ -814,11 +845,6 @@ def of_prop_item : TSyntax ``prop_item → CoreM ThmDecl
       let (thm, name, attr) ← of_top_sentence s
       pure ⟨← of_label i, thm, name, attr⟩
   | _ => throwError "unknown prop_item"
-
-def of_binary_op (op: TSyntax ``binary_op): String :=
-  match syntax_atom op with
-    | "·" => "*"
-    | op => op
 
 def op_map := [("+", `add, `Add), ("*", `mul, `Mul), ("^", `pow, `Pow),
                ("<", `lt, `LT), ("≤", `le, `LE), ("~", `equiv, `Equiv)]
@@ -978,12 +1004,11 @@ def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
     | `(theorem_body| The $_:_operator $op:binary_op is $_:_a ? $kind:natural_type
                       on $type:type . $pn:post_name) => do
         let env ← getEnv
-        let kind ← of_natural_type kind
+        let kind ← of_natural_type kind  -- name of type class or structure
         unless Lean.isStructure env kind.getId do throwError "not a structure"
         let type ← of_type type
         let (name, attr) ← of_post_name pn
-        let apply_op := build_infix (← `(x)) (of_binary_op op) (← `(y))
-        let thm ← `($kind (fun x y : $type => $apply_op))
+        let thm ← `($kind $(← op_fun op type))
         let fields := Lean.getStructureFieldsFlattened env kind.getId false
         let corollary_for (field: Name) :=
           corollary_of.find? (fun c => c.getId.toString.endsWith field.toString)

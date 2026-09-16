@@ -12,6 +12,8 @@ Natural Lean is in an __early stage of development__ and is not a practical tool
 
 - [Getting started](#getting-started)
 - [Definitions](#definitions)
+  - [Type definitions](#type-definitions)
+  - [Function and constant definitions](#function-and-constant-definitions)
 - [Theorems](#theorems)
   - [Theorem groups](#theorem-groups)
   - [Corollaries](#corollaries)
@@ -53,33 +55,49 @@ After that, you can mix natural-language mathematics with native Lean code freel
 
 ### Definitions
 
-A definition begins with the capitalized word `Definition`. 
+A definition begins with the capitalized word `Definition`.
 
- An _inductive type definition_ defines a new type with one or more constructors:
+#### Type definitions
+
+ An __inductive type definition__ defines a new type with one or more constructors:
 
 ```
 Definition.  The type ℕ is defined inductively with constructors 0 : ℕ and S : ℕ → ℕ.
 ```
 
-A _constant definition_ defines a numeric constant:
+A __quotient type definition__ defines a new type that is isomorphic to equivalence classes of some existing type:
+
+```
+Definition.  The type ℤ is defined as the quotient Nat × Nat / ~.
+
+Justification.  By ℤ.is_equiv.
+```
+
+As visible above, a quotient type definition must include a justification referencing a proof that the specified relation is indeed an equivalence relation. (See the section [Type classes](#type-classes) below for more on how to create such a proof.)
+
+At the moment, it's not very useful to define a quotient type in Natural Lean since there is no way to define functions on a quotient type that make use of data from the underlying type.  I will try to improve this soon.
+
+#### Function and constant definitions
+
+A __constant definition__ defines a numeric constant:
 
 ```
 Definition.  1 : ℕ = S(0).
 ```
 
-A _direct definition_ defines a function non-recursively, using a single formula.  Currently the function must be a supported [relational operator](#propositions):
+A __direct function definition__ defines a function non-recursively, using a single formula.  Currently the function must be a supported [relational operator](#propositions):
 
 ```
 Definition.  For all x, y : ℕ, x < y iff there is some z : ℕ such that x + S(z) = y.
 ```
 
-You may use pattern definition on the left side of a direct definition:
+You may use pattern definition on the left side of a direct function definition:
 
 ```
 Definition.  For all a, b, c, d : ℕ, (a, b) ~ (c, d) if and only if a + d = b + c.
 ```
 
-A _definition by cases_ defines a function recursively with one or more cases.  Currently the function must be a supported [arithmetic operator](#expressions):
+A __definition by cases__ defines a function recursively with one or more cases.  Currently the function must be a supported [arithmetic operator](#expressions):
 
 ```
 Definition.  The binary operation + on ℕ is defined recursively such that

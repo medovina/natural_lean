@@ -263,9 +263,19 @@ syntax proof_items := proof_item+
 
 syntax constructor := const ":" type
 
+syntax inductive_def :=
+  "inductively" "with" "constructors" sepBy1(constructor, "and") "."
+
+syntax quotient_def :=
+  "as" "the" "quotient" type "/" rel_op "."
+  "Justification" "." "By" thm_name "."
+
+sdef type_spec
+  | inductive_def
+  | quotient_def
+
 syntax type_def :=
-  "The" &"type" ident ("(" "the" ident ident ? ")")?
-  "is" "defined" "inductively" "with" "constructors" sepBy1(constructor, "and") "."
+  "The" &"type" ident ("(" "the" ident ident ? ")")? "is" "defined" type_spec
 
 syntax attrib := "@" ident
 
