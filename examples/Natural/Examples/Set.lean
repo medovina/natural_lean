@@ -2,9 +2,6 @@ import Natural
 
 namespace Natural
 
--- A basic implementation of a Set type and set comprehension notation, independent of Mathlib.
--- The core of Natural Lean does not depend on this file.
-
 def Set (α : Type u) := α → Prop
 
 @[implicit_reducible]
@@ -12,12 +9,12 @@ def Mem (s : Set α) (a : α) : Prop := s a
 
 instance : Membership α (Set α) := ⟨Mem⟩
 
+-- set comprehension notation
+
 @[implicit_reducible]
 def Set.ofPred {α : Type u} (p : α → Prop) : Set α := p
 
 notation "{" x ":" type "|" body "}" => Set.ofPred fun x : type => body
-
--- from Mathlib.Data.Set.Operations
 
 @[simp]
 theorem mem_ofPred_eq {x : α} {p : α → Prop} : (x ∈ {y : α | p y}) = p x := rfl

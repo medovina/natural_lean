@@ -26,6 +26,7 @@ syntax super_letter :=
 sdef type
   | ident
   | type "→" type
+  | type "×" type
 
 syntax comma_ahead := lookahead("," <|> "and")
 
@@ -180,9 +181,11 @@ sdef type_suffix
   | ":" type
   | "be" natural_type
 
+syntax _a := &"a" <|> "an"
+
 sdef let_step
   | atomic(_let ident,+ ":") type
-  | atomic(_let id_list "be") &"a"? natural_type
+  | atomic(_let id_list "be") _a ? natural_type
 
 sdef let_or_assume
   | let_step
@@ -266,11 +269,13 @@ syntax type_def :=
 
 syntax attrib := "@" ident
 
-syntax top_sentence := prop "." ("[" thm_name (":" attrib)? "]")?
+syntax post_name := ("[" thm_name (":" attrib)? "]")?
+
+syntax top_sentence := prop "." post_name
 
 syntax prop_item := label "." top_sentence
 
-kdef binary_op = "+" | "·" | "^" | "<" | "≤"
+kdef binary_op = "+" | "·" | "^" | "<" | "≤" | "~"
 
 syntax _operator := "binary" ? ("operation" <|> "operator")
 
@@ -298,7 +303,7 @@ sdef props_proofs
 
 sdef theorem_body
   | (let_step ".")? props_proofs
-  | "The" _operator binary_op "is" natural_type "on" ident "."
+  | "The" _operator binary_op "is" _a ? natural_type "on" type "." post_name
 
 syntax _theorem := thm_name ? str ? "." theorem_body
 

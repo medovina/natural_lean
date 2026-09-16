@@ -427,9 +427,7 @@ Unicode superscript digits and letters are supported, so you may write e.g. `x²
 
 ### Types
 
-At the moment any type in Natural Lean must be either a simple type such as `Nat`, or a function type such as `Nat → Nat → Nat`.
-I plan to add other types such as product types soon.
-
+At the moment any type in Natural Lean must be either a simple type such as `Nat`, a function type of the form `α → β` such as `Nat → Nat → Nat`, or a product type of the form `α × β` such as `Nat × Nat`.
 ### Natural names
 
 In Natural Lean, any simple type such as `Nat` or `Int` may have a __natural name__ such as "natural number" or "integer".  You may refer to a type either by its Lean name or its natural name.  For example, the following statements are equivalent:
@@ -490,6 +488,31 @@ Corollary.  The operator + is associative on ℕ.
 Above, the word "associative" is the natural name of the `Std.Associative` type class, so this definition declares that the `+` operator belongs to that type class.  As in this example, you will typically write this sort of statement as a collorary to a theorem.  Then the theorem will be automatically be used to justify the type class declaration.
 
 Natural Lean's default tactic uses `grind`, which notices which type classes operators belong to and can take advantage of this information.  For this reason, it is often important to declare that operators belong to type classes such as `Std.Associative` and `Std.Commutative`.
+
+Lean predefines  some structure types that belong to `Prop`.  These look something like type classes, but are not actually type classes.  For example, the `Equivalence` structure represents an equivalence relation and is defined like this:
+
+```
+structure Equivalence {α : Sort u} (r : α → α → Prop) : Prop where
+  refl  : ∀ x, r x x
+  symm  : ∀ {x y}, r x y → r y x
+  trans : ∀ {x y z}, r x y → r y z → r x z
+```
+
+In Natural Lean you may declare that an operator belongs to such a structure using the same syntax for type class declarations that was described above .
+
+A type class may have multiple methods; similarly, a structure may have multiple fields.  If you write a corollary declaring that an operator belongs to such a type class or structure, each method or field will automatically be matched with any theorem from the preceding theorem group whose name ends with the field name.  This is a convenient way to prove a set of propositions that a type class requires.  For example, we may write
+
+```
+Theorem.  Let h, i, j, k, m, n : Nat.
+
+  a. (h, i) ~ (h, i).  [equiv_refl]
+  b. If (h, i) ~ (j, k) then (j, k) ~ (h, i).  [equiv_symm]
+  c. If (h, i) ~ (j, k) and (j, k) ~ (m, n) then (h, i) ~ (m, n).  [equiv_trans]
+
+Corollary.  The operator ~ is an equivalence relation on Nat × Nat.
+```
+
+"equivalence relation" is the natural name of the `Equivalence` structure type.  In the declaration above, the `refl`, `symm` and `trans` propositions in that structure will be proved by the theorems `equiv_refl`, `equiv_symm` and `equiv_trans` respectively.
 ### Tactics
 
 When an assertion does not contain a reason, or when a theorem does not include a proof at all, Natural Lean will attempt to prove the assertion or theorem using a tactic named `default` which tries each of `trivial`, `grind` and `aesop` in turn.  In the future I intend to make the default tactic configurable by any development in Natural Lean, but for the moment it is fixed.

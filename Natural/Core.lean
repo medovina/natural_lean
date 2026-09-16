@@ -89,6 +89,7 @@ def of_const : TSyntax `const → CoreM Term
 partial def of_type : TSyntax `type → CoreM Term
   | `(type| $i:ident) => `($i)
   | `(type| $t:type → $u:type) => do `($(← of_type t) → $(← of_type u))
+  | `(type| $t:type × $u:type) => do `($(← of_type t) × $(← of_type u))
   | _ => throwError "unknown multi_specifier"
 
 def of_id_list : TSyntax ``id_list → CoreM (Array Ident)
@@ -100,7 +101,7 @@ def idents_to_nat_type (n1: Ident) (n2: Option Ident) := match n2 with
   | .some n2 => s!"{n1.getId.toString} {singular n2.getId.toString}"
   | .none => singular n1.getId.toString
 
-def of_natural_type (ntype: TSyntax ``natural_type) : CoreM Term :=
+def of_natural_type (ntype: TSyntax ``natural_type) : CoreM Ident :=
   withRef ntype do match ntype with
     | `(natural_type| $n1:ident $n2:ident ?) => do
         let s := idents_to_nat_type n1 n2
@@ -393,7 +394,7 @@ def of_proof_prop: TSyntax `proof_prop → CoreM (List ProofStep)
 def of_let_step: TSyntax `let_step → CoreM ProofStep
   | `(let_step| $_:_let $xs:ident,* : $type:type) => do
         pure $ .let (xs.getElems.toList.map TSyntax.getId) (← of_type type)
-  | `(let_step| $_:_let $xs:id_list be $[a]? $type:natural_type) => do
+  | `(let_step| $_:_let $xs:id_list be $_:_a ? $type:natural_type) => do
         pure $ .let ((← of_id_list xs).toList.map TSyntax.getId) (← of_natural_type type)
   | _ => throwError "unknown let_step"
 
@@ -604,6 +605,9 @@ def tactic : Option Reason → CoreM Term
   | .some (.tactic t) => `(by { $t })
   | .some (.induction) => `(by intro x ; induction x <;> default)
 
+def proof_by (name: Option Ident) : CoreM Term :=
+  tactic (.some (.apply name.toList))
+
 def produces_let : ProofStep → Bool
   | .let_def .. | .is_some .. => true
   | _ => false
@@ -787,9 +791,14 @@ def of_attrib: TSyntax ``attrib → CoreM Ident
   | `(attrib| @ $i:ident) => pure i
   | _ => throwError "unknown attrib"
 
+def of_post_name : TSyntax ``post_name → CoreM (Option Ident × Option Ident)
+  | `(post_name| $[ [ $i:thm_name $[ : $a:attrib ]? ] ]? ) => do
+      pure (← i.mapM of_thm_name, ← a.join.mapM of_attrib)
+  | _ => throwError "unknown post_name"
+
 def of_top_sentence : TSyntax ``top_sentence → CoreM (Term × Option Ident × Option Ident)
-  | `(top_sentence| $p:prop . $[ [ $i:thm_name $[ : $a:attrib ]? ] ]?) => do
-      pure (← of_prop p, ← i.mapM of_thm_name, ← a.join.mapM of_attrib)
+  | `(top_sentence| $p:prop . $pn:post_name) => do
+      pure (← of_prop p, ← of_post_name pn)
   | _ => throwError "unknown top_sentence"
 
 abbrev Label := Name
@@ -806,13 +815,10 @@ def of_prop_item : TSyntax ``prop_item → CoreM ThmDecl
       pure ⟨← of_label i, thm, name, attr⟩
   | _ => throwError "unknown prop_item"
 
-def of_binary_op : TSyntax ``binary_op → CoreM String
-  | `(binary_op| +) => pure "+"
-  | `(binary_op| ·) => pure "*"
-  | `(binary_op| ^) => pure "^"
-  | `(binary_op| <) => pure "<"
-  | `(binary_op| ≤) => pure "≤"
-  | _ => throwError "unknown binary_op"
+def of_binary_op (op: TSyntax ``binary_op): String :=
+  match syntax_atom op with
+    | "·" => "*"
+    | op => op
 
 def op_map := [("+", `add, `Add), ("*", `mul, `Mul), ("^", `pow, `Pow),
                ("<", `lt, `LT), ("≤", `le, `LE), ("~", `equiv, `Equiv)]
@@ -880,7 +886,7 @@ def of_cases_def : TSyntax ``cases_def → CoreM (List Command)
                     such that for all $ids_type:ids_type , $items:prop_item*) => do
       let (xs, _type) ← of_ids_type ids_type
       let eqs ← Array.map ThmDecl.thm <$> items.mapM of_prop_item
-      generate_op_def (← of_binary_op op) xs.toList type eqs
+      generate_op_def (of_binary_op op) xs.toList type eqs
   | _ => throwError "unknown cases_def"
 
 def of_direct_def : TSyntax `direct_def → CoreM (List Command)
@@ -945,30 +951,46 @@ def of_props_proofs (lets: Option ProofStep) (ps: TSyntax `props_proofs) :
         translate_proofs lets thms_proofs
     | _ => throwError "unknown prop_or_items"
 
+def mk_decl (is_instance: Bool) (attr: Option Ident) (name: Option Ident)
+            (thm proof: Term) : CoreM Command := do
+  let a ← attr.mapM (fun a => `(attributes| @[$a:ident]))
+  if is_instance then `($a:attributes ? instance $[$name:ident]? : $thm := $proof)
+  else match name with
+    | Option.some name => `($a:attributes ? theorem $name : $thm := $proof)
+    | Option.none => `($a:attributes ? example : $thm := $proof)
+
 def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
           (body: TSyntax `theorem_body) : CoreM (List Command × List Ident) := do
-    let default ← tactic (.some (.apply corollary_of))
-    match body with
-      | `(theorem_body| $[$ls:let_step .]? $ps:props_proofs) => do
-          let thms_proofs ← of_props_proofs (← ls.mapM of_let_step) ps
-          let (commands, names) := List.unzip $ ← thms_proofs.mapM
-            (fun (⟨label, thm, thm_name, attr⟩, proof) => withRef thm do
-              let proof := proof.getD default
-              let name := thm_name <|> name.map (fun name =>
-                label.elim name (mkIdent $ name.getId ++ ·))
-              let a ← attr.mapM (fun a => `(attributes| @[$a:ident]))
-              let command ← match name with
-                | Option.some name =>
-                    `($a:attributes ? theorem $name : $thm := $proof)
-                | Option.none => `(example : $thm := $proof)
-              pure (command, name))
-          pure (commands, (names.flatMap Option.toList))
-      | `(theorem_body| The $_:_operator $op:binary_op is $cls:natural_type on $type:ident .) => do
-          let cls ← of_natural_type cls
-          let apply_op := build_infix (← `(x)) (← of_binary_op op) (← `(y))
-          let cmd ← `(instance: $cls (fun x y : $type => $apply_op) := ⟨$default⟩)
-          pure ([cmd], [])
-      | _ => throwError "unknown theorem"
+  let by_default : Option Ident := match corollary_of with
+    | [c] => Option.some c  -- use corollary_of by default if there is just one
+    | _ => .none
+  match body with
+    | `(theorem_body| $[$ls:let_step .]? $ps:props_proofs) => do
+        let thms_proofs ← of_props_proofs (← ls.mapM of_let_step) ps
+        let (commands, names) := List.unzip $ ← thms_proofs.mapM
+          (fun (⟨label, thm, thm_name, attr⟩, proof) => withRef thm do
+            let proof := proof.getD (← proof_by by_default)
+            let name := thm_name <|> name.map (fun name =>
+              label.elim name (mkIdent $ name.getId ++ ·))
+            let command ← mk_decl false attr name thm proof
+            pure (command, name))
+        pure (commands, (names.flatMap Option.toList))
+    | `(theorem_body| The $_:_operator $op:binary_op is $_:_a ? $kind:natural_type
+                      on $type:type . $pn:post_name) => do
+        let env ← getEnv
+        let kind ← of_natural_type kind
+        unless Lean.isStructure env kind.getId do throwError "not a structure"
+        let type ← of_type type
+        let (name, attr) ← of_post_name pn
+        let apply_op := build_infix (← `(x)) (of_binary_op op) (← `(y))
+        let thm ← `($kind (fun x y : $type => $apply_op))
+        let fields := Lean.getStructureFieldsFlattened env kind.getId false
+        let corollary_for (field: Name) :=
+          corollary_of.find? (fun c => c.getId.toString.endsWith field.toString)
+        let proofs ← fields.mapM (fun f => proof_by (corollary_for f <|> by_default))
+        let command ← mk_decl (Lean.isClass env kind.getId) attr name thm (← `(⟨$proofs,*⟩))
+        pure ([command], [])
+    | _ => throwError "unknown theorem"
 
 def of_theorem (corollary_of: List Ident)
             : TSyntax ``_theorem → CoreM (List Command × List Ident)
