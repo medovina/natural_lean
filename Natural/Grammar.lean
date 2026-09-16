@@ -69,11 +69,11 @@ syntax:75 (priority := 1) expr:75 expr:76 : expr
 syntax:70 expr:70 ("·" <|> "×") expr:71 : expr
 syntax:65 expr:65 "+" expr:66 : expr
 syntax (priority := 2) expr "(" expr ")" : expr
-syntax "(" expr ")" : expr
+syntax "(" expr ("," expr)? ")" : expr
 
 -- prop
 
-kdef rel_op = "=" | "≠" | "<" | "≮" | "≤" | ">" | "≯" | "≥" | "∈"
+kdef rel_op = "=" | "≠" | "<" | "≮" | "≤" | ">" | "≯" | "≥" | "∈" | "~"
 
 sdef rel_prop
   | expr (rel_op expr)+

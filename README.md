@@ -4,7 +4,7 @@
 
 Natural Lean is a library that lets you write Lean definitions, theorems, and proofs in a controlled natural language that looks much like ordinary mathematical English.  To use the library, you can simply write `import Natural` at the top of a Lean source file, then write natural-language mathematics freely in the rest of the file.  If you are using an IDE such as Visual Studio Code, Natural Lean will automatically translate your text into native Lean code, which will be checked for correctness.
 
-For a first glimpse of Natural Lean you could look at the example file [`examples/Natural/Examples/nat_num_game.lean`](examples/Natural/Examples/nat_num_game.lean), which proves all of the theorems from the [Natural Number Game](https://adam.math.hhu.de/#/g/leanprover-community/nng4).  (Actually there are not many  explicit proofs in this file, since Natural Lean's [default tactic](#tactics) can solve most of these problems directly.)  The file [`Nat.lean`](examples/Natural/Examples/Nat.lean) is more substantial, and includes a partial development of the natural numbers from first principles in Natural Lean, including a number of theorems with proofs.   (To see the full proofs in this file, you will want to turn on word wrap.  As one possibility, download the file, view it in Visual Studio Code, and press Alt+Z to enable wrapping.)  
+For a first glimpse of Natural Lean you could look at the example file [`nat_num_game.lean`](examples/Natural/Examples/nat_num_game.lean), which proves all of the theorems from the [Natural Number Game](https://adam.math.hhu.de/#/g/leanprover-community/nng4).  (Actually there are not many  explicit proofs in this file, since Natural Lean's [default tactic](#tactics) can solve most of these problems directly.)  The file [`Nat.lean`](examples/Natural/Examples/Nat.lean) is more substantial, and includes a partial development of the natural numbers from first principles in Natural Lean, including a number of theorems with proofs.   (To see the full proofs in this file, you will want to turn on word wrap.  As one possibility, download the file, view it in Visual Studio Code, and press Alt+Z to enable wrapping.)  
 
 Natural Lean is in an __early stage of development__ and is not a practical tool for writing many Lean proofs at this time: the grammar and expressiveness of the language are still extremely limited.  You may nevertheless want to experiment with Natural Lean even in its current state.  Your feedback is welcome: you can send me [email](mailto:adam.dingle@mff.cuni.cz) or open issues in this repository.  I am actively developing the library and will be adding more features over time.
 
@@ -71,6 +71,12 @@ A _direct definition_ defines a function non-recursively, using a single formula
 
 ```
 Definition.  For all x, y : ℕ, x < y iff there is some z : ℕ such that x + S(z) = y.
+```
+
+You may use pattern definition on the left side of a direct definition:
+
+```
+Definition.  For all a, b, c, d : ℕ, (a, b) ~ (c, d) if and only if a + d = b + c.
 ```
 
 A _definition by cases_ defines a function recursively with one or more cases.  Currently the function must be a supported [arithmetic operator](#expressions):
@@ -227,21 +233,20 @@ A proof step may be any of the following:
    We have S(y) ≤ y, which is a contradiction to ℕ.lt_succ and ℕ.lt_trichotomy.
    ```
 
-- A __let declaration__ introduces one or more universally quantified variables of a given type.  Examples:
+- A __let declaration__ introduces one or more universally quantified variables of a given type:
 
     ```
     Let x, y, z : ℕ.
     Let a : ℤ.
     ```
 
-- A __let definition__ introduces a variable and gives it a value.  Examples:
+- A __let definition__ introduces a variable and gives it a value:
 
     ```
     Let x = 0.
-    Let A = { z : ℕ | x + (y + z) = (x + y) + z }.
     ```
 
-- An __assumption__ is expressed using the keyword `assume` or `suppose`.  Example:
+- An __assumption__ is expressed using the keyword `assume` or `suppose`:
 
     ```
     Assume that v ∈ A.
@@ -252,7 +257,7 @@ A proof step may be any of the following:
 
 In addition, the following are __compound steps__ that group proof steps together:
 
-- An __if/then__ block introduces an assumption whose scope is limited to a single sentence.  Example:
+- An __if/then__ block introduces an assumption whose scope is limited to a single sentence:
 
    ```
    If z = 0 then x = y, so x ≤ y.
@@ -393,14 +398,14 @@ __Expressions__ represent mathematical values.  In Natural Lean an expression ha
 ```
 <num>
 <var>
-<expr> <expr>      -- implicit multiplication
+<expr> <expr>       -- implicit multiplication
 <expr> <op> <expr>
-<expr> ( <expr> )  -- function call or multiplication
+<expr> ( <expr> )   -- function call or multiplication
+( <expr>, <expr> )  -- pair of values
 ( <expr> )
-{ <var> : <type> | <prop> }
 ```
 
-Above, `<num>` is a natural number constant and `<op>` is an arithmetic operator.  At the moment Natural Lean includes only a small fixed set of these operators: the `+`,  `·` and `^` operators, plus `×` which is a synonym for `·`. (I hope to extend the system before long so that all operators predefined in a Lean theory will also be available in Natural Lean.)
+Above, `<num>` is a natural number constant and `<op>` is an arithmetic operator.  At the moment Natural Lean includes only a small fixed set of these operators: the `+`,  `·` and `^` operators, plus `×` which is a synonym for `·`.
 
 Here are some examples of expressions:
 
@@ -411,7 +416,6 @@ x + (y + z)
 S(x + y)
 a(b + c)
 ac + bc
-{ z : ℕ | x + (y + z) = (x + y) + z }
 ```
 
 Implicit multiplication is supported: `xy` with no parentheses means `x · y`.  Note that Natural Lean uses the traditional function call syntax `f(x)`, which is different from `f x` as found in native Lean code.  An expression of the form `a(b)` is potentially ambiguous: it may represent either a multiplication or a function call.  Natural Lean resolves this ambiguity based on the type of `a`: if it is a function, then `a(b)` is considered to be a function call, otherwise a multiplication.

@@ -123,6 +123,7 @@ Proof.  Let x : ℕ.  Let
 
 -- ordering: definition
 
+set_option trace.natural true in
 Definition.  For all x, y : ℕ, x < y iff there is some z : ℕ such that x + S(z) = y.
 
 -- ordering: theorems

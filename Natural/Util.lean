@@ -10,18 +10,26 @@ open Lean.Syntax
 infix:50 "≮" => fun x y => ¬(x < y)
 infix:50 "≯" => fun x y => ¬(x > y)
 
+class Equiv (α: Type u) where
+  equiv: α → α → Prop
+
+infix:50 " ~ " => Equiv.equiv
+
 namespace Natural
 
 -- pairs
 
 def map_fst (f : α → γ) (pair : Prod α β) := pair.map f id
 def map_snd (f : β → γ) (pair : Prod α β) := pair.map id f
+def map_pair (f : α → β) (pair : Prod α α) := pair.map f f
 
 def mapM_fst [Monad m] (f : α → m γ) : α × β → m (γ × β)
   | (x, y) => do pure (← f x, y)
 
 def mapM_snd [Monad m] (f : β → m γ) : α × β → m (α × γ)
   | (x, y) => do pure (x, ← f y)
+
+def pairM [Monad m] (x: m α) (y: m β) := Prod.mk <$> x <*> y
 
 -- lists
 

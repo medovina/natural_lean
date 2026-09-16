@@ -155,6 +155,7 @@ mutual
       | `(expr| $e:expr + $f:expr) => `($(← of_expr e) + $(← of_expr f))
       | `(expr| $e:expr ( $f:expr )) => `(app_or_mul $(← of_expr e) $(← of_expr f))
       | `(expr| ( $e:expr )) => of_expr e
+      | `(expr| ( $e:expr , $f:expr)) => `( ($(← of_expr e), $(← of_expr f)) )
       | _ =>
         let elabFns := naturalElabAttribute.getEntries (← getEnv) expr.raw.getKind
         for elabFn in elabFns do
@@ -814,7 +815,7 @@ def of_binary_op : TSyntax ``binary_op → CoreM String
   | _ => throwError "unknown binary_op"
 
 def op_map := [("+", `add, `Add), ("*", `mul, `Mul), ("^", `pow, `Pow),
-               ("<", `lt, `LT), ("≤", `le, `LE)]
+               ("<", `lt, `LT), ("≤", `le, `LE), ("~", `equiv, `Equiv)]
 
 def parse_def_eq : Term → CoreM (String × Term × Term × Term)
   | `($l = $r)
@@ -829,31 +830,45 @@ def eq_to_alt_expr (op: String) (fname: Ident) (t: Term): CoreM (TSyntax ``match
     `(matchAltExpr| | $a, $b => $(replace_infix op fname r))
   else throwError "wrong infix op"
 
-def as_ident (t: Term): CoreM Ident := match t.raw with
-  | .ident _ _ name _ => pure (mkIdent name)
-  | _ => throwError "identifier expected"
+def as_ident (t: Term): Option Ident := match t.raw with
+  | .ident _ _ name _ => .some (mkIdent name)
+  | _ => .none
 
-def generate_def (op: String) (args: List Ident) (type: Ident) (eqs: Array Term)
+partial def pattern_type (arg_names: List Name) (arg_type: Ident) : Term → CoreM Term :=
+  let rec f : Term → CoreM Term
+    | `($x:ident) =>
+        if arg_names.elem x.getId then pure arg_type
+          else throwError "undefined variable in pattern"
+    | `(($t, $u)) => do `($(← f t) × $(← f u))
+    | _ => throwError "unrecognized pattern in definition"
+  f
+
+def generate_op_def (op: String) (args: List Ident) (arg_type: Ident) (eqs: Array Term)
     : CoreM (List Command) := do
   let (op_name, cl) ← (op_map.lookup op).getDM $ throwError "generate_def: no op"
-  let fname := mkIdent (type.getId ++ op_name)
-  let eqs ← eqs.mapM (resolve_term (args.map (·.getId, type)))
-  let d ← match eqs with
+  let fname := mkIdent (arg_type.getId ++ op_name)
+  let arg_names := args.map (·.getId)
+  let eqs ← eqs.mapM (resolve_term (arg_names.map (·, arg_type)))
+  let (d, op_type) ← match eqs with
     | #[eq] =>  -- direct definition
         let (_op, x, y, r) ← parse_def_eq eq
-        let ix ← as_ident x
-        let iy ← as_ident y
-        `(def $fname ($ix $iy : $type) := $r)
+        match as_ident x, as_ident y with
+          | .some ix, .some iy =>
+              (·, arg_type.raw) <$> `(def $fname ($ix $iy : $arg_type) := $r)
+          | _, _ =>
+              let tx ← pattern_type arg_names arg_type x
+              let ty ← pattern_type arg_names arg_type y
+              (·, tx) <$> `(def $fname | ($x : $tx), ($y : $ty) => $r)
     | _ =>  -- by cases
         let alts ← eqs.mapM (eq_to_alt_expr op fname)
-        `(set_option linter.unusedVariables false in
-          def $fname : $type → $type → $type
+        (·, arg_type.raw) <$> `(set_option linter.unusedVariables false in
+          def $fname : $arg_type → $arg_type → $arg_type
             $alts:matchAlt*)
 
-  let instName := Name.mkSimple ("inst" ++ cl.toString ++ type.getId.toString)
+  let instName := Name.mkSimple ("inst" ++ cl.toString ++ arg_type.getId.toString)
   let i ← `(
     @[method_specs]
-    instance $(mkIdent instName):ident : $(mkIdent cl) $type where
+    instance $(mkIdent instName):ident : $(mkIdent cl) $(⟨op_type⟩) where
       $(mkIdent op_name):ident := $fname
   )
   let spec := instName ++ Name.mkSimple (op_name.toString ++ "_spec")
@@ -865,7 +880,7 @@ def of_cases_def : TSyntax ``cases_def → CoreM (List Command)
                     such that for all $ids_type:ids_type , $items:prop_item*) => do
       let (xs, _type) ← of_ids_type ids_type
       let eqs ← Array.map ThmDecl.thm <$> items.mapM of_prop_item
-      generate_def (← of_binary_op op) xs.toList type eqs
+      generate_op_def (← of_binary_op op) xs.toList type eqs
   | _ => throwError "unknown cases_def"
 
 def of_direct_def : TSyntax `direct_def → CoreM (List Command)
@@ -874,7 +889,7 @@ def of_direct_def : TSyntax `direct_def → CoreM (List Command)
       let eq ← of_prop p
       let (op, _, _, _) ← parse_def_eq eq
       match type with
-        | `($i:ident) => generate_def op args.toList i #[eq]
+        | `($type:ident) => generate_op_def op args.toList type #[eq]
         | _ => throwError "simple type expected"
   | `(direct_def| $n:num : $type:type = $e:expr .) => do
       let e ← of_expr e >>= resolve_term []
