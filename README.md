@@ -25,6 +25,7 @@ Natural Lean is in an __early stage of development__ and is not a practical tool
 - [Types](#types)
 - [Natural names](#natural-names)
 - [Type classes](#type-classes)
+- [Quotient types](#quotient-types)
 - [Tactics](#tactics)
 - [Visual Studio Code integration](#visual-studio-code-integration)
 - [Hints and tips](#hints-and-tips)
@@ -73,9 +74,9 @@ Definition.  The type ℤ is defined as the quotient Nat × Nat / ~.
 Justification.  By ℤ.is_equiv.
 ```
 
-As visible above, a quotient type definition must include a justification referencing a proof that the specified relation is indeed an equivalence relation. (See the section [Type classes](#type-classes) below for more on how to create such a proof.)
+As visible above, a quotient type definition must include a __justification__ referencing a proof that the specified relation is indeed an equivalence relation. (See the section [Type classes](#type-classes) below for more on how to create such a proof.)
 
-At the moment, it's not very useful to define a quotient type in Natural Lean since there is no way to define functions on a quotient type that make use of data from the underlying type.  I will try to improve this soon.
+The section [Quotient types](#quotient-types) below describes how to work with quotient types in more detail.
 
 #### Function and constant definitions
 
@@ -542,6 +543,33 @@ But x + S(z) ≠ x by ℕ.not_succ_add and ℕ.add_comm.
 ```
 
 In this situation Natural Lean will invoke the tactic `default_apply` with the given theorem names  `default_apply` is a tactic that calls each of `apply_rules`, `grind` and `aesop` in turn, passing the given theorems as arguments.  (I also intend to make this tactic configurable in the future.)
+
+### Quotient types
+
+As described above you may define quotient types in Natural Lean.   For example, we may define the integers ℤ as a quotient type whose underlying type is pairs of natural numbers under a certain equivalence relation `~`:
+
+```
+Definition.  For all n, k, j, i : Nat, (n, j) ~ (k, i) if and only if n + i = k + j.
+
+Definition.  The type ℤ is defined as the quotient Nat × Nat / ~.
+```
+
+If `Q` is a quotient type, then the notation `Q[x]` indicates a value of type `Q`that is derived from `x`, a value of the underlying type.  In our example, the notation `ℤ[(a, b)]` indicates an element of `ℤ` represented by the pair of naturals `(a, b)`.
+
+Using this notation you may write implicit function definitions on quotient types that refer to elements of the underlying type.  (At the moment any such function must be an [arithmetic operator](#expressions) supported by Natural Lean.)  Any such definition must include a justification proving that the function definition is valid.  Specifically, it must show that if a ~ b and c ~ d, then (a ∘ c) ~ (b ∘ d), where ∘  is the operator being defined and ~ is the equivalence relation used to define the quotient type.
+
+For example, we might define the addition operation on the quotient type `ℤ` as follows:
+
+```
+Theorem.  Let n, j, k, i, n₁, j₁, k₁, i₁ : Nat.  If (n, j) ~ (n₁, j₁) and (k, i) ~ (k₁, i₁) then
+
+  (n + k, j + i) ~ (n₁ + k₁, j₁ + i₁).   [ℤ.add_equiv]
+
+Definition.  For all a, b, c, d : Nat, ℤ[(a, b)] + ℤ[(c, d)] = ℤ[(a + c, b + d)].
+
+Justification.  By ℤ.add_equiv.
+```
+
 
 ### Visual Studio Code integration
 
