@@ -128,6 +128,15 @@ def syntax_atom (t: TSyntax α): String := match t.raw with
 
 def mk_false : Term := mkIdent ``False
 
+def op_map := [("·", "*"), ("~", "≈")]
+
+def map_op (op: String) := (op_map.lookup op).getD op
+
+def of_binary_op (op: TSyntax α): String := map_op (syntax_atom op)
+
+def op_class := [("+", `add, ``Add), ("*", `mul, ``Mul), ("^", `pow, ``Pow),
+                 ("<", `lt, ``LT), ("≤", `le, ``LE), ("≈", `Equiv, ``HasEquiv)]
+
 def super_char (s: Syntax) : Char := (s.getArg 0).getAtomVal.front
 
 def super_string (table: List (Char × Char)) (a: TSyntaxArray α) : String :=
@@ -180,7 +189,7 @@ mutual
     match prop with
       | `(rel_prop| $a:expr $[$ops:rel_op $bs:expr]*) => do
             let ts ← (a :: bs.toList).mapM of_expr
-            let ops := ops.toList.map syntax_atom
+            let ops := ops.toList.map of_binary_op
             multi_and (build ts ops)
       | _ => throwError "unknown rel_prop"
 
@@ -771,11 +780,6 @@ def command_set (commands: List Command) : CoreM Command := do
   commands.forM ctrace
   pure $ .mk (mkNullNode commands.toArray)
 
-def of_binary_op (op: TSyntax α): String :=
-  match syntax_atom op with
-    | "·" => "*"
-    | op => op
-
 def op_fun (op: TSyntax α) (type: Term) : CoreM Term := do
   let apply_op := build_infix (← `(x)) (of_binary_op op) (← `(y))
   `(fun x y : $type => $apply_op)
@@ -846,14 +850,11 @@ def of_prop_item : TSyntax ``prop_item → CoreM ThmDecl
       pure ⟨← of_label i, thm, name, attr⟩
   | _ => throwError "unknown prop_item"
 
-def op_map := [("+", `add, `Add), ("*", `mul, `Mul), ("^", `pow, `Pow),
-               ("<", `lt, `LT), ("≤", `le, `LE), ("~", `equiv, `Equiv)]
-
 def parse_def_eq : Term → CoreM (String × Term × Term × Term)
   | `($l = $r)
   | `($l ↔ $r) => do
       let (a, op, b) ← parse_infix l
-      pure (op, a, b, r)
+      pure (map_op op, a, b, r)
   | _ => throwError "equation expected"
 
 def eq_to_alt_expr (op: String) (fname: Ident) (t: Term): CoreM (TSyntax ``matchAltExpr) := do
@@ -877,7 +878,7 @@ partial def pattern_type (arg_names: List Name) (arg_type: Ident) : Term → Cor
 
 def generate_op_def (op: String) (args: List Ident) (arg_type: Ident) (eqs: Array Term)
     : CoreM (List Command) := do
-  let (op_name, cl) ← (op_map.lookup op).getDM $ throwError "generate_def: no op"
+  let (op_name, cl) ← (op_class.lookup op).getDM $ throwError "generate_def: no op"
   let fname := mkIdent (arg_type.getId ++ op_name)
   let arg_names := args.map (·.getId)
   let eqs ← eqs.mapM (resolve_term (arg_names.map (·, arg_type)))

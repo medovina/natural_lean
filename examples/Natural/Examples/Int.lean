@@ -13,3 +13,7 @@ Corollary.  The operator ~ is an equivalence relation on Nat × Nat.  [ℤ.is_eq
 Definition.  The type ℤ is defined as the quotient Nat × Nat / ~.
 
 Justification.  By ℤ.is_equiv.
+
+Theorem.  Let n, j, k, i, n₁, j₁, k₁, i₁ : Nat.  If (n, j) ~ (n₁, j₁) and (k, i) ~ (k₁, i₁) then
+
+  (n + k, j + i) ~ (n₁ + k₁, j₁ + i₁).   [ℤ.add_equiv]

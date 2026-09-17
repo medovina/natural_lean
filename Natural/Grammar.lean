@@ -76,6 +76,8 @@ syntax "(" expr ("," expr)? ")" : expr
 
 kdef rel_op = "=" | "≠" | "<" | "≮" | "≤" | ">" | "≯" | "≥" | "∈" | "~"
 
+kdef binary_op = "+" | "·" | "^" | "<" | "≤" | "~"
+
 sdef rel_prop
   | expr (rel_op expr)+
 
@@ -284,8 +286,6 @@ syntax post_name := ("[" thm_name (":" attrib)? "]")?
 syntax top_sentence := prop "." post_name
 
 syntax prop_item := label "." top_sentence
-
-kdef binary_op = "+" | "·" | "^" | "<" | "≤" | "~"
 
 syntax _operator := "binary" ? ("operation" <|> "operator")
 

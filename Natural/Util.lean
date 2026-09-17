@@ -10,11 +10,6 @@ open Lean.Syntax
 infix:50 "≮" => fun x y => ¬(x < y)
 infix:50 "≯" => fun x y => ¬(x > y)
 
-class Equiv (α: Type u) where
-  equiv: α → α → Prop
-
-infix:50 " ~ " => Equiv.equiv
-
 namespace Natural
 
 -- pairs
