@@ -1,4 +1,4 @@
-import Natural.Core
+import Natural.Decl
 import Natural.Lsp
 
 open Natural
