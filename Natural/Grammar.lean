@@ -139,6 +139,7 @@ sdef reason
   | reference
   | "induction"
   | "the" "inductive" "hypothesis"
+  | "the" &"definition" "of" ident
 
 sdef eq_expr_by
   | "=" expr ("by" reason)?

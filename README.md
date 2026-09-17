@@ -556,7 +556,7 @@ Definition.  The type ℤ is defined as the quotient Nat × Nat / ~.
 
 If `Q` is a quotient type, then the notation `Q[x]` indicates a value of type `Q`that is derived from `x`, a value of the underlying type.  In our example, the notation `ℤ[(a, b)]` indicates an element of `ℤ` represented by the pair of naturals `(a, b)`.
 
-Using this notation you may write implicit function definitions on quotient types that refer to elements of the underlying type.  (At the moment any such function must be an [arithmetic operator](#expressions) supported by Natural Lean.)  Any such definition must include a justification proving that the function definition is valid.  Specifically, it must show that if a ~ b and c ~ d, then (a ∘ c) ~ (b ∘ d), where ∘  is the operator being defined and ~ is the equivalence relation used to define the quotient type.
+Using this notation you may write implicit function definitions on quotient types that refer to elements of the underlying type.  (At the moment any such function must be an [arithmetic operator](#expressions) supported by Natural Lean.)  Any such definition must include a justification proving that the function definition is valid.  Specifically, it must show that if `a ~ b` and `c ~ d`, then `(a ∘ c) ~ (b ∘ d)`, where `∘`  is the operator being defined and `~` is the equivalence relation used to define the quotient type.
 
 For example, we might define the addition operation on the quotient type `ℤ` as follows:
 
@@ -570,7 +570,15 @@ Definition.  For all a, b, c, d : Nat, ℤ[(a, b)] + ℤ[(c, d)] = ℤ[(a + c, b
 Justification.  By ℤ.add_equiv.
 ```
 
+We sometimes want to prove theorems about a quotient type `Q`by transforming an equation involving the quotient type into one involving the underlying type.  You may write `By the definition of Q` to carry out this transformation.  For example, if we define the integers as a quotient type with an addition operation as outlined above, we may then prove that addition is commutative:
 
+```
+Theorem.  For all x, y : ℤ, x + y = y + x.
+
+Proof.  By the definition of ℤ.
+```
+
+In this instance Natural Lean's default tactic can prove the transformed goal automatically, so we do not need to write any further proof steps.
 ### Visual Studio Code integration
 
 You may notice that Visual Studio Code doesn't display a double checkmark beside natural-language theorems that have been proven.  That's due to a [bug](https://github.com/leanprover/lean4/issues/15044) in Lean.  I have submitted a [pull request](https://github.com/leanprover/lean4/pull/15045) that will fix it, so hopefully that will land soon.

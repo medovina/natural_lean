@@ -1,5 +1,7 @@
 import Natural
 
+open Lean
+
 Definition.  For all n, k, j, i : Nat, (n, j) ~ (k, i) if and only if n + i = k + j.
 
 Theorem.  Let h, i, j, k, m, n : Nat.
@@ -21,3 +23,7 @@ Theorem.  Let n, j, k, i, n₁, j₁, k₁, i₁ : Nat.  If (n, j) ~ (n₁, j₁
 Definition.  For all a, b, c, d : Nat, ℤ[(a, b)] + ℤ[(c, d)] = ℤ[(a + c, b + d)].
 
 Justification.  By ℤ.add_equiv.
+
+Theorem.  For all x, y : ℤ, x + y = y + x.
+
+Proof.  By the definition of ℤ.

@@ -238,13 +238,6 @@ def lets_vars (lets: Option ProofStep) : LocalEnv := match lets with
   | .some (.let ids type) => ids.map (·, type)
   | _ => panic! "lets_vars: unexpected step"
 
-def generalize (lets: Option ProofStep) (t: Term) : CoreM Term := match lets with
-  | .none => pure t
-  | .some (.let ids type) =>
-      let ids := (ids.inter (free_vars t)).toArray.map mkIdent
-      if ids == #[] then pure t else `(∀ $ids:ident* : $type, $t)
-  | _ => throwError "generalize: unexpected step"
-
 def translate_proofs (lets: Option ProofStep) (thms_proofs: List (ThmDecl × Option _Proof))
     : CoreM (List (ThmDecl × Option Term)) :=
   thms_proofs.mapM (fun (decl, proof) => withRef decl.thm do

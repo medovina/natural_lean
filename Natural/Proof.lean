@@ -41,12 +41,14 @@ inductive Reason where
   | tactic (t: Syntax.Tactic)
   | apply (ns: List Ident)
   | induction
+  | by_definition_of (i: Ident)
 
 def of_reason: TSyntax `reason → CoreM (Option Reason)
   | `(reason| [ $t:tactic ]) => pure (Reason.tactic t)
   | `(reason| $r:reference) => .some <$> Reason.apply <$> of_reference r
   | `(reason| induction) => pure Reason.induction
   | `(reason| the inductive hypothesis) => pure .none
+  | `(reason| the definition of $i:ident) => pure (.some (.by_definition_of i))
   | _ => throwError "unknown reason"
 
 def of_eq_expr_by: TSyntax `eq_expr_by → CoreM (Term × Option Reason)
@@ -354,11 +356,13 @@ def with_info2 (t: Term) (source: Term): Term :=
     ⟨t.raw.setInfo (adjust_info 2 (get_info source))⟩
 
 def tactic : Option Reason → CoreM Term
-  | .none
-  | .some (.apply []) => `(by default)
-  | .some (.apply ns) => `(by default_apply $(ns.toArray)*)
-  | .some (.tactic t) => `(by { $t })
-  | .some (.induction) => `(by intro x ; induction x <;> default)
+  | .none => `(by default)
+  | some r => match r with
+    | .apply [] => `(by default)
+    | .apply ns => `(by default_apply $(ns.toArray)*)
+    | .tactic t => `(by { $t })
+    | .induction => `(by intro x ; induction x <;> default)
+    | .by_definition_of _ => throwError "can't follow definition"
 
 def proof_by_multi (names: List Ident) : CoreM Term :=
   tactic (.some (.apply names))
@@ -470,6 +474,13 @@ inductive _Proof where
   | steps (l: List ProofStep)
   | proof_by (r: Option Reason)
 
+def generalize (lets: Option ProofStep) (t: Term) : CoreM Term := match lets with
+  | .none => pure t
+  | .some (.let ids type) =>
+      let ids := (ids.inter (free_vars t)).toArray.map mkIdent
+      if ids == #[] then pure t else `(∀ $ids:ident* : $type, $t)
+  | _ => throwError "generalize: unexpected step"
+
 def translate_proof (lets: Option ProofStep) (thm: Term): _Proof → CoreM Term
   | .steps steps => do
       let steps ← match lets with
@@ -484,6 +495,21 @@ def translate_proof (lets: Option ProofStep) (thm: Term): _Proof → CoreM Term
       trace[natural.tree] show_blocks blocks
       let blocks ← blocks.mapM (resolve_block [])
       Prod.fst <$> translate True [] (← `(())) none blocks
+  | .proof_by (.some (.by_definition_of i)) => do
+      let env ← getEnv
+      let q := i.getId
+      let .some info := env.find? q | throwError "type not found"
+      let .some val := info.value? | throwError "no value"
+      unless val.isAppOf ``Quotient do throwError "not a quotient type"
+      let qvars := (bound_vars (← generalize lets thm)).filterMap (fun (x, type) => do
+        if Syntax.getId type == q then some (mkIdent x) else none)
+      if qvars == [] then throwError "no arguments of given type"
+      let ind ← qvars.mapM (fun x => `(tactic| cases $x:ident using Quotient.ind))
+      `(by
+        intros $(qvars.toArray)*
+        $(ind.toArray)*
+        apply Quotient.sound
+        default)
   | .proof_by r => tactic r
 
 def of_proof: TSyntax `proof → CoreM _Proof

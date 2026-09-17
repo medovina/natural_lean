@@ -142,6 +142,10 @@ def mk_binder (bt: BinderType) (xs: List Name) (type: Term) (t: Term) : CoreM Te
     | .all => `(∀ $xs* : $type, $t)
     | .exists => `(∃ $[$xs:ident]* : $type, $t)
 
+def bound_vars (t: Term): List (Name × Term) := match match_binder t with
+  | .some (_, vars, type, _) => vars.map (·, type)
+  | .none => []
+
 -- syntax builders
 
 def non_keywords :=
