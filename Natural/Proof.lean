@@ -360,8 +360,10 @@ def tactic : Option Reason → CoreM Term
   | .some (.tactic t) => `(by { $t })
   | .some (.induction) => `(by intro x ; induction x <;> default)
 
-def proof_by (name: Option Ident) : CoreM Term :=
-  tactic (.some (.apply name.toList))
+def proof_by_multi (names: List Ident) : CoreM Term :=
+  tactic (.some (.apply names))
+
+def proof_by (name: Option Ident) : CoreM Term := proof_by_multi name.toList
 
 def produces_let : ProofStep → Bool
   | .let_def .. | .is_some .. => true

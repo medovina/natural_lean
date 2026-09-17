@@ -24,6 +24,9 @@ def mapM_fst [Monad m] (f : α → m γ) : α × β → m (γ × β)
 def mapM_snd [Monad m] (f : β → m γ) : α × β → m (α × γ)
   | (x, y) => do pure (x, ← f y)
 
+def mapM_pair {α : Type u} {β : Type v} [Monad m] (f : α → m β) : α × α → m (β × β)
+  | (x, y) => (·,·) <$> f x <*> f y
+
 def pairM [Monad m] (x: m α) (y: m β) := Prod.mk <$> x <*> y
 
 -- lists

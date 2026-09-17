@@ -17,3 +17,7 @@ Justification.  By ℤ.is_equiv.
 Theorem.  Let n, j, k, i, n₁, j₁, k₁, i₁ : Nat.  If (n, j) ~ (n₁, j₁) and (k, i) ~ (k₁, i₁) then
 
   (n + k, j + i) ~ (n₁ + k₁, j₁ + i₁).   [ℤ.add_equiv]
+
+Definition.  For all a, b, c, d : Nat, ℤ[(a, b)] + ℤ[(c, d)] = ℤ[(a + c, b + d)].
+
+Justification.  By ℤ.add_equiv.

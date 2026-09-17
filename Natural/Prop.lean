@@ -22,8 +22,6 @@ partial def syntax_free_vars (s: Syntax): List Name := match match_binder s with
 
 def free_vars (t: Term): List Name := syntax_free_vars (t.raw)
 
--- terms
-
 def name_to_term (n: Name) : CoreM Term := `($(mkIdent n))
 
 def to_ident: Term → Ident
@@ -138,6 +136,7 @@ mutual
       | `(expr| $e:expr ( $f:expr )) => `(app_or_mul $(← of_expr e) $(← of_expr f))
       | `(expr| ( $e:expr )) => of_expr e
       | `(expr| ( $e:expr , $f:expr)) => `( ($(← of_expr e), $(← of_expr f)) )
+      | `(expr| $i:ident [ $e:expr ]) => `( (Quotient.mk' $(← of_expr e) : $i) )
       | _ =>
         let elabFns := naturalElabAttribute.getEntries (← getEnv) expr.raw.getKind
         for elabFn in elabFns do

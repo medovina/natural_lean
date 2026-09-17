@@ -71,6 +71,7 @@ syntax:70 expr:70 ("·" <|> "×") expr:71 : expr
 syntax:65 expr:65 "+" expr:66 : expr
 syntax (priority := 2) expr "(" expr ")" : expr
 syntax "(" expr ("," expr)? ")" : expr
+syntax ident "[" expr "]" : expr  -- quotient type projection
 
 -- prop
 
@@ -268,9 +269,9 @@ syntax constructor := const ":" type
 syntax inductive_def :=
   "inductively" "with" "constructors" sepBy1(constructor, "and") "."
 
-syntax quotient_def :=
-  "as" "the" "quotient" type "/" rel_op "."
-  "Justification" "." "By" thm_name "."
+syntax justification := "Justification" "." "By" thm_name "."
+
+syntax quotient_def := "as" "the" "quotient" type "/" rel_op "." justification
 
 sdef type_spec
   | inductive_def
@@ -289,19 +290,19 @@ syntax prop_item := label "." top_sentence
 
 syntax _operator := "binary" ? ("operation" <|> "operator")
 
+sdef direct_def
+  | _for_all ids_type "," prop "." justification ?
+  | num ":" type "=" expr "."
+
 syntax cases_def :=
   "The" _operator binary_op "on" ident
   "is" "defined" "recursively" "such" "that" "for" "all" ids_type ","
   prop_item+
 
-sdef direct_def
-  | _for_all ids_type "," prop "."
-  | num ":" type "=" expr "."
-
 sdef definition
   | type_def
-  | cases_def
   | direct_def
+  | cases_def
 
 -- theorems
 
