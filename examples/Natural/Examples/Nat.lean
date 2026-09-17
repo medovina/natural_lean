@@ -3,8 +3,6 @@ import Natural.Examples.Set
 
 -- This file defines the natural numbers inductively and develops their elementary theory including addition, ordering, and multiplication.  It is entirely independent of Lean's built-in Nat type.
 
--- The development here loosely follows Mendelson, _Number Systems and the Foundations of Analysis_ (1973).  However in Mendelson 1 is the first natural number and we begin with 0, so a number of proofs here are somewhat different.
-
 -- definition of natural numbers
 
 Definition.  The type ℕ (the natural numbers) is defined inductively with constructors 0 : ℕ and S : ℕ → ℕ.
@@ -257,7 +255,7 @@ Proof.
 
   Conversely, suppose that S(x) ≤ y.  If x ≥ y then by ℕ.le_trans we deduce that S(x) ≤ x, which is a contradiction to ℕ.lt_succ and ℕ.lt_trichotomy.  So by ℕ.lt_trichotomy it must be that x < y.
 
--- Multiplication
+-- multiplication: definition
 
 Definition.  The binary operation · on ℕ is defined recursively such that for all x, y : ℕ,
 
@@ -265,6 +263,8 @@ Definition.  The binary operation · on ℕ is defined recursively such that for
   b. x · S(y) = (x · y) + x.
 
 Corollary.  For all x : ℕ, x · 0 = 0.   [ℕ.mul_zero: @simp]
+
+-- multiplication: theorems
 
 Theorem.  For all x, y, z : ℕ, (y + z) · x = y · x + z · x.    [ℕ.add_mul]
 

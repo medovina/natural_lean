@@ -561,7 +561,7 @@ Using this notation you may write implicit function definitions on quotient type
 For example, we might define the addition operation on the quotient type `ℤ` as follows:
 
 ```
-Theorem.  Let n, j, k, i, n₁, j₁, k₁, i₁ : Nat.  If (n, j) ~ (n₁, j₁) and (k, i) ~ (k₁, i₁) then
+Lemma.  Let n, j, k, i, n₁, j₁, k₁, i₁ : Nat.  If (n, j) ~ (n₁, j₁) and (k, i) ~ (k₁, i₁) then
 
   (n + k, j + i) ~ (n₁ + k₁, j₁ + i₁).   [ℤ.add_equiv]
 
