@@ -77,7 +77,7 @@ syntax ident "[" expr "]" : expr  -- quotient type projection
 
 kdef rel_op = "=" | "≠" | "<" | "≮" | "≤" | ">" | "≯" | "≥" | "∈" | "~"
 
-kdef binary_op = "+" | "·" | "^" | "<" | "≤" | "~"
+kdef binary_op = "+" | "·" | "×" | "^" | "<" | "≤" | "~"
 
 sdef rel_prop
   | expr (rel_op expr)+

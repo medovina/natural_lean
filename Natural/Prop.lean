@@ -98,7 +98,7 @@ def syntax_atom (t: TSyntax α): String := match t.raw with
 
 def mk_false : Term := mkIdent ``False
 
-def op_map := [("·", "*"), ("~", "≈")]
+def op_map := [("·", "*"), ("×", "*"), ("~", "≈")]
 
 def map_op (op: String) := (op_map.lookup op).getD op
 

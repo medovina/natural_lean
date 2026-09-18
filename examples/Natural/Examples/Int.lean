@@ -32,17 +32,19 @@ Definition.  For all a, b, c, d : Nat, ℤ[(a, b)] + ℤ[(c, d)] = ℤ[(a + c, b
 
 Justification.  By ℤ.add_equiv.
 
--- addition: basic theorems
-
 Theorem.  Let a, b, c : ℤ.
 
-  a. a + b = b + a.
-  b. a + (b + c) = (a + b) + c.
-  c. a + 0 = a.
+  a. a + b = b + a.  [ℤ.add_comm]
+  b. a + (b + c) = (a + b) + c.  [ℤ.add_assoc]
+  c. a + 0 = a.  [ℤ.add_zero: @simp]
 
 Proof.
 
   a - c. By the definition of ℤ.
+
+Corollary.  The operator + is commutative on ℤ.
+
+Corollary.  The operator + is associative on ℤ.
 
 -- multiplication: definition
 
@@ -60,11 +62,15 @@ Justification.  By ℤ.mul_equiv.
 
 Theorem. Let a, b, c : ℤ.
 
-  a. a × b = b × a.
-  b. a × (b × c) = (a × b) × c.
-  c. a × (b + c) = a × b + a × c.
-  d. a × 1 = a.
+  a. a × b = b × a.  [ℤ.mul_comm]
+  b. a × (b × c) = (a × b) × c.  [ℤ.mul_assoc]
+  c. a × (b + c) = a × b + a × c.  [ℤ.mul_add]
+  d. a × 1 = a.  [ℤ.mul_one: @simp]
 
 Proof.
 
   a - d. By the definition of ℤ.
+
+Corollary.  The operator × is commutative on ℤ.
+
+Corollary.  The operator × is associative on ℤ.

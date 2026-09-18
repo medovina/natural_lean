@@ -321,16 +321,21 @@ def of_theorem (corollary_of: List Ident)
         of_theorem_body name corollary_of b
     | _ => throwError "unknown theorem"
 
-def of_top_decl : TSyntax `top_decl → CoreM (List Command × List Ident)
-  | `(top_decl| Definition . $d) => (·, []) <$> of_definition d
-  | `(top_decl| $_:_thm $t:_theorem) => of_theorem [] t
+def of_top_decl : TSyntax `top_decl → CoreM (List Command × List Ident × Bool)
+  | `(top_decl| Definition . $d) => (·, [], false) <$> of_definition d
+  | `(top_decl| $_:_thm $t:_theorem) => do
+    let (cmds, names) ← of_theorem [] t
+    pure (cmds, names, true)
   | _ => throwError "unknown top_decl"
 
 elab t:top : command => do
   let cs : Command ← liftCoreM $ command_set =<< match t with
     | `(top| $d:top_decl $[Corollary $ts:_theorem]*) => do
-        let (commands, names) ← of_top_decl d
-        let corrs ← List.map (·.1) <$> ts.toList.mapM (of_theorem names)
+        let (commands, names, is_thm) ← of_top_decl d
+        let corrs ← List.map (·.1) <$> ts.toList.mapM (fun c => withRef c.raw do
+          if is_thm && names == []
+            then throwError "unnamed theorem may not have a corollary"
+            else of_theorem names c)
         pure $ commands ++ corrs.flatten
     | _ => throwError "unknown top"
   elabCommand cs
