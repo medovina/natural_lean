@@ -193,11 +193,9 @@ Theorem.  Let x, y, z : ℕ.
 
 Proof.
 
-  b. By ℕ.lt_trans.
-  c. By ℕ.lt_trans.
+  b - c. By ℕ.lt_trans.
   d. By ℕ.lt_of_lt_of_le.
-  e. By ℕ.lt_trichotomy.
-  f. By ℕ.lt_trichotomy.
+  e - f. By ℕ.lt_trichotomy.
 
 instance: Std.IsLinearOrder ℕ where
   le_refl := ℕ.le_refl
@@ -236,8 +234,7 @@ Proof.
 
   h. Suppose that x < y and u < v.  By ℕ.add_lt_add_right x + u < y + u and u + y < v + y, so y + u < y + v.  Hence by ℕ.lt_trans x + u < y + v.
 
-  i. By ℕ.add_lt_add_of_lt_of_lt.
-  j. By ℕ.add_lt_add_of_lt_of_lt.
+  i - j. By ℕ.add_lt_add_of_lt_of_lt.
   k. By ℕ.add_lt_add_of_le_of_lt and ℕ.add_le_add_iff_right.
 
 Theorem.  Let x, y : ℕ.
@@ -288,8 +285,7 @@ Lemma.  Let x : ℕ.
 
 Proof.
 
-  a. By induction.
-  b. By induction.
+  a - b. By induction.
 
 Theorem.  For all x, y : ℕ,
 

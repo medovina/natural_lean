@@ -42,9 +42,7 @@ Theorem.  Let a, b, c : ℤ.
 
 Proof.
 
-  a. By the definition of ℤ.
-  b. By the definition of ℤ.
-  c. By the definition of ℤ.
+  a - c. By the definition of ℤ.
 
 -- multiplication: definition
 
@@ -69,7 +67,4 @@ Theorem. Let a, b, c : ℤ.
 
 Proof.
 
-  a. By the definition of ℤ.
-  b. By the definition of ℤ.
-  c. By the definition of ℤ.
-  d. By the definition of ℤ.
+  a - d. By the definition of ℤ.

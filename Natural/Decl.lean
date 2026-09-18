@@ -12,12 +12,22 @@ def of_label: TSyntax ``label → CoreM Name
   | `(label| $i:ident) => pure i.getId
   | _ => throwError "unknown label"
 
-def of_proof_item: TSyntax ``proof_item → CoreM (Name × _Proof)
-  | `(proof_item| $i:label . $p:proof) => do pure (← of_label i, (← of_proof p))
+def label_range (i j: Name) : CoreM (List Name) :=
+  match i.toString.toList, j.toString.toList with
+    | [c], [d] => pure $ (c ...= d).toList.map (Name.mkSimple ∘ Char.toString)
+    | _, _ => throwError "label must be a single letter"
+
+def of_proof_item: TSyntax ``proof_item → CoreM (List (Name × _Proof))
+  | `(proof_item| $i:label $[- $j:label]? . $p:proof) => do
+      let (i, j) ← pairM (of_label i) (j.mapM of_label)
+      let p ← of_proof p
+      match j with
+        | .some j => .map (·, p) <$> label_range i j
+        | .none => pure [(i, p)]
   | _ => throwError "unknown proof_item"
 
 def of_proof_items: TSyntax ``proof_items → CoreM (List (Name × _Proof))
-  | `(proof_items| $ps:proof_item*) => ps.toList.mapM of_proof_item
+  | `(proof_items| $ps:proof_item*) => ps.toList.flatMapM of_proof_item
   | _ => throwError "unknown proof_items"
 
 -- definitions

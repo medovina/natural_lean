@@ -3,9 +3,9 @@ import Batteries.Data.List.Basic
 
 open Lean hiding mkStrLit
 open Lean.Parser hiding mkIdent
+open Lean.Syntax
 open Elab Tactic Meta
 open Elab.Command
-open Lean.Syntax
 
 infix:50 "≮" => fun x y => ¬(x < y)
 infix:50 "≯" => fun x y => ¬(x > y)

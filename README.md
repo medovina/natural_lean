@@ -195,6 +195,22 @@ Proof.
 
 A `Let` declaration at the top of a theorem group will automatically be included at the beginning of each proof in the group, unless that proof already begins with its own `Let` declaration.
 
+A label range such as `a - c.` indicates that several theorems in a theorem group share the same proof reason.  For example,
+
+```
+Proof.
+  a - c. By induction.
+```
+
+is the same as
+
+```
+Proof.
+  a. By induction.
+  b. By induction.
+  c. By induction.
+```
+
 #### Corollaries
 
 A theorem may be followed by one or more __corollaries__. A corollary is just like an ordinary theorem, except that if it has no proof, the preceding theorem is automatically applied as a proof reason.  For example,

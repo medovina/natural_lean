@@ -259,7 +259,7 @@ sdef proof
 
 syntax label := ident
 
-syntax proof_item := label "." proof
+syntax proof_item := label ("-" label)? "." proof
 
 syntax proof_items := proof_item+
 
