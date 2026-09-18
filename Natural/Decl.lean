@@ -299,7 +299,7 @@ def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
             pure (command, name))
         pure (commands, (names.flatMap Option.toList))
     | `(theorem_body| The $_:_operator $op:binary_op is $_:_a ? $kind:natural_type
-                      on $type:type . $pn:post_name) => do
+                      on $type:type . $pn:post_name) => withRef body do
         let env ← getEnv
         let kind ← of_natural_type kind  -- name of type class or structure
         unless Lean.isStructure env kind.getId do throwError "not a structure"
