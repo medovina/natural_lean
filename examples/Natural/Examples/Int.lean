@@ -18,9 +18,9 @@ Definition.  The type ℤ is defined as the quotient Nat × Nat / ~.
 
 Justification.  By ℤ.is_equiv.
 
-Definition.  0 : ℤ = ℤ[(0, 0)].
+Definition.  0 = ℤ[(0, 0)].
 
-Definition.  1 : ℤ = ℤ[(1, 0)].
+Definition.  1 = ℤ[(1, 0)].
 
 -- addition: definition
 

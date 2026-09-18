@@ -205,6 +205,10 @@ def generate_op_def (op: String) (args: List Ident) (arg_type: Ident) (eqs: Arra
   let a ← `(attribute [grind =] $(mkIdent spec))
   pure (def_cmds ++ [i, a])
 
+def infer_type : TSyntax `expr → CoreM Term
+  | `(expr| $t:ident [ $_:expr ]) => pure t
+  | _ => throwError "must specify constant type"
+
 def of_direct_def : TSyntax `direct_def → CoreM (List Command)
   | `(direct_def| $_:_for_all $ids_type:ids_type , $p:prop . $just:justification ?) => do
       let (args, type) ← of_ids_type ids_type
@@ -214,9 +218,10 @@ def of_direct_def : TSyntax `direct_def → CoreM (List Command)
         | `($type:ident) =>
               generate_op_def op args.toList type #[eq] (← just.mapM of_justification)
         | _ => throwError "simple type expected"
-  | `(direct_def| $n:num : $type:type = $e:expr .) => do
-      let e ← of_expr e >>= resolve_term []
-      pure [← nat_instance (← of_type type) n e]
+  | `(direct_def| $n:num $[: $type:type]? = $e:expr .) => do
+      let expr ← of_expr e >>= resolve_term []
+      let type ← type.elim (infer_type e) of_type
+      pure [← nat_instance type n expr]
   | _ => throwError "unknown direct_def"
 
 def of_cases_def : TSyntax ``cases_def → CoreM (List Command)

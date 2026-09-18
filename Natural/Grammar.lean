@@ -293,7 +293,7 @@ syntax _operator := "binary" ? ("operation" <|> "operator")
 
 sdef direct_def
   | _for_all ids_type "," prop "." justification ?
-  | num ":" type "=" expr "."
+  | num (":" type)? "=" expr "."
 
 syntax cases_def :=
   "The" _operator binary_op "on" ident
