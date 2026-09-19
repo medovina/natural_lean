@@ -10,7 +10,7 @@ namespace Natural
 syntax "bind" ident+ "," term "," term : term
 
 partial def syntax_free_vars (s: Syntax): List Name := match match_binder s with
-  | .some (_bt, xs, _type, t) => (syntax_free_vars t).removeAll xs
+  | .some (_bt, xs, t) => (syntax_free_vars t).removeAll (xs.map (·.1.getId))
   | _ => match s with
     | `(bind $xs:ident*, $_:term, $t:term) =>
         (syntax_free_vars t).removeAll (xs.toList.map TSyntax.getId)
@@ -59,13 +59,14 @@ def of_const : TSyntax `const → CoreM Term
 partial def of_type : TSyntax `type → CoreM Term
   | `(type| $i:ident) => `($i)
   | `(type| Prop) => `(Prop)
-  | `(type| $t:type → $u:type) => do `($(← of_type t) → $(← of_type u))
+  | `(type| $t:type ( $u:type ) ) => do `($(← of_type t) $(← of_type u))
   | `(type| $t:type × $u:type) => do `($(← of_type t) × $(← of_type u))
+  | `(type| $t:type → $u:type) => do `($(← of_type t) → $(← of_type u))
   | _ => throwError "unknown multi_specifier"
 
-def of_id_list : TSyntax ``id_list → CoreM (Array Ident)
+def of_id_list : TSyntax ``id_list → CoreM (List Ident)
   | `(id_list| $id:ident $[, $ids:ident $_:comma_ahead]* $[$[,]? and $id2:ident]?) => do
-      pure $ #[id] ++ ids ++ id2.toArray
+      pure $ [id] ++ ids.toList ++ id2.toList
   | _ => throwError "unknown id_list"
 
 def idents_to_nat_type (n1: Ident) (n2: Option Ident) := match n2 with
@@ -79,13 +80,21 @@ def of_natural_type (ntype: TSyntax ``natural_type) : CoreM Ident :=
         mkIdentFromRef (← lookup_natural s) (canonical := true)
     | _ => throwError "unknown natural_type"
 
-def of_ids_type : TSyntax `ids_type → CoreM (Array Ident × Term)
-  | `(ids_type| $xs:ident,* : $t:type) => do pure (xs.getElems, ← of_type t)
-  | `(ids_type| $t:natural_type $ids:id_list) => do
-      let type ← of_natural_type t
-      let ids ← of_id_list ids
-      pure (ids, type)
+def of_ids_type : TSyntax ``ids_type → CoreM (List Ident × Term)
+  | `(ids_type| $xs:ident,* : $t:type) => do
+    pure (xs.getElems.toList, ← of_type t)
   | _ => throwError "unknown ids_type"
+
+def of_ids_types : TSyntax `ids_types → CoreM (List (Ident × Term))
+  | `(ids_types| $[$ids:ids_type] and*) => do
+      ids.toList.flatMapM (fun i => do
+        let (xs, type) ← of_ids_type i
+        pure $ xs.map (·, type))
+  | `(ids_types| $t:natural_type $ids:id_list) => do
+      let type ← of_natural_type t
+      let xs ← of_id_list ids
+      pure $ xs.map (·, type)
+  | _ => throwError "unknown ids_types"
 
 def of_multi_specifier : TSyntax `multi_specifier → List Term → CoreM (List Term)
   | `(multi_specifier| $_:_at_least) => fun ts => List.singleton <$> multi_or ts
@@ -105,8 +114,10 @@ def map_op (op: String) := (op_map.lookup op).getD op
 
 def of_binary_op (op: TSyntax α): String := map_op (syntax_atom op)
 
-def op_class := [("+", `add, ``Add), ("*", `mul, ``Mul), ("^", `pow, ``Pow),
-                 ("<", `lt, ``LT), ("≤", `le, ``LE), ("≈", `Equiv, ``HasEquiv)]
+def op_class := [
+  ("+", `add, ``Add), ("*", `mul, ``Mul), ("^", `pow, ``Pow),
+  ("<", `lt, ``LT), ("≤", `le, ``LE), ("≈", `Equiv, ``HasEquiv),
+  ("∈", `mem, ``Membership)]
 
 def super_char (s: Syntax) : Char := (s.getArg 0).getAtomVal.front
 
@@ -178,24 +189,25 @@ mutual
 
   partial def of_prop (prop: TSyntax `prop): CoreM Term := withRef prop do
     match prop with
+      | `(prop| $e:expr is true) => of_expr e
       | `(prop| $e:rel_prop) => of_rel_prop e
       | `(prop| $p:prop and $q:prop) => do `($(← of_prop p) ∧ $(← of_prop q))
       | `(prop| $_:_either ? $p:prop or $q:prop) => do `($(← of_prop p) ∨ $(← of_prop q))
       | `(prop| $p:prop implies $q:prop)
       | `(prop| $_:_if $p:prop $[,]? then $q:prop) => do `($(← of_prop p) → $(← of_prop q))
       | `(prop| $p:prop $_:_iff $q:prop) => do `($(← of_prop p) ↔ $(← of_prop q))
-      | `(prop| $_:_for_all $ids_type:ids_type , $p:prop)
-      | `(prop| $p:prop $_:_for_all $ids_type:ids_type) => do
-            let (x, t) ← of_ids_type ids_type
-            `(∀ $x* : $t, $(← of_prop p))
-      | `(prop| $_:_there $_:_exists $s:some_or_no ? $ids_type:ids_type such that $p:prop) => do
-            let (x, t) ← of_ids_type ids_type
+      | `(prop| $_:_for_all $ids_type:ids_types , $p:prop)
+      | `(prop| $p:prop $_:_for_all $ids_type:ids_types) => do
+            let xs ← of_ids_types ids_type
+            `(∀ $(← binders xs)*, $(← of_prop p))
+      | `(prop| $_:_there $_:_exists $s:some_or_no ? $ids_type:ids_types such that $p:prop) => do
+            let xs ← of_ids_types ids_type
             let b ← s.elim (pure true) of_some_or_no
-            let t ← `(∃ $[$x:ident]* : $t, $(← of_prop p))
+            let t ← `(∃ $(← ex_binders xs)*, $(← of_prop p))
             if b then pure t else `(¬ $t)
-      | `(prop| $p:prop $_:_for some $ids_type:ids_type) => do
-            let (x, t) ← of_ids_type ids_type
-            `(∃ $[$x:ident]* : $t, $(← of_prop p))
+      | `(prop| $p:prop $_:_for some $ids_type:ids_types) => do
+            let xs ← of_ids_types ids_type
+            `(∃ $(← ex_binders xs)*, $(← of_prop p))
       | `(prop| $p:prop , and $q:prop) => do `($(← of_prop p) ∧ $(← of_prop q))
       | `(prop| $_:_either ? $p:prop , or $q:prop) => do `($(← of_prop p) ∨ $(← of_prop q))
       | `(prop| $m:multi_or) => of_multi_or m
@@ -233,9 +245,9 @@ partial def resolve (le: LocalEnv) (s: Syntax) : CoreM (Term × Bool) := match s
       let u ← resolve1 le u
       pure (← if t_is_fun then `($t $u) else `($t * $u), false)
   | _ => match match_binder s with
-    | .some (bt, xs, type, t) => do
-        let vars := xs.map (·, type)
-        pure $ (← mk_binder bt xs type (← resolve1 (vars ++ le) t), false)
+    | .some (bt, vars, t) => do
+        let names := map_fst TSyntax.getId vars
+        pure $ (← mk_binder bt vars (← resolve1 (names ++ le) t), false)
     | .none => match s with
       | `(bind $xs:ident*, $type, $t) =>
           let vars := xs.toList.map (·.getId, type)

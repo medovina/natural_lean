@@ -135,24 +135,23 @@ def of_prop_item : TSyntax ``prop_item → CoreM ThmDecl
       pure ⟨← of_label i, thm, name, attr⟩
   | _ => throwError "unknown prop_item"
 
-def parse_def_eq : Term → CoreM (String × Term × Term × Term)
+def parse_def_eq : Term → CoreM (Term × String × Term × Term)
   | `($l = $r)
   | `($l ↔ $r) => do
       let (a, op, b) ← parse_infix l
-      pure (map_op op, a, b, r)
+      pure (a, map_op op, b, r)
   | _ => throwError "equation expected"
 
 def eq_to_alt_expr (op: String) (fname: Ident) (t: Term): CoreM (TSyntax ``matchAltExpr) := do
-  let (op', a, b, r) ← parse_def_eq t
+  let (a, op', b, r) ← parse_def_eq t
   if op == op' then
     `(matchAltExpr| | $a, $b => $(replace_infix op fname r))
   else throwError "wrong infix op"
 
-partial def pattern_type (arg_names: List Name) (arg_type: Ident) : Term → CoreM Term :=
+partial def pattern_type (args: LocalEnv) : Term → CoreM Term :=
   let rec f : Term → CoreM Term
     | `($x:ident) =>
-        if arg_names.elem x.getId then pure arg_type
-          else throwError "undefined variable in pattern"
+        (args.lookup x.getId).getDM (throwError "undefined variable in pattern")
     | `(($t, $u)) => do `($(← f t) × $(← f u))
     | _ => throwError "unrecognized pattern in definition"
   f
@@ -162,49 +161,64 @@ partial def flat_name : Term → CoreM String
   | `($t × $u) => do pure $ (← flat_name t) ++ "_" ++ (← flat_name u)
   | _ => throwError "flat_name: can't encode"
 
-def embed_name (type: Term) (name: Name) : CoreM Ident := mkIdent <$> match type with
-  | `($i:ident) => pure $ i.getId ++ name
-  | _ => do pure $ Name.mkSimple ((← flat_name type) ++ "_" ++ name.toString)
+partial def embed_name (type: Term) (name: Name) : CoreM Ident := match type with
+  | `($i:ident) => pure $ mkIdent (i.getId ++ name)
+  | `($t $_u) => embed_name t name
+  | _ => do pure $ mkIdent $ Name.mkSimple ((← flat_name type) ++ "_" ++ name.toString)
 
-def generate_op_def (op: String) (args: List Ident) (arg_type: Ident) (eqs: Array Term)
+partial def subst_base (t: Term) : Term → CoreM Term
+  | `($u $v) => do `($(← subst_base t u) $v)
+  | _ => pure t
+
+def generate_op_def (op: String) (args: List (Name × Term)) (eqs: List Term)
     (justification: Option Ident) : CoreM (List Command) := do
   let (op_name, cl) ← (op_class.lookup op).getDM $ throwError "generate_def: no op"
-  let arg_fname ← embed_name arg_type op_name
-  let arg_names := args.map (·.getId)
-  let eqs ← eqs.mapM (resolve_term (arg_names.map (·, arg_type)))
-  let (def_cmds, op_type, fname) ← match eqs with
-    | #[eq] =>  -- direct function definition
-        let (_op, x, y, r) ← parse_def_eq eq
+  let eqs ← eqs.mapM (resolve_term args)
+  let (def_cmds, target_type, fname) ← match eqs with
+    | [eq] =>  -- direct function definition
+        let (x, _op, y, r) ← parse_def_eq eq
+        let (x, y) := if op == "∈" then (y, x) else (x, y)
         match x, y with
           | `($ix:ident), `($iy:ident) => do
-              let d ← `(def $arg_fname ($ix $iy : $arg_type) := $r)
-              pure ([d], arg_type, arg_fname)
+              let (tx, ty) ← mapM_pair (pattern_type args) (x, y)
+              let fname ← embed_name tx op_name
+              let d ← `(def $fname ($ix : $tx) ($iy : $ty) := $r)
+              pure ([d], tx, fname)
           | `( (Quotient.mk' $x : $qx:ident) ), `( (Quotient.mk' $y : $qy:ident) ) => do
-              let op_type := qx
-              let aux_name ← embed_name op_type (op_name ++ `aux)
-              let (tx, ty) ← mapM_pair (pattern_type arg_names arg_type) (x, y)
+              let target_type := qx
+              let aux_name ← embed_name target_type (op_name ++ `aux)
+              let (tx, ty) ← mapM_pair (pattern_type args) (x, y)
               let aux ← `(def $aux_name | ($x : $tx), ($y : $ty) => $r)
               let by_thms ← proof_by_multi (mkIdent ``Quotient.sound :: justification.toList)
-              let fname ← embed_name op_type op_name
+              let fname ← embed_name target_type op_name
               let d ← `(def $fname (a: $qx) (b: $qy) : $qx :=
                 Quotient.lift₂ $aux_name $by_thms a b)
-              pure ([aux, d], op_type, fname)
+              pure ([aux, d], target_type, fname)
           | _, _ =>
-              let (tx, ty) ← mapM_pair (pattern_type arg_names arg_type) (x, y)
-              let name ← embed_name tx op_name
-              ([·], ⟨tx⟩, name) <$> `(def $name | ($x : $tx), ($y : $ty) => $r)
-    | _ => do  -- by cases
-        let alts ← eqs.mapM (eq_to_alt_expr op arg_fname)
+              let (tx, ty) ← mapM_pair (pattern_type args) (x, y)
+              let fname ← embed_name tx op_name
+              ([·], ⟨tx⟩, fname) <$> `(def $fname | ($x : $tx), ($y : $ty) => $r)
+    | eq :: _ => do  -- by cases
+        let (x, _, _, _) ← parse_def_eq eq
+        let target_type ← pattern_type args x
+        let fname ← embed_name target_type op_name
+        let alts ← eqs.mapM (eq_to_alt_expr op fname)
         let c ← `(set_option linter.unusedVariables false in
-          def $arg_fname : $arg_type → $arg_type → $arg_type
-            $alts:matchAlt*)
-        pure ([c], arg_type, arg_fname)
+          def $fname : $target_type → $target_type → $target_type
+            $(alts.toArray):matchAlt*)
+        pure ([c], target_type, fname)
+    | _ => throwError "equation expected"
+
+  let instName ← embed_name target_type (Name.mkSimple ("inst" ++ cl.toString))
+
+  -- If the target type is polymorphic (e.g. Set α), make the type class polymorphic
+  -- similarly (e.g. Membership α).
+  let type_class ← subst_base (mkIdent cl) target_type
 
   -- Declare that the function we defined implements the operator (op).
-  let instName ← embed_name op_type (Name.mkSimple ("inst" ++ cl.toString))
   let i ← `(
     @[method_specs]
-    instance $instName:ident : $(mkIdent cl) $(⟨op_type⟩) where
+    instance $instName:ident : $type_class $(⟨target_type⟩) where
       $(mkIdent op_name):ident := $fname
   )
 
@@ -218,14 +232,11 @@ def infer_type : TSyntax `expr → CoreM Term
   | _ => throwError "must specify constant type"
 
 def of_direct_def : TSyntax `direct_def → CoreM (List Command)
-  | `(direct_def| $_:_for_all $ids_type:ids_type , $p:prop . $just:justification ?) => do
-      let (args, type) ← of_ids_type ids_type
+  | `(direct_def| $_:_for_all $ids_type:ids_types , $p:prop . $just:justification ?) => do
+      let args ← of_ids_types ids_type
       let eq ← of_prop p
-      let (op, _, _, _) ← parse_def_eq eq
-      match type with
-        | `($type:ident) =>
-              generate_op_def op args.toList type #[eq] (← just.mapM of_justification)
-        | _ => throwError "simple type expected"
+      let (_, op, _, _) ← parse_def_eq eq
+      generate_op_def op (map_fst TSyntax.getId args) [eq] (← just.mapM of_justification)
   | `(direct_def| $n:num $[: $type:type]? = $e:expr .) => do
       let expr ← of_expr e >>= resolve_term []
       let type ← type.elim (infer_type e) of_type
@@ -233,11 +244,11 @@ def of_direct_def : TSyntax `direct_def → CoreM (List Command)
   | _ => throwError "unknown direct_def"
 
 def of_cases_def : TSyntax ``cases_def → CoreM (List Command)
-  | `(cases_def| The $_:_operator $op:binary_op on $type:ident is defined recursively
-                    such that for all $ids_type:ids_type , $items:prop_item*) => do
-      let (xs, _type) ← of_ids_type ids_type
-      let eqs ← Array.map ThmDecl.thm <$> items.mapM of_prop_item
-      generate_op_def (of_binary_op op) xs.toList type eqs none
+  | `(cases_def| The $_:_operator $op:binary_op on $_type:ident is defined recursively
+                    such that for all $ids_type:ids_types , $items:prop_item*) => do
+      let args ← of_ids_types ids_type
+      let eqs ← .map ThmDecl.thm <$> items.toList.mapM of_prop_item
+      generate_op_def (of_binary_op op) (map_fst TSyntax.getId args) eqs none
   | _ => throwError "unknown cases_def"
 
 def of_definition : TSyntax `definition → CoreM (List Command)

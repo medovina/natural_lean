@@ -4,8 +4,10 @@ namespace Natural
 
 Definition.  The type Set(α) is defined as α → Prop.
 
+-- Definition.  For any S : Set(α) and x : α, x ∈ S iff S(x) is true.
+
 @[implicit_reducible]
-def Mem (s : Set α) (a : α) : Prop := s a
+def Mem (s : Set α) (a : α) := s a
 
 instance : Membership α (Set α) := ⟨Mem⟩
 

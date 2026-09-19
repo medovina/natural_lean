@@ -3,6 +3,7 @@ import Batteries.Data.List.Basic
 
 open Lean hiding mkStrLit
 open Lean.Parser hiding mkIdent
+open Lean.Parser.Term (bracketedBinder)
 open Lean.Syntax
 open Elab Tactic Meta
 open Elab.Command
@@ -14,15 +15,8 @@ namespace Natural
 
 -- pairs
 
-def map_fst (f : α → γ) (pair : Prod α β) := pair.map f id
-def map_snd (f : β → γ) (pair : Prod α β) := pair.map id f
-def map_pair (f : α → β) (pair : Prod α α) := pair.map f f
-
-def mapM_fst [Monad m] (f : α → m γ) : α × β → m (γ × β)
-  | (x, y) => do pure (← f x, y)
-
-def mapM_snd [Monad m] (f : β → m γ) : α × β → m (α × γ)
-  | (x, y) => do pure (x, ← f y)
+def map_fst (f : α → γ) (pairs : List (α × β)) :=
+  pairs.map (fun (x, y) => (f x, y))
 
 def mapM_pair {α : Type u} {β : Type v} [Monad m] (f : α → m β) : α × α → m (β × β)
   | (x, y) => (·,·) <$> f x <*> f y
@@ -127,23 +121,42 @@ partial def syntax_replace_infix (op: String) (name: Ident) :=
 def replace_infix (op: String) (name: Ident) (t: Term) : Term :=
   ⟨syntax_replace_infix op name t.raw⟩
 
+def binders (xs: List (Ident × Term)) : CoreM (Array (TSyntax ``bracketedBinder)) :=
+  xs.toArray.mapM (fun | (x, t) => `(bracketedBinder| ($x : $t)))
+
+def ex_binders (xs: List (Ident × Term)) : CoreM (Array (TSyntax ``bracketedExplicitBinders)) :=
+  xs.toArray.mapM (fun | (x, t) => `(bracketedExplicitBinders| ($x:ident : $t)))
+
 inductive BinderType
   | all
   | exists
 
-def match_binder : Syntax → Option (BinderType × List Name × Term × Term)
-  | `(∀ $xs:ident* : $type, $t) => .some (.all, xs.toList.map TSyntax.getId, type, t)
-  | `(∃ $[$xs:ident]* : $type, $t) => .some (.exists, xs.toList.map TSyntax.getId, type, t)
+def of_bracketed_binder : TSyntax ``bracketedBinder → Ident × Term
+  | `(bracketedBinder| ($x:ident : $t)) => (x, t)
+  | _ => panic! "of_bracketed_binder"
+
+def of_bracketed_ex_binder : TSyntax ``bracketedExplicitBinders → Ident × Term
+  | `(bracketedExplicitBinders| ($x:ident : $t)) => (x, t)
+  | _ => panic! "of_ex_bracketed_binder"
+
+def match_binder (s: Syntax) : Option (BinderType × List (Ident × Term) × Term) := match s with
+  | `(∀ $xs:ident* : $type, $t) =>
+      .some (.all, xs.toList.map (·, type), t)
+  | `(∀ $xs:bracketedBinder*, $t) =>
+      .some (.all, xs.toList.map of_bracketed_binder, t)
+  | `(∃ $[$xs:ident]* : $type, $t) =>
+      .some (.exists, xs.toList.map (·, type), t)
+  | `(∃ $xs:bracketedExplicitBinders*, $t) =>
+      .some (.exists, xs.toList.map of_bracketed_ex_binder, t)
   | _ => .none
 
-def mk_binder (bt: BinderType) (xs: List Name) (type: Term) (t: Term) : CoreM Term :=
-  let xs := xs.toArray.map mkIdent
+def mk_binder (bt: BinderType) (xs: List (Ident × Term)) (t: Term) : CoreM Term :=
   match bt with
-    | .all => `(∀ $xs* : $type, $t)
-    | .exists => `(∃ $[$xs:ident]* : $type, $t)
+    | .all => do `(∀ $(← binders xs)*, $t)
+    | .exists => do `(∃ $(← ex_binders xs)*, $t)
 
 def bound_vars (t: Term): List (Name × Term) := match match_binder t with
-  | .some (_, vars, type, _) => vars.map (·, type)
+  | .some (_, vars, _) => map_fst (·.getId) vars
   | .none => []
 
 -- syntax builders

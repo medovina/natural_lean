@@ -23,11 +23,12 @@ syntax super_letter :=
   unicode("ᵘ", "^u") <|> unicode("ᵛ", "^v") <|> unicode("ʷ", "^w") <|> unicode("ˣ", "^x") <|>
   unicode("ʸ", "^y") <|> unicode("ᶻ", "^z")
 
-sdef type
-  | ident
-  | "Prop"
-  | type "→" type
-  | type "×" type
+declare_syntax_cat type
+syntax ident : type
+syntax "Prop" : type
+syntax type "(" type ")" : type
+syntax:70 type:70 "×" type:71 : type
+syntax:25 type:26 "→" type:25 : type
 
 syntax comma_ahead := lookahead("," <|> "and")
 
@@ -43,8 +44,10 @@ def non_var : Parser := filter_ident (fun s => s.length > 1) "expected non_var"
 
 syntax natural_type := non_var non_var ?   -- e.g. "natural numbers"
 
-sdef ids_type
-  | atomic(ident,+ ":") type
+syntax ids_type := atomic(ident,+ ":") type
+
+sdef ids_types
+  | sepBy1(ids_type, "and")
   | natural_type id_list   -- e.g. "natural numbers x, y and z"
 
 kdef _at_least = "at least"
@@ -112,6 +115,7 @@ kdef _is_have = "this is" | "we have"
 syntax have_contradiction := _is_have &"a" "contradiction"
 
 sdef_extend prop
+  | atomic(expr &"is") &"true"
   | atomic(rel_prop)
   |:35 prop:36 "and" prop:35
   |:30 atomic(_either ? prop:31 "or") prop:30
@@ -120,10 +124,10 @@ sdef_extend prop
   |:20 prop:21 _iff prop:21
   |:18 prop:19 atomic("," "and") prop:18
   |:16 atomic(_either ? prop:17 "," "or") prop:16
-  | _for_all ids_type "," prop
-  | prop _for_all ids_type
-  | _there _exists some_or_no ? ids_type "such" "that" prop
-  | prop _for &"some" ids_type
+  | _for_all ids_types "," prop
+  | prop _for_all ids_types
+  | _there _exists some_or_no ? ids_types "such" "that" prop
+  | prop _for &"some" ids_types
   | multi_or
   | have_contradiction
 
@@ -300,12 +304,12 @@ syntax prop_item := label "." top_sentence
 syntax _operator := "binary" ? ("operation" <|> "operator")
 
 sdef direct_def
-  | _for_all ids_type "," prop "." justification ?
+  | _for_all ids_types "," prop "." justification ?
   | num (":" type)? "=" expr "."
 
 syntax cases_def :=
   "The" _operator binary_op "on" ident
-  "is" "defined" "recursively" "such" "that" "for" "all" ids_type ","
+  "is" "defined" "recursively" "such" "that" "for" "all" ids_types ","
   prop_item+
 
 sdef definition
