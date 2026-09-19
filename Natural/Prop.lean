@@ -58,6 +58,7 @@ def of_const : TSyntax `const → CoreM Term
 
 partial def of_type : TSyntax `type → CoreM Term
   | `(type| $i:ident) => `($i)
+  | `(type| Prop) => `(Prop)
   | `(type| $t:type → $u:type) => do `($(← of_type t) → $(← of_type u))
   | `(type| $t:type × $u:type) => do `($(← of_type t) × $(← of_type u))
   | _ => throwError "unknown multi_specifier"

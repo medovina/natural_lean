@@ -60,7 +60,13 @@ A definition begins with the capitalized word `Definition`.
 
 #### Type definitions
 
- An __inductive type definition__ defines a new type with one or more constructors:
+A __direct type definition__ defines a new type as definitionally equal to an existing type:
+
+```
+Definition.  The type Set(α) is defined as α → Prop.
+```
+
+An __inductive type definition__ defines a new type with one or more constructors:
 
 ```
 Definition.  The type ℕ is defined inductively with constructors 0 : ℕ and S : ℕ → ℕ.

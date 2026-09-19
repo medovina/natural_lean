@@ -32,6 +32,11 @@ def of_proof_items: TSyntax ``proof_items → CoreM (List (Name × _Proof))
 
 -- definitions
 
+def of_id_sig : TSyntax ``id_sig → CoreM (Ident × Option Ident)
+  | `(id_sig| $i:ident) => pure (i, none)
+  | `(id_sig| $i:ident ( $j:ident )) => pure (i, some j)
+  | _ => throwError "unknown base_type"
+
 def of_constructor: TSyntax ``constructor → CoreM (Term × Term)
   | `(constructor| $c:const : $t:type) => do pure (← of_const c, ← of_type t)
   | _ => throwError "unknown constructor"
@@ -72,29 +77,32 @@ def of_justification : TSyntax ``justification → CoreM Ident
   | `(justification| Justification . By $thm:thm_name .) => of_thm_name thm
   | _ => throwError "unknown justification"
 
-def of_quotient_def (i: Ident): TSyntax ``quotient_def → CoreM (List Command)
+def of_quotient_def (name: Ident): TSyntax ``quotient_def → CoreM (List Command)
   | `(quotient_def| as the quotient $t:type / $op:rel_op . $j:justification) => do
       let type ← of_type t
-      let inst_name := mkIdent (i.getId ++ `Setoid)
+      let inst_name := mkIdent (name.getId ++ `Setoid)
       let inst_cmd ← `(instance $inst_name:ident : Setoid ($type) where
         r := $(← op_fun op type)
         iseqv := $(← proof_by (.some (← of_justification j))))
-      let quot_cmd ← `(def $i := Quotient ($inst_name))
+      let quot_cmd ← `(def $name := Quotient ($inst_name))
       pure [inst_cmd, quot_cmd]
   | _ => throwError "unknown quotient_def"
 
-def of_type_spec (i: Ident): TSyntax `type_spec → CoreM (List Command)
-  | `(type_spec| $id:inductive_def) => of_inductive_def i id
-  | `(type_spec| $qd:quotient_def) => of_quotient_def i qd
+def of_type_spec (name: Ident) (sig: Option Ident): TSyntax `type_spec → CoreM (List Command)
+  | `(type_spec| as $t:type .) => do
+      .singleton <$> `(def $name $(sig.toArray)* := $(← of_type t))
+  | `(type_spec| $id:inductive_def) => of_inductive_def name id
+  | `(type_spec| $qd:quotient_def) => of_quotient_def name qd
   | _ => throwError "unknown type_spec"
 
 def of_type_def : TSyntax ``type_def → CoreM (List Command)
-  | `(type_def| The type $i:ident $[( the $n1:ident $n2:ident ?)]?
+  | `(type_def| The type $id_sig:id_sig $[( the $n1:ident $n2:ident ?)]?
                 is defined $ts:type_spec) => do
-      let commands ← of_type_spec i ts
+      let (name, sig) ← of_id_sig id_sig
+      let commands ← of_type_spec name sig ts
       let att ← n1.mapM (fun n1 =>
         let t := idents_to_nat_type n1 (n2.get!)
-        `(attribute [natural_name $(mkStrLit t)] $i:ident)
+        `(attribute [natural_name $(mkStrLit t)] $name:ident)
       )
       pure $ commands ++ att.toList
   | _ => throwError "unknown definition"

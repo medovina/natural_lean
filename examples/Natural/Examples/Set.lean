@@ -2,7 +2,7 @@ import Natural
 
 namespace Natural
 
-def Set (α : Type u) := α → Prop
+Definition.  The type Set(α) is defined as α → Prop.
 
 @[implicit_reducible]
 def Mem (s : Set α) (a : α) : Prop := s a

@@ -25,6 +25,7 @@ syntax super_letter :=
 
 sdef type
   | ident
+  | "Prop"
   | type "→" type
   | type "×" type
 
@@ -33,10 +34,14 @@ syntax comma_ahead := lookahead("," <|> "and")
 syntax id_list :=
   ident (atomic("," ident comma_ahead))* (atomic("," ? "and") ident)?
 
-def novar_ident : Parser :=
-  atomic (ident >> checkStackTop (fun stx => stx.getId.toString.length > 1) "expected long ident")
+def filter_ident (f : String → Bool) (err: String): Parser :=
+  atomic (ident >> checkStackTop (fun stx => stx.isIdOrAtom?.all f) err)
 
-syntax natural_type := novar_ident novar_ident ?   -- e.g. "natural numbers"
+def var : Parser := filter_ident (fun s => s.length == 1) "expected var"
+
+def non_var : Parser := filter_ident (fun s => s.length > 1) "expected non_var"
+
+syntax natural_type := non_var non_var ?   -- e.g. "natural numbers"
 
 sdef ids_type
   | atomic(ident,+ ":") type
@@ -265,6 +270,8 @@ syntax proof_items := proof_item+
 
 -- definitions
 
+syntax id_sig := ident atomic("(" var ")")?
+
 syntax constructor := const ":" type
 
 syntax inductive_def :=
@@ -275,11 +282,12 @@ syntax justification := "Justification" "." "By" thm_name "."
 syntax quotient_def := "as" "the" "quotient" type "/" rel_op "." justification
 
 sdef type_spec
+  | "as" type "." -- direct type definition
   | inductive_def
   | quotient_def
 
 syntax type_def :=
-  "The" &"type" ident ("(" "the" ident ident ? ")")? "is" "defined" type_spec
+  "The" &"type" id_sig ("(" "the" ident ident ? ")")? "is" "defined" type_spec
 
 syntax attrib := "@" ident
 
