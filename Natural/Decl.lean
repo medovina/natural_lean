@@ -170,6 +170,10 @@ partial def subst_base (t: Term) : Term → CoreM Term
   | `($u $v) => do `($(← subst_base t u) $v)
   | _ => pure t
 
+def is_application : Term → Bool
+  | `($_ $_) => true
+  | _ => false
+
 def generate_op_def (op: String) (args: List (Name × Term)) (eqs: List Term)
     (justification: Option Ident) : CoreM (List Command) := do
   let (op_name, cl) ← (op_class.lookup op).getDM $ throwError "generate_def: no op"
@@ -215,17 +219,28 @@ def generate_op_def (op: String) (args: List (Name × Term)) (eqs: List Term)
   -- similarly (e.g. Membership α).
   let type_class ← subst_base (mkIdent cl) target_type
 
+  let grind_attribute := !(is_application target_type)  -- only add for monomorphic type
+  let attr ← if grind_attribute then .some <$> `(attributes| @[method_specs])
+                                else pure none
+
   -- Declare that the function we defined implements the operator (op).
   let i ← `(
-    @[method_specs]
+    $attr:attributes ?
     instance $instName:ident : $type_class $(⟨target_type⟩) where
       $(mkIdent op_name):ident := $fname
   )
 
-  -- Add an attribute for grind.
-  let spec := instName.getId ++ Name.mkSimple (op_name.toString ++ "_spec")
-  let a ← `(attribute [grind =] $(mkIdent spec))
-  pure (def_cmds ++ [i, a])
+  -- Optionally add an attribute for grind.
+  let g ← if grind_attribute then
+    let spec := instName.getId ++ Name.mkSimple (op_name.toString ++ "_spec")
+    some <$> `(attribute [grind =] $(mkIdent spec))
+  else pure none
+
+  let m ←
+    if op == "*" then (as_ident target_type).bindM (fun i => `(attribute [implicit_mul] $i))
+  else pure none
+
+  pure (def_cmds ++ [i] ++ g.toList ++ m.toList)
 
 def infer_type : TSyntax `expr → CoreM Term
   | `(expr| $t:ident [ $_:expr ]) => pure t

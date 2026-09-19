@@ -29,13 +29,15 @@ def lookup_natural (name: String): CoreM Name := do
   let map := naturalExt.getState env
   (map.lookup name).getDM (throwError s!"unknown type: {name}")
 
--- natural_elab attribute
+-- other attributes
 
 abbrev NaturalElab := Syntax → CoreM (Term × Array Ident × Term)
 
 unsafe initialize naturalElabAttribute : KeyedDeclsAttribute NaturalElab ←
   mkElabAttribute NaturalElab `builtin_natural_elab `natural_elab
     `Natural `Natural.NaturalElab "expr"
+
+register_label_attr implicit_mul
 
 -- tracing
 

@@ -91,6 +91,10 @@ def nat : Parser :=
 
 -- syntax helpers
 
+def as_ident : Term → Option Ident
+  | `($i:ident) => .some i
+  | _ => .none
+
 def parse_infix_opt : Syntax → Option (Syntax × String × Syntax)
   | .node _ _ #[x, .atom _ op, y] => .some (x, op, y)
   | _ => .none
