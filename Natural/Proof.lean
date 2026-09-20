@@ -51,18 +51,18 @@ def of_reason: TSyntax `reason → CoreM (Option Reason)
   | `(reason| the definition of $i:ident) => pure (.some (.by_definition_of i))
   | _ => throwError "unknown reason"
 
-def of_eq_expr_by: TSyntax `eq_expr_by → CoreM (Term × Option Reason)
-  | `(eq_expr_by| = $e:expr $[ by $r:reason ]?) =>
-        do pure ((← of_expr e), (← r.bindM of_reason))
+def of_eq_expr_by: TSyntax `eq_expr_by → CoreM (String × Term × Option Reason)
+  | `(eq_expr_by| $op:rel_op $e:expr $[ by $r:reason ]?) =>
+        do pure ((of_binary_op op), (← of_expr e), (← r.bindM of_reason))
   | _ => throwError "unknown eq_expr_by"
 
 inductive ETerm where
   | term (t: Term)
-  | eq_chain (ts: List Term)
+  | eq_chain (ts: List Term) (ops: List String)
 
 def eterm_free_vars : ETerm → List Name
   | .term t => free_vars t
-  | .eq_chain ts => ts.flatMap free_vars
+  | .eq_chain ts _ => ts.flatMap free_vars
 
 def ex_vars (t: Term) : List (Ident × Term) := match match_binder t with
   | .some (.exists, xs, _) => xs
@@ -84,8 +84,8 @@ partial def step_mapM [Monad m] (f: Term → m Term) (step: ProofStep) : m Proof
   let map_steps (steps: List ProofStep) := steps.mapM (step_mapM f)
   match step with
     | .assert (.term t) rs => pure $ .assert (.term (← f t)) rs
-    | .assert (.eq_chain ts) rs =>
-        pure $ .assert (.eq_chain (← ts.mapM f)) rs
+    | .assert (.eq_chain ts ops) rs =>
+        pure $ .assert (.eq_chain (← ts.mapM f) ops) rs
     | .let .. => pure step
     | .let_def id t => pure $ .let_def id (← f t)
     | .assume p => pure $ .assume (← f p)
@@ -152,9 +152,9 @@ def of_assert_prop: TSyntax `assert_prop → CoreM (ETerm × List (Option Reason
   | `(assert_prop| $p:prop) =>
         do pure (.term (← of_prop p), [none])
   | `(assert_prop| $e:expr $eb:eq_expr_by $ebs:eq_expr_by*) => do
-        let (e1, by1) ← of_eq_expr_by eb
-        let (es, bys) := (← ebs.toList.mapM of_eq_expr_by).unzip
-        pure (.eq_chain ((← of_expr e) :: e1 :: es), by1 :: bys)
+        let (op1, e1, by1) ← of_eq_expr_by eb
+        let (ops, es, bys) := unzip3 (← ebs.toList.mapM of_eq_expr_by)
+        pure (.eq_chain ((← of_expr e) :: e1 :: es) (op1 :: ops), by1 :: bys)
   | _ => throwError "unknown assert_prop"
 
 def assert_step (t: Term) (r: Option Reason): ProofStep :=
@@ -191,7 +191,7 @@ def of_proof_prop: TSyntax `proof_prop → CoreM (List ProofStep)
         let (e, rs) ← of_assert_prop p
         let s ← match e with
           | .term t => do pure $ mk_step t ((← r.bindM of_reason) <|> (← r2.bindM of_reason))
-          | .eq_chain _ => pure (.assert e rs)
+          | .eq_chain .. => pure (.assert e rs)
         let contra ← w.toList.flatMapM of_which_is_contradiction
         pure (because ++ [s] ++ contra)
   | _ => throwError "unknown proof_prop"
@@ -215,7 +215,7 @@ def of_let_or_assume: TSyntax `let_or_assume → CoreM ProofStep
               let vars ← map_fst TSyntax.getId <$> of_ids_types vars
               (pure $ ProofStep.is_some vars (← `($id = $(← of_expr e)))
                         (.some (.tactic tac)))
-          | _ => throwError "expected quotient projection"
+          | _ => withRef e do throwError "expected quotient projection"
   | `(let_or_assume| $_:_assume $p:prop) => do pure $ .assume (← of_prop p)
   | _ => throwError "unknown let_or_assume"
 
@@ -419,14 +419,16 @@ partial def translate (top: Bool) (parent_ex: List (Name × Term)) (prev: Term) 
         | .assert (.term p) rs => withRef p do
               let b := with_info (← tactic (rs[0]?.getD (panic! "translate"))) p
               pure $ (← `(letDecl| : $p:term := $b), p)
-        | .assert (.eq_chain ts) reasons => do
+        | .assert (.eq_chain ts ops) reasons => do
             let tactics ← reasons.mapM tactic
-            let mk_step t tactic :=
+            let mk_step op t tactic := do
               let b := with_info2 tactic t
-              `(calcStep| _ = $t := $b)
-            let steps ← (ts.drop 2).zipWithM mk_step (tactics.drop 1)
+              let eq := build_infix (← `(_)) op t
+              `(calcStep| $eq := $b)
+            let eq1 := build_infix ts[0]! ops[0]! ts[1]!
             let b := with_info2 tactics[0]! ts[1]!
-            pure (← `(letDecl| : _ := calc $(ts[0]!) = $(ts[1]!) := $b
+            let steps ← zipWith3M mk_step (ops.drop 1) (ts.drop 2) (tactics.drop 1)
+            pure (← `(letDecl| : _ := calc $eq1 := $b
                                       $(steps.toArray)*),
                   ← `($(ts.head!) = $(ts.getLast!)))
         | .let ids type =>

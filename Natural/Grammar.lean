@@ -151,7 +151,7 @@ sdef reason
   | "the" &"definition" "of" ident
 
 sdef eq_expr_by
-  | "=" expr ("by" reason)?
+  | rel_op expr ("by" reason)?
 
 declare_syntax_cat assert_prop
 syntax (priority := 1) prop : assert_prop

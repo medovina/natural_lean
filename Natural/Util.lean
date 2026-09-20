@@ -25,6 +25,16 @@ def pairM [Monad m] (x: m α) (y: m β) := Prod.mk <$> x <*> y
 
 -- lists
 
+def zipWith3M [Applicative m] (f: α → β → γ → m δ) :
+  List α → List β → List γ → m (List δ)
+  | x :: xs, y :: ys, z :: zs => (· :: ·) <$> f x y z <*> zipWith3M f xs ys zs
+  | _, _, _ => pure []
+
+def unzip3 (l: List (α × β × γ)) : (List α × List β × List γ) :=
+  let (xs, yzs) := l.unzip
+  let (ys, zs) := yzs.unzip
+  (xs, ys, zs)
+
 def overlap [BEq α] (xs: List α) (ys: List α): Bool := xs.inter ys != []
 
 def all_pairs : List α → List (α × α)
