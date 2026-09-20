@@ -148,7 +148,7 @@ mutual
       | `(expr| $e:expr ( $f:expr )) => `(app_or_mul $(← of_expr e) $(← of_expr f))
       | `(expr| ( $e:expr )) => of_expr e
       | `(expr| ( $e:expr , $f:expr)) => `( ($(← of_expr e), $(← of_expr f)) )
-      | `(expr| $i:ident [ $e:expr ]) => `( (Quotient.mk' $(← of_expr e) : $i) )
+      | `(expr| $i:ident [ $e:expr ]) => `(show $i from Quotient.mk _ $(← of_expr e))
       | _ =>
         let elabFns := naturalElabAttribute.getEntries (← getEnv) expr.raw.getKind
         for elabFn in elabFns do

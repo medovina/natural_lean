@@ -202,7 +202,7 @@ sdef let_step
 
 sdef let_or_assume
   | let_step
-  | _let ident "=" expr
+  | _let ident "=" expr ("for" &"some" ids_types)?
   | _assume prop
 
 sdef proof_if_prop

@@ -207,6 +207,15 @@ def of_let_or_assume: TSyntax `let_or_assume → CoreM ProofStep
   | `(let_or_assume| $ls:let_step) => of_let_step ls
   | `(let_or_assume| $_:_let $id = $e) =>
         do pure $ .let_def id.getId (← of_expr e)
+  | `(let_or_assume| $_:_let $id = $e for some $vars:ids_types) =>
+        match e with
+          | `(expr| $_q:ident [ $_:expr ]) => do
+              let tac : TSyntax `tactic ←
+                `(tactic| (cases $id:ident using Quotient.ind; grind))
+              let vars ← map_fst TSyntax.getId <$> of_ids_types vars
+              (pure $ ProofStep.is_some vars (← `($id = $(← of_expr e)))
+                        (.some (.tactic tac)))
+          | _ => throwError "expected quotient projection"
   | `(let_or_assume| $_:_assume $p:prop) => do pure $ .assume (← of_prop p)
   | _ => throwError "unknown let_or_assume"
 

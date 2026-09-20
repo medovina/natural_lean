@@ -188,7 +188,7 @@ def generate_op_def (op: String) (args: List (Name × Term)) (eqs: List Term)
               let fname ← embed_name tx op_name
               let d ← `(def $fname ($ix : $tx) ($iy : $ty) := $r)
               pure ([d], tx, fname)
-          | `( (Quotient.mk' $x : $qx:ident) ), `( (Quotient.mk' $y : $qy:ident) ) => do
+          | `(show $qx:ident from Quotient.mk _ $x), `(show $qy:ident from Quotient.mk _ $y) => do
               let target_type := qx
               let aux_name ← embed_name target_type (op_name ++ `aux)
               let (tx, ty) ← mapM_pair (pattern_type args) (x, y)
