@@ -43,6 +43,15 @@ inductive Reason where
   | induction
   | by_definition_of (i: Ident)
 
+def tactic : Option Reason → CoreM Term
+  | .none => `(by default)
+  | some r => match r with
+    | .apply [] => `(by default)
+    | .apply ns => `(by default_apply $(ns.toArray)*)
+    | .tactic t => `(by { $t })
+    | .induction => `(by intro x ; induction x <;> default)
+    | .by_definition_of _ => throwError "can't follow definition"
+
 def of_reason: TSyntax `reason → CoreM (Option Reason)
   | `(reason| [ $t:tactic ]) => pure (Reason.tactic t)
   | `(reason| $r:reference) => .some <$> Reason.apply <$> of_reference r
@@ -51,10 +60,14 @@ def of_reason: TSyntax `reason → CoreM (Option Reason)
   | `(reason| the definition of $i:ident) => pure (.some (.by_definition_of i))
   | _ => throwError "unknown reason"
 
-def of_eq_expr_by: TSyntax `eq_expr_by → CoreM (String × Term × Option Reason)
-  | `(eq_expr_by| $op:rel_op $e:expr $[ by $r:reason ]?) =>
-        do pure ((of_binary_op op), (← of_expr e), (← r.bindM of_reason))
+def of_eq_expr_by1 (t: TSyntax `eq_expr_by): CoreM (String × Term × Term) := match t with
+  | `(eq_expr_by| $op:rel_op $e:expr $[ by $r:reason ]?) => do
+        let reason ← r.bindM of_reason
+        do pure ((of_binary_op op), (← of_expr e), (← tactic reason))
   | _ => throwError "unknown eq_expr_by"
+
+def of_eq_expr_by (t: TSyntax `eq_expr_by): CoreM (String × Term × Term) :=
+  withRef t (of_eq_expr_by1 t)
 
 def ex_vars (t: Term) : List (Ident × Term) := match match_binder t with
   | .some (.exists, xs, _) => xs
@@ -62,7 +75,7 @@ def ex_vars (t: Term) : List (Ident × Term) := match match_binder t with
 
 inductive ProofStep where
   | assert (p: Term) (reason: Option Reason)
-  | assert_chain (ts: List Term) (ops: List String) (reasons: List (Option Reason))
+  | assert_chain (ts: List Term) (ops: List String) (tactics: List Term)
   | let (ids: List Name) (type: Term)
   | let_def (id: Name) (e: Term)
   | assume (p: Term)
@@ -143,13 +156,19 @@ instance: ToString ProofStep where
     | .case _ _ => "case"
     | .group _ => "group"
 
+def of_begin_chain (t: TSyntax ``begin_chain) : CoreM (Term × String × Term × Term) := withRef t
+  do match t with
+    | `(begin_chain| $e:expr $eb:eq_expr_by) => do
+          pure (← of_expr e, ← of_eq_expr_by1 eb)
+    | _ => throwError "unknown begin_chain"
+
 def of_assert_prop: TSyntax `assert_prop → CoreM ProofStep
   | `(assert_prop| $p:prop) =>
         do pure (.assert (← of_prop p) none)
-  | `(assert_prop| $e:expr $eb:eq_expr_by $ebs:eq_expr_by*) => do
-        let (op1, e1, by1) ← of_eq_expr_by eb
+  | `(assert_prop| $bc:begin_chain $ebs:eq_expr_by*) => do
+        let (e, op1, e1, by1) ← of_begin_chain bc
         let (ops, es, bys) := unzip3 (← ebs.toList.mapM of_eq_expr_by)
-        pure $ .assert_chain ((← of_expr e) :: e1 :: es) (op1 :: ops) (by1 :: bys)
+        pure $ .assert_chain (e :: e1 :: es) (op1 :: ops) (by1 :: bys)
   | _ => throwError "unknown assert_prop"
 
 def of_because_prop : TSyntax ``because_prop → CoreM ProofStep
@@ -341,26 +360,6 @@ partial def resolve_block (le: LocalEnv) : Block → CoreM Block
       pure ⟨← step_mapM (resolve_term (ivars ++ le)) step,
             ← children.mapM (resolve_block (step_decl_vars_types step ++ le))⟩
 
-def get_info (t: Term): SourceInfo := t.raw.getInfo?.getD SourceInfo.none
-
-def adjust_info (n: Nat) (s: SourceInfo) :=
-  match s.getPos?, s.getTailPos? with
-    | .some p, .some q => SourceInfo.synthetic (p.decreaseBy n) q
-    | _, _ => SourceInfo.none
-
--- Hack: Move the start position back 2 bytes to include "= ".
-def with_info2 (t: Term) (source: Term): Term :=
-    ⟨t.raw.setInfo (adjust_info 2 (get_info source))⟩
-
-def tactic : Option Reason → CoreM Term
-  | .none => `(by default)
-  | some r => match r with
-    | .apply [] => `(by default)
-    | .apply ns => `(by default_apply $(ns.toArray)*)
-    | .tactic t => `(by { $t })
-    | .induction => `(by intro x ; induction x <;> default)
-    | .by_definition_of _ => throwError "can't follow definition"
-
 def proof_by_multi (names: List Ident) : CoreM Term :=
   tactic (.some (.apply names))
 
@@ -408,16 +407,13 @@ partial def translate (top: Bool) (parent_ex: List (Name × Term)) (prev: Term) 
         | .assert p reason => withRef p do
               let b ← tactic reason
               pure $ (← `(letDecl| : $p:term := $b), p)
-        | .assert_chain ts ops reasons => do
-            let tactics ← reasons.mapM tactic
+        | .assert_chain ts ops tactics => do
             let mk_step op t tactic := do
-              let b := with_info2 tactic t
               let eq := build_infix (← `(_)) op t
-              `(calcStep| $eq := $b)
+              `(calcStep| $eq := $tactic)
             let eq1 := build_infix ts[0]! ops[0]! ts[1]!
-            let b := with_info2 tactics[0]! ts[1]!
             let steps ← zipWith3M mk_step (ops.drop 1) (ts.drop 2) (tactics.drop 1)
-            pure (← `(letDecl| : _ := calc $eq1 := $b
+            pure (← `(letDecl| : _ := calc $eq1 := $(tactics[0]!)
                                       $(steps.toArray)*),
                   ← `($(ts.head!) = $(ts.getLast!)))
         | .let ids type =>

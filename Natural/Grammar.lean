@@ -153,9 +153,11 @@ sdef reason
 sdef eq_expr_by
   | rel_op expr ("by" reason)?
 
+syntax begin_chain := expr eq_expr_by
+
 declare_syntax_cat assert_prop
 syntax (priority := 1) prop : assert_prop
-syntax (priority := 2) atomic(expr eq_expr_by eq_expr_by+) : assert_prop
+syntax (priority := 2) atomic(begin_chain eq_expr_by+) : assert_prop
 
 kdef _so = "but" | "hence" | "so" | "that is" | "then" | "therefore" | "thus"
 
