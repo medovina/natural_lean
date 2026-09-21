@@ -234,38 +234,39 @@ def lookup (le: LocalEnv) (n: Name) : CoreM (Option Bool) := do
 def arith_ops := [`«term_+_», `«term_*_», `«term_^_»]
 
 mutual
-partial def resolve (le: LocalEnv) (s: Syntax) : CoreM (Term × Bool) := match s with
-  | `($n:num) => pure (n, true)
-  | `($i:ident) => do
-      let n := i.getId
-      if n.toString.contains "_@" then pure (⟨s⟩, false) else
-      match (← lookup le n) with
-        | .some is_numeric => pure (⟨s⟩, is_numeric)
-        | .none =>
-          let vars := n.toString.toList.map (fun c => Name.mkSimple c.toString)
-          if ← vars.allM (fun x => Option.isSome <$> lookup le x)
-          then pure (← multi_prod (← vars.mapM name_to_term), true)
-          else throwErrorAt s (
-            if vars.length == 1 then s!"undefined: {n}"
-            else s!"{n} is neither defined nor an implicit product")
-  | `(app_or_mul $t:term $u:term) => do
-      let (t, t_is_numeric) ← resolve le t
-      let u ← resolve1 le u
-      if t_is_numeric then do pure (← `($t * $u), true)
-                  else do pure (← `($t $u), false)
-  | _ => match match_binder s with
-    | .some (bt, vars, t) => do
-        let names := map_fst TSyntax.getId vars
-        pure $ (← mk_binder bt vars (← resolve1 (names ++ le) t), false)
-    | .none => match s with
-      | `(bind $xs:ident*, $type, $t) =>
-          let vars := xs.toList.map (·.getId, type)
-          resolve (vars ++ le) t
-      | _ => match s with
-        | .node info kind args => do
-            let args ← args.mapM (resolve1 le)
-            pure (⟨.node info kind args⟩, kind ∈ arith_ops)
-        | _ => pure (⟨s⟩, false)
+partial def resolve (le: LocalEnv) (s: Syntax) : CoreM (Term × Bool) := withRef s do
+  match s with
+    | `($n:num) => pure (n, true)
+    | `($i:ident) => do
+        let n := i.getId
+        if n.toString.contains "_@" then pure (⟨s⟩, false) else
+        match (← lookup le n) with
+          | .some is_numeric => pure (⟨s⟩, is_numeric)
+          | .none =>
+            let vars := n.toString.toList.map (fun c => Name.mkSimple c.toString)
+            if ← vars.allM (fun x => Option.isSome <$> lookup le x)
+            then pure (← multi_prod (← vars.mapM name_to_term), true)
+            else throwErrorAt s (
+              if vars.length == 1 then s!"undefined: {n}"
+              else s!"{n} is neither defined nor an implicit product")
+    | `(app_or_mul $t:term $u:term) => do
+        let (t, t_is_numeric) ← resolve le t
+        let u ← resolve1 le u
+        if t_is_numeric then do pure (← `($t * $u), true)
+                    else do pure (← `($t $u), false)
+    | _ => match match_binder s with
+      | .some (bt, vars, t) => do
+          let names := map_fst TSyntax.getId vars
+          pure $ (← mk_binder bt vars (← resolve1 (names ++ le) t), false)
+      | .none => match s with
+        | `(bind $xs:ident*, $type, $t) =>
+            let vars := xs.toList.map (·.getId, type)
+            resolve (vars ++ le) t
+        | _ => match s with
+          | .node info kind args => do
+              let args ← args.mapM (resolve1 le)
+              pure (⟨.node info kind args⟩, kind ∈ arith_ops)
+          | _ => pure (⟨s⟩, false)
 
 partial def resolve1 (le: LocalEnv) (s: Syntax) : CoreM Term := (·.1) <$> resolve le s
 end

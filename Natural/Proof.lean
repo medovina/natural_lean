@@ -73,7 +73,7 @@ inductive ProofStep where
   | let (ids: List Name) (type: Term)
   | let_def (id: Name) (e: Term)
   | assume (p: Term)
-  | is_some (ids: List (Name × Term)) (p: Term) (reason: Option Reason)
+  | is_some (p: Term) (reason: Option Reason)
   | if_otherwise (p: Term) (if_true: List ProofStep) (if_false: List ProofStep) (concl: Term)
   | biconditional (p: Term) (forward: List ProofStep) (q: Term) (reverse: List ProofStep)
   | case (cases: List (Term × List ProofStep)) (concl: Term)
@@ -89,7 +89,7 @@ partial def step_mapM [Monad m] (f: Term → m Term) (step: ProofStep) : m Proof
     | .let .. => pure step
     | .let_def id t => pure $ .let_def id (← f t)
     | .assume p => pure $ .assume (← f p)
-    | .is_some ids p r => pure $ .is_some ids (← f p) r
+    | .is_some p r => pure $ .is_some (← f p) r
     | .if_otherwise p ts fs concl =>
         pure $ .if_otherwise (← f p) (← map_steps ts) (← map_steps fs) (← f concl)
     | .biconditional p forward q reverse =>
@@ -103,7 +103,7 @@ def step_decl_vars_types : ProofStep → List (Name × Term)
   | .let ids type => ids.map (·, type)
   | .let_def id _ => [(id, mkIdent `Unit)]  -- just a guess
   | .assume p => map_fst TSyntax.getId (ex_vars p)
-  | .is_some ids .. => ids
+  | .is_some p _reason => map_fst TSyntax.getId (ex_vars p)
   | _ => []
 
 def step_decl_vars (step: ProofStep): List Name := (step_decl_vars_types step).map (·.1)
@@ -122,7 +122,7 @@ partial def step_free_vars : ProofStep → List Name
   | .let _ _ => []
   | .let_def _ e => free_vars e
   | .assume p => free_vars p
-  | .is_some ids p _ => (free_vars p).removeAll (ids.map (·.1))
+  | .is_some p _ => free_vars p
   | .if_otherwise p t f q
   | .biconditional p t q f => ([p, q].flatMap free_vars ++ [t, f].flatMap all_free_vars).eraseDups
   | .case cases concl =>
@@ -142,7 +142,7 @@ instance: ToString ProofStep where
     | .let ids _ => s!"let {ids}"
     | .let_def id _e => s!"let_def {id}"
     | .assume _ => s!"assume"
-    | .is_some id .. => s!"is_some {id}"
+    | .is_some .. => s!"is_some"
     | .if_otherwise .. => "if_otherwise"
     | .biconditional .. => "biconditional"
     | .case _ _ => "case"
@@ -181,7 +181,7 @@ def of_which_is_contradiction (stx: TSyntax ``which_is_contradiction) : CoreM (L
     | _ => throwError "unknown which_is_contradiction"
 
 def mk_step (t: Term) (r: Option Reason): ProofStep := match match_binder t with
-  | .some (.exists, vars, p) => .is_some (map_fst TSyntax.getId vars) p r
+  | .some (.exists, _vars, _p) => .is_some t r
   | _ => assert_step t r
 
 def of_proof_prop: TSyntax `proof_prop → CoreM (List ProofStep)
@@ -212,9 +212,9 @@ def of_let_or_assume: TSyntax `let_or_assume → CoreM ProofStep
           | `(expr| $_q:ident [ $_:expr ]) => do
               let tac : TSyntax `tactic ←
                 `(tactic| (cases $id:ident using Quotient.ind; grind))
-              let vars ← map_fst TSyntax.getId <$> of_ids_types vars
-              (pure $ ProofStep.is_some vars (← `($id = $(← of_expr e)))
-                        (.some (.tactic tac)))
+              let vars ← of_ids_types vars
+              let p ← `(∃ $(← ex_binders vars)*, $id = $(← of_expr e))
+              (pure $ ProofStep.is_some p (.some (.tactic tac)))
           | _ => withRef e do throwError "expected quotient projection"
   | `(let_or_assume| $_:_assume $p:prop) => do pure $ .assume (← of_prop p)
   | _ => throwError "unknown let_or_assume"
@@ -351,9 +351,6 @@ partial def resolve_block (le: LocalEnv) : Block → CoreM Block
 
 def get_info (t: Term): SourceInfo := t.raw.getInfo?.getD SourceInfo.none
 
-def with_info (t: Term) (source: Term): Term :=
-    ⟨t.raw.setInfo (get_info source)⟩
-
 def adjust_info (n: Nat) (s: SourceInfo) :=
   match s.getPos?, s.getTailPos? with
     | .some p, .some q => SourceInfo.synthetic (p.decreaseBy n) q
@@ -404,7 +401,7 @@ partial def translate (top: Bool) (parent_ex: List (Name × Term)) (prev: Term) 
           else pure (← this_term, prev)
   | ⟨step, children⟩ :: rest => do
       let ex_decl := match step with
-        | .is_some ids .. => ids
+        | .is_some .. => step_decl_vars_types step
         | _ => []
       let unit ← `(())
       let (c, child_concl) ←
@@ -417,7 +414,7 @@ partial def translate (top: Bool) (parent_ex: List (Name × Term)) (prev: Term) 
         | _ => panic! "no assume"
       let (decl, prop) ← match step with
         | .assert (.term p) rs => withRef p do
-              let b := with_info (← tactic (rs[0]?.getD (panic! "translate"))) p
+              let b ← tactic (rs[0]?.getD (panic! "translate"))
               pure $ (← `(letDecl| : $p:term := $b), p)
         | .assert (.eq_chain ts ops) reasons => do
             let tactics ← reasons.mapM tactic
@@ -444,11 +441,10 @@ partial def translate (top: Bool) (parent_ex: List (Name × Term)) (prev: Term) 
             let pat ← ex_pattern vars
             pure (← `(letDecl| : _ := fun ($pat:term : $p) => $c),
                   ← `($p → _))
-        | .is_some ids p reason => do
-            let b := with_info (← tactic reason) p
-            let ids := map_fst mkIdent ids
-            let vars ← if children.isEmpty then this_term else ex_pattern (ids.map (·.1))
-            let t ← `(have $vars:term : (∃ $(← ex_binders ids)*, $p) := $b; $c)
+        | .is_some p reason => withRef p do
+            let vars ← if children.isEmpty then this_term
+              else ex_pattern ((ex_vars p).map (·.1))
+            let t ← `(have $vars:term : $p := $(← tactic reason); $c)
             let decl ← `(letDecl| : _ := $t:term)
             pure (decl, child_concl)
         | .if_otherwise _ _ _ q => do
