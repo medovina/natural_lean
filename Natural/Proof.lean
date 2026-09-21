@@ -56,20 +56,13 @@ def of_eq_expr_by: TSyntax `eq_expr_by → CoreM (String × Term × Option Reaso
         do pure ((of_binary_op op), (← of_expr e), (← r.bindM of_reason))
   | _ => throwError "unknown eq_expr_by"
 
-inductive ETerm where
-  | term (t: Term)
-  | eq_chain (ts: List Term) (ops: List String)
-
-def eterm_free_vars : ETerm → List Name
-  | .term t => free_vars t
-  | .eq_chain ts _ => ts.flatMap free_vars
-
 def ex_vars (t: Term) : List (Ident × Term) := match match_binder t with
   | .some (.exists, xs, _) => xs
   | _ => []
 
 inductive ProofStep where
-  | assert (p: ETerm) (reason: List (Option Reason))
+  | assert (p: Term) (reason: Option Reason)
+  | assert_chain (ts: List Term) (ops: List String) (reasons: List (Option Reason))
   | let (ids: List Name) (type: Term)
   | let_def (id: Name) (e: Term)
   | assume (p: Term)
@@ -83,9 +76,9 @@ deriving Nonempty
 partial def step_mapM [Monad m] (f: Term → m Term) (step: ProofStep) : m ProofStep := do
   let map_steps (steps: List ProofStep) := steps.mapM (step_mapM f)
   match step with
-    | .assert (.term t) rs => pure $ .assert (.term (← f t)) rs
-    | .assert (.eq_chain ts ops) rs =>
-        pure $ .assert (.eq_chain (← ts.mapM f) ops) rs
+    | .assert t rs => pure $ .assert (← f t) rs
+    | .assert_chain ts ops rs =>
+        pure $ .assert_chain (← ts.mapM f) ops rs
     | .let .. => pure step
     | .let_def id t => pure $ .let_def id (← f t)
     | .assume p => pure $ .assume (← f p)
@@ -118,7 +111,8 @@ partial def step_all_decl_vars (step: ProofStep): List Name :=
 
 mutual
 partial def step_free_vars : ProofStep → List Name
-  | .assert p _ => eterm_free_vars p
+  | .assert p _ => free_vars p
+  | .assert_chain ts _ _ => ts.flatMap free_vars
   | .let _ _ => []
   | .let_def _ e => free_vars e
   | .assume p => free_vars p
@@ -139,6 +133,7 @@ end
 instance: ToString ProofStep where
   toString
     | .assert .. => "assert"
+    | .assert_chain .. => "assert_chain"
     | .let ids _ => s!"let {ids}"
     | .let_def id _e => s!"let_def {id}"
     | .assume _ => s!"assume"
@@ -148,26 +143,23 @@ instance: ToString ProofStep where
     | .case _ _ => "case"
     | .group _ => "group"
 
-def of_assert_prop: TSyntax `assert_prop → CoreM (ETerm × List (Option Reason))
+def of_assert_prop: TSyntax `assert_prop → CoreM ProofStep
   | `(assert_prop| $p:prop) =>
-        do pure (.term (← of_prop p), [none])
+        do pure (.assert (← of_prop p) none)
   | `(assert_prop| $e:expr $eb:eq_expr_by $ebs:eq_expr_by*) => do
         let (op1, e1, by1) ← of_eq_expr_by eb
         let (ops, es, bys) := unzip3 (← ebs.toList.mapM of_eq_expr_by)
-        pure (.eq_chain ((← of_expr e) :: e1 :: es) (op1 :: ops), by1 :: bys)
+        pure $ .assert_chain ((← of_expr e) :: e1 :: es) (op1 :: ops) (by1 :: bys)
   | _ => throwError "unknown assert_prop"
-
-def assert_step (t: Term) (r: Option Reason): ProofStep :=
-  .assert (.term t) [r]
 
 def of_because_prop : TSyntax ``because_prop → CoreM ProofStep
   | `(because_prop| $_:_because $p:prop) => do
-       pure $ .assert (.term (← of_prop p)) [none]
+       pure $ .assert (← of_prop p) none
   | _ => throwError "unknown because_prop"
 
 def of_which_is_contra (stx: TSyntax `which_is_contra): CoreM ProofStep :=
   let contra r := do
-    pure $ assert_step (← `(False)) (.some (.apply $ ← r.toList.flatMapM of_reference))
+    pure $ .assert (← `(False)) (.some (.apply $ ← r.toList.flatMapM of_reference))
   match stx with
     | `(which_is_contra| $_:which_is a contradiction $[to $r:reference]?) => contra r
     | `(which_is_contra| $_:which_is contradicting $r:reference) => contra (some r)
@@ -182,16 +174,16 @@ def of_which_is_contradiction (stx: TSyntax ``which_is_contradiction) : CoreM (L
 
 def mk_step (t: Term) (r: Option Reason): ProofStep := match match_binder t with
   | .some (.exists, _vars, _p) => .is_some t r
-  | _ => assert_step t r
+  | _ => .assert t r
 
 def of_proof_prop: TSyntax `proof_prop → CoreM (List ProofStep)
   | `(proof_prop| $[$b:because_prop $[,]?]? $[$_:_by $r:reason]? $[$_:_have]? $p:assert_prop
           $[by $r2:reason]? $w:which_is_contradiction ?) => do
         let because ← b.toList.mapM of_because_prop
-        let (e, rs) ← of_assert_prop p
-        let s ← match e with
-          | .term t => do pure $ mk_step t ((← r.bindM of_reason) <|> (← r2.bindM of_reason))
-          | .eq_chain .. => pure (.assert e rs)
+        let step ← of_assert_prop p
+        let s ← match step with
+          | .assert t _ => do pure $ mk_step t ((← r.bindM of_reason) <|> (← r2.bindM of_reason))
+          | _ => pure step
         let contra ← w.toList.flatMapM of_which_is_contradiction
         pure (because ++ [s] ++ contra)
   | _ => throwError "unknown proof_prop"
@@ -299,7 +291,7 @@ partial def show_blocks (blocks: List Block): String := "\n" ++
   "\n".intercalate (f "" blocks)
 
 def is_assert_false : ProofStep → Bool
-  | .assert (.term t) _ => Syntax.getId t == ``False
+  | .assert t _ => Syntax.getId t == ``False
   | _ => false
 
 partial def infer_blocks (steps: List ProofStep): List Block :=
@@ -313,7 +305,7 @@ partial def infer_blocks (steps: List ProofStep): List Block :=
           if (!is_assert_false step && !vars.head?.all (fun vs => vs.any in_use.elem))
             then ([], steps)
             else let (blocks, rest) := match step with
-              | .assert .. => ([⟨step, []⟩], rest)
+              | .assert .. | .assert_chain .. => ([⟨step, []⟩], rest)
               | .let .. | .let_def .. | .assume _ | .is_some .. =>
                   let vars := if step matches (.assume _) then vars
                     else step_decl_vars step :: vars
@@ -413,10 +405,10 @@ partial def translate (top: Bool) (parent_ex: List (Name × Term)) (prev: Term) 
             `(fun (_: $p) => $c)
         | _ => panic! "no assume"
       let (decl, prop) ← match step with
-        | .assert (.term p) rs => withRef p do
-              let b ← tactic (rs[0]?.getD (panic! "translate"))
+        | .assert p reason => withRef p do
+              let b ← tactic reason
               pure $ (← `(letDecl| : $p:term := $b), p)
-        | .assert (.eq_chain ts ops) reasons => do
+        | .assert_chain ts ops reasons => do
             let tactics ← reasons.mapM tactic
             let mk_step op t tactic := do
               let b := with_info2 tactic t
