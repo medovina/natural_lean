@@ -86,7 +86,7 @@ def of_quotient_def (name: Ident): TSyntax ``quotient_def → CoreM (List Comman
         iseqv := $(← proof_by (.some (← of_justification j))))
       let quot_cmd ← `(def $name := Quotient ($inst_name))
       let mk_quot := id_append name `mk_quot
-      let mk_cmd ← `(def $mk_quot (x : $type) : $name := Quotient.mk _ x)
+      let mk_cmd ← `(abbrev $mk_quot (x : $type) : $name := Quotient.mk _ x)
       let exact_thm ← `(
         @[grind =]
         theorem $(id_append name `exact) :

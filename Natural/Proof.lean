@@ -325,21 +325,25 @@ def is_assert_false : ProofStep → Bool
   | _ => false
 
 partial def infer_blocks (steps: List ProofStep): List Block :=
-  let rec infer (vars: List (List Name)) (steps: List ProofStep): List Block × List ProofStep :=
+  let rec infer (vars: List (List Name)) (let_vars: List (List Name))
+                (steps: List ProofStep): List Block × List ProofStep :=
     match steps with
       | [] => ([], [])
       | (step :: rest) =>
-          if overlap (step_all_decl_vars step) vars.flatten
-             then ([], steps) else
+          if overlap (step_all_decl_vars step) vars.flatten then ([], steps) else
           let in_use := all_free_vars steps
-          if (!is_assert_false step && !vars.head?.all (fun vs => vs.any in_use.elem))
+          let vars_in_use := vars.head?.all (fun vs => vs.any in_use.elem)
+          let let_vars_in_use := let_vars.head?.all (fun vs => vs.any in_use.elem)
+          if (!is_assert_false step && !vars_in_use && !let_vars_in_use)
             then ([], steps)
             else let (blocks, rest) := match step with
               | .assert .. | .assert_chain .. => ([⟨step, []⟩], rest)
               | .let .. | .let_def .. | .assume _ | .is_some .. =>
-                  let vars := if step matches (.assume _) then vars
-                    else step_decl_vars step :: vars
-                  let (children, rest) := infer vars rest
+                  let vars := if step matches (.assume _)
+                    then vars else step_decl_vars step :: vars
+                  let let_vars := if step matches (.let ..)
+                    then step_decl_vars step :: vars else let_vars
+                  let (children, rest) := infer vars let_vars rest
                   ([⟨step, children⟩], rest)
               | .if_otherwise p ts fs q =>
                   let tb := ⟨.assume p, infer_blocks ts⟩
@@ -357,9 +361,9 @@ partial def infer_blocks (steps: List ProofStep): List Block :=
                   let block := ⟨.case ts concl, bs⟩
                   ([block], rest)
               | .group steps => (infer_blocks steps, rest)
-            let (blocks2, rest) := infer vars rest
+            let (blocks2, rest) := infer vars let_vars rest
             (blocks ++ blocks2, rest)
-  let (blocks, rest) := infer [] steps
+  let (blocks, rest) := infer [] [] steps
   assert! (rest.isEmpty)
   blocks
 

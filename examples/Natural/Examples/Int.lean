@@ -22,6 +22,10 @@ Definition.  0 = ℤ[(0, 0)].
 
 Definition.  1 = ℤ[(1, 0)].
 
+Lemma.  For all a, b : Nat, ℤ[(a, b)] = 0 if and only if a = b.  [ℤ.eq_zero]
+
+Proof.  Let a, b : Nat.  Suppose that ℤ[(a, b)] = 0.  Then ℤ[(a, b)] = ℤ[(0, 0)], so (a, b) ~ (0, 0), so a + 0 = b + 0, so a = b.  Conversely, suppose that a = b.  Then (a, b) ~ (0, 0), so ℤ[(a, b)] = ℤ[(0, 0)] = 0.
+
 -- addition: definition
 
 Lemma.  Let n, j, k, i, n₁, j₁, k₁, i₁ : Nat.  If (n, j) ~ (n₁, j₁) and (k, i) ~ (k₁, i₁) then
@@ -74,3 +78,37 @@ Proof.
 Corollary.  The operator × is commutative on ℤ.
 
 Corollary.  The operator × is associative on ℤ.
+
+Theorem.  Let a, b : ℤ.  If a ≠ 0 and b ≠ 0, then a · b ≠ 0.
+
+Proof.  Assume that a ≠ 0 and b ≠ 0.  Let a = ℤ[(n, j)] for some n, j : Nat.  Let b = ℤ[(k, i)] for some k, i : Nat.  It follows by ℤ.eq_zero that n ≠ j and k ≠ i.  Since k ≠ i, either k < i or i < k.
+
+Suppose that i < k.  Then by Nat.exists_eq_add_of_lt k = i + (u + 1) for some u : Nat.  Since n ≠ j, it follows by Nat.mul_right_cancel_iff that n · (u + 1) ≠ j · (u + 1).  Hence
+
+    n · k + j · i = n · (i + (u + 1)) + j · i
+                  = n · i + n · (u + 1) + j · i
+                  ≠ n · i + j · (u + 1) + j · i.
+
+But
+
+    n · i + j · (u + 1) + j · i = j · (i + (u + 1)) + n · i
+                                = j · k + n · i.
+
+Thus n · k + j · i ≠ j · k + n · i.
+
+Otherwise k < i.  Then by Nat.exists_eq_add_of_lt i = k + (u + 1) for some u : Nat.  Since n ≠ j, it follows by Nat.mul_right_cancel_iff that n · (u + 1) ≠ j · (u + 1).  Hence
+
+    n · k + j · i = n · k + j · (k + (u + 1))
+                  = n · k + j · k + j · (u + 1)
+                  ≠ n · k + j · k + n · (u + 1).
+
+But
+
+    n · k + j · k + n · (u + 1) = n · (k + (u + 1)) + j · k
+                                = n · i + j · k.
+
+Thus n · k + j · i ≠ j · k + n · i.
+
+In any case n · k + j · i ≠ j · k + n · i.  So
+
+    a · b = ℤ[(n · k + j · i, j · k + n · i)] ≠ 0 by ℤ.eq_zero.
