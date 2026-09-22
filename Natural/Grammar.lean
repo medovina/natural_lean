@@ -161,9 +161,17 @@ syntax (priority := 2) atomic(begin_chain eq_expr_by+) : assert_prop
 
 kdef _so = "but" | "hence" | "so" | "that is" | "then" | "therefore" | "thus"
 
-kdef _have =
-  "clearly" | "it follows that" | "it must be that" |
+kdef have1 =
+  "clearly" | "it must be that" |
   "we deduce that" | "we have shown that" | "we have" | "we know that" | "we must have"
+
+kdef _it = "it"
+
+syntax _follows := _it "follows" ("by" reason)? "that"
+
+sdef _have
+  | have1
+  | _follows
 
 kdef _because = "because" | "since"
 

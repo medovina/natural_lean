@@ -80,13 +80,19 @@ def of_justification : TSyntax ``justification → CoreM Ident
 def of_quotient_def (name: Ident): TSyntax ``quotient_def → CoreM (List Command)
   | `(quotient_def| as the quotient $t:type / $op:rel_op . $j:justification) => do
       let type ← of_type t
-      let inst_name := mkIdent (name.getId ++ `Setoid)
+      let inst_name := id_append name `Setoid
       let inst_cmd ← `(instance $inst_name:ident : Setoid ($type) where
         r := $(← op_fun op type)
         iseqv := $(← proof_by (.some (← of_justification j))))
       let quot_cmd ← `(def $name := Quotient ($inst_name))
-      let mk_cmd ← `(def $(mk_quot name) (x : $type) : $name := Quotient.mk _ x)
-      pure [inst_cmd, quot_cmd, mk_cmd]
+      let mk_quot := id_append name `mk_quot
+      let mk_cmd ← `(def $mk_quot (x : $type) : $name := Quotient.mk _ x)
+      let exact_thm ← `(
+        @[grind =]
+        theorem $(id_append name `exact) :
+          ∀ x y : $type, $mk_quot x = $mk_quot y ↔ x ≈ y :=
+            by default_apply Quotient.exact Quotient.sound)
+      pure [inst_cmd, quot_cmd, mk_cmd, exact_thm]
   | _ => throwError "unknown quotient_def"
 
 def of_type_spec (name: Ident) (sig: Option Ident): TSyntax `type_spec → CoreM (List Command)
@@ -163,7 +169,7 @@ partial def flat_name : Term → CoreM String
   | _ => throwError "flat_name: can't encode"
 
 partial def embed_name (type: Term) (name: Name) : CoreM Ident := match type with
-  | `($i:ident) => pure $ mkIdent (i.getId ++ name)
+  | `($i:ident) => pure $ id_append i name
   | `($t $_u) => embed_name t name
   | _ => do pure $ mkIdent $ Name.mkSimple ((← flat_name type) ++ "_" ++ name.toString)
 

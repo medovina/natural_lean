@@ -134,8 +134,6 @@ partial def of_super_expr : TSyntax `super_expr → CoreM Term
       `($(← of_super_expr e) + $(← of_super_expr f))
   | _ => throwError "unknown super_expr"
 
-def mk_quot (i: Ident) := mkIdent (i.getId ++ `mk_quot)
-
 mutual
   partial def of_expr (expr: TSyntax `expr): CoreM Term := withRef expr do
     match expr with
@@ -150,7 +148,7 @@ mutual
       | `(expr| $e:expr ( $f:expr )) => `(app_or_mul $(← of_expr e) $(← of_expr f))
       | `(expr| ( $e:expr )) => of_expr e
       | `(expr| ( $e:expr , $f:expr)) => `( ($(← of_expr e), $(← of_expr f)) )
-      | `(expr| $i:ident [ $e:expr ]) => `($(mk_quot i) $(← of_expr e))
+      | `(expr| $i:ident [ $e:expr ]) => `($(id_append i `mk_quot) $(← of_expr e))
       | _ =>
         let elabFns := naturalElabAttribute.getEntries (← getEnv) expr.raw.getKind
         for elabFn in elabFns do

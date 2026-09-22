@@ -105,6 +105,8 @@ def as_ident : Term → Option Ident
   | `($i:ident) => .some i
   | _ => .none
 
+def id_append (id: Ident) (name: Name) := mkIdent (id.getId ++ name)
+
 def parse_infix_opt : Syntax → Option (Syntax × String × Syntax)
   | .node _ _ #[x, .atom _ op, y] => .some (x, op, y)
   | _ => .none

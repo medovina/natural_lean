@@ -195,13 +195,24 @@ def mk_step (t: Term) (r: Option Reason): ProofStep := match match_binder t with
   | .some (.exists, _vars, _p) => .is_some t r
   | _ => .assert t r
 
+def of_follows : TSyntax ``_follows → CoreM (Option Reason)
+  | `(_follows| $_:_it follows $[by $r:reason]? that) => r.bindM of_reason
+  | _ => throwError "unknown follows"
+
+def of_have : TSyntax `_have → CoreM (Option Reason)
+  | `(_have| $_:have1) => pure none
+  | `(_have| $f:_follows) => of_follows f
+  | _ => throwError "unknown have"
+
 def of_proof_prop: TSyntax `proof_prop → CoreM (List ProofStep)
-  | `(proof_prop| $[$b:because_prop $[,]?]? $[$_:_by $r:reason]? $[$_:_have]? $p:assert_prop
+  | `(proof_prop| $[$b:because_prop $[,]?]? $[$_:_by $r1:reason]? $[$h:_have]? $p:assert_prop
           $[by $r2:reason]? $w:which_is_contradiction ?) => do
         let because ← b.toList.mapM of_because_prop
         let step ← of_assert_prop p
         let s ← match step with
-          | .assert t _ => do pure $ mk_step t ((← r.bindM of_reason) <|> (← r2.bindM of_reason))
+          | .assert t _ => do
+              let r := (← r1.bindM of_reason) <|> (← h.bindM of_have) <|> (← r2.bindM of_reason)
+              pure $ mk_step t r
           | _ => pure step
         let contra ← w.toList.flatMapM of_which_is_contradiction
         pure (because ++ [s] ++ contra)
