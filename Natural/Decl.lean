@@ -174,21 +174,15 @@ def is_application : Term → Bool
   | `($_ $_) => true
   | _ => false
 
-def generate_op_def (op: String) (args: List (Name × Term)) (eqs: List Term)
-    (justification: Option Ident) : CoreM (List Command) := do
-  let (op_name, cl) ← (op_class.lookup op).getDM $ throwError "generate_def: no op"
-  let eqs ← eqs.mapM (resolve_term args)
-  let (def_cmds, target_type, fname) ← match eqs with
-    | [eq] =>  -- direct function definition
+def op_def_commands (op: String) (op_name: Name) (args: List (Name × Term)) (eqs: List Term)
+    (justification: Option Ident) : CoreM (List Command × Term × Ident) := do
+  match eqs with
+    | [eq] =>
         let (x, _op, y, r) ← parse_def_eq eq
         let (x, y) := if op == "∈" then (y, x) else (x, y)
         match x, y with
-          | `($ix:ident), `($iy:ident) => do
-              let (tx, ty) ← mapM_pair (pattern_type args) (x, y)
-              let fname ← embed_name tx op_name
-              let d ← `(def $fname ($ix : $tx) ($iy : $ty) := $r)
-              pure ([d], tx, fname)
           | `(show $qx:ident from Quotient.mk _ $x), `(show $qy:ident from Quotient.mk _ $y) => do
+              -- implicit function definition on quotient type
               let target_type := qx
               let aux_name ← embed_name target_type (op_name ++ `aux)
               let (tx, ty) ← mapM_pair (pattern_type args) (x, y)
@@ -198,11 +192,14 @@ def generate_op_def (op: String) (args: List (Name × Term)) (eqs: List Term)
               let d ← `(def $fname (a: $qx) (b: $qy) : $qx :=
                 Quotient.lift₂ $aux_name $by_thms a b)
               pure ([aux, d], target_type, fname)
-          | _, _ =>
+          | _, _ =>  -- direct function definition
               let (tx, ty) ← mapM_pair (pattern_type args) (x, y)
               let fname ← embed_name tx op_name
-              ([·], ⟨tx⟩, fname) <$> `(def $fname | ($x : $tx), ($y : $ty) => $r)
-    | eq :: _ => do  -- by cases
+              let d ← match x, y with
+                | `($x:ident), `($y:ident) => `(def $fname ($x : $tx) ($y : $ty) := $r)
+                | _, _ => `(def $fname | ($x : $tx), ($y : $ty) => $r)
+              pure ([d], ⟨tx⟩, fname)
+    | eq :: _ => do  -- recursive function definition by cases
         let (x, _, _, _) ← parse_def_eq eq
         let target_type ← pattern_type args x
         let fname ← embed_name target_type op_name
@@ -212,6 +209,12 @@ def generate_op_def (op: String) (args: List (Name × Term)) (eqs: List Term)
             $(alts.toArray):matchAlt*)
         pure ([c], target_type, fname)
     | _ => throwError "equation expected"
+
+def generate_op_def (op: String) (args: List (Name × Term)) (eqs: List Term)
+    (justification: Option Ident) : CoreM (List Command) := do
+  let (op_name, cl) ← (op_class.lookup op).getDM $ throwError "generate_def: no op"
+  let eqs ← eqs.mapM (resolve_term args)
+  let (def_cmds, target_type, fname) ← op_def_commands op op_name args eqs justification
 
   let instName ← embed_name target_type (Name.mkSimple ("inst" ++ cl.toString))
 
