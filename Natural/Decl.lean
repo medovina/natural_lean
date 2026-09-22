@@ -85,7 +85,8 @@ def of_quotient_def (name: Ident): TSyntax ``quotient_def → CoreM (List Comman
         r := $(← op_fun op type)
         iseqv := $(← proof_by (.some (← of_justification j))))
       let quot_cmd ← `(def $name := Quotient ($inst_name))
-      pure [inst_cmd, quot_cmd]
+      let mk_cmd ← `(def $(mk_quot name) (x : $type) : $name := Quotient.mk _ x)
+      pure [inst_cmd, quot_cmd, mk_cmd]
   | _ => throwError "unknown quotient_def"
 
 def of_type_spec (name: Ident) (sig: Option Ident): TSyntax `type_spec → CoreM (List Command)
@@ -174,25 +175,31 @@ def is_application : Term → Bool
   | `($_ $_) => true
   | _ => false
 
+def is_implicit_quotient (x: Term) (y: Term): Option (Ident × Term × Term) :=
+  match x, y with
+    | `($f:ident $x), `($g:ident $y) =>
+      match f.getId.components, g.getId.components with
+        | [t, `mk_quot], [_t', `mk_quot] => .some (mkIdent t, x, y)
+        | _, _ => .none
+    | _, _ => .none
+
 def op_def_commands (op: String) (op_name: Name) (args: List (Name × Term)) (eqs: List Term)
     (justification: Option Ident) : CoreM (List Command × Term × Ident) := do
   match eqs with
     | [eq] =>
         let (x, _op, y, r) ← parse_def_eq eq
         let (x, y) := if op == "∈" then (y, x) else (x, y)
-        match x, y with
-          | `(show $qx:ident from Quotient.mk _ $x), `(show $qy:ident from Quotient.mk _ $y) => do
+        if let .some (type, x, y) := is_implicit_quotient x y then
               -- implicit function definition on quotient type
-              let target_type := qx
-              let aux_name ← embed_name target_type (op_name ++ `aux)
+              let aux_name ← embed_name type (op_name ++ `aux)
               let (tx, ty) ← mapM_pair (pattern_type args) (x, y)
               let aux ← `(def $aux_name | ($x : $tx), ($y : $ty) => $r)
               let by_thms ← proof_by_multi (mkIdent ``Quotient.sound :: justification.toList)
-              let fname ← embed_name target_type op_name
-              let d ← `(def $fname (a: $qx) (b: $qy) : $qx :=
+              let fname ← embed_name type op_name
+              let d ← `(def $fname (a: $type) (b: $type) : $type :=
                 Quotient.lift₂ $aux_name $by_thms a b)
-              pure ([aux, d], target_type, fname)
-          | _, _ =>  -- direct function definition
+              pure ([aux, d], type, fname)
+        else  -- direct function definition
               let (tx, ty) ← mapM_pair (pattern_type args) (x, y)
               let fname ← embed_name tx op_name
               let d ← match x, y with
