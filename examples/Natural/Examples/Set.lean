@@ -2,18 +2,13 @@ import Natural
 
 namespace Natural
 
--- Definition.  Let A and B be types.  Let f : A → B.  f is injective iff f(x) = f(y) implies x = y for all x, y : A.
-
-def injective (A: Type) (B: Type) (f: A → B) :=
-    ∀ x y : A, f x = f y → x = y
-
 -- sets: definition
 
 Definition.  The type Set(α) is defined as α → Prop.
 
 Definition.  For any S : Set(α) and x : α, x ∈ S iff S(x) is true.
 
--- set comprehension notation
+-- Define set comprehension notation.  Currently a notation definition is not possible in Natural Lean, so we use native Lean commands here.
 
 @[implicit_reducible]
 def Set.ofPred {α : Type u} (p : α → Prop) : Set α := p
@@ -25,7 +20,7 @@ theorem mem_ofPred_eq {x : α} {p : α → Prop} : (x ∈ {y : α | p y}) = p x 
 
 grind_pattern mem_ofPred_eq => x ∈ Set.ofPred p
 
--- Natural Lean syntax extension
+-- Define an elaborator that exposes the set comprehension syntax to Natural Lean.
 
 syntax (name := set_comp) "{" ident ":" type "|" prop "}" : expr
 
