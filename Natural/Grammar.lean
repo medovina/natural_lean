@@ -313,9 +313,9 @@ syntax prop_item := label "." top_sentence
 
 syntax _operator := "binary" ? ("operation" <|> "operator")
 
-sdef direct_def
-  | _for_all ids_types "," prop "." justification ?
-  | num (":" type)? "=" expr "."
+declare_syntax_cat direct_def
+syntax (priority := 1) (let_step ".")* prop "." justification ? : direct_def
+syntax (priority := 2) num (":" type)? "=" expr "." : direct_def
 
 syntax cases_def :=
   "The" _operator binary_op "on" ident

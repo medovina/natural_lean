@@ -263,11 +263,15 @@ def infer_type : TSyntax `expr → CoreM Term
   | _ => throwError "must specify constant type"
 
 def of_direct_def : TSyntax `direct_def → CoreM (List Command)
-  | `(direct_def| $_:_for_all $ids_type:ids_types , $p:prop . $just:justification ?) => do
-      let args ← of_ids_types ids_type
-      let eq ← of_prop p
+  | `(direct_def| $[$ls:let_step .]*  $p:prop . $just:justification ?) => do
+      let ls ← ls.toList.mapM of_let_step
+      let p ← of_prop p
+      let (vars, eq) := match match_binder p with
+        | .some (.all, vars, t) => (vars, t)
+        | _ => ([], p)
+      let args := ls.flatMap step_decl_vars_types ++ map_fst TSyntax.getId vars
       let (_, op, _, _) ← parse_def_eq eq
-      generate_op_def op (map_fst TSyntax.getId args) [eq] (← just.mapM of_justification)
+      generate_op_def op args [eq] (← just.mapM of_justification)
   | `(direct_def| $n:num $[: $type:type]? = $e:expr .) => do
       let expr ← of_expr e >>= resolve_term []
       let type ← type.elim (infer_type e) of_type

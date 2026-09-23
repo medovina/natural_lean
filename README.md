@@ -98,7 +98,13 @@ A __direct function definition__ defines a function non-recursively, using a sin
 Definition.  For all x, y : ℕ, x < y iff there is some z : ℕ such that x + S(z) = y.
 ```
 
-You may use pattern definition on the left side of a direct function definition:
+You may write one or more `Let` declarations at the beginning of a direct definition.  For example, the preceding definition may alternatively be written
+
+```
+Definition.  Let x, y : ℕ.  x < y iff there is some z : ℕ such that x + S(z) = y.
+```
+
+You may use pattern definition on the left side of a direct  definition:
 
 ```
 Definition.  For all a, b, c, d : ℕ, (a, b) ~ (c, d) if and only if a + d = b + c.
