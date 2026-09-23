@@ -336,7 +336,7 @@ sdef props_proofs
   | prop_item+ (_proof_dot proof_items)?
 
 sdef theorem_body
-  | (let_step ".")? props_proofs
+  | (let_step ".")* props_proofs
   | "The" _operator binary_op "is" _a ? natural_type "on" type "." post_name
 
 syntax _theorem := thm_name ? str ? "." theorem_body

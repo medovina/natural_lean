@@ -303,14 +303,14 @@ def lets_vars (lets: Option ProofStep) : LocalEnv := match lets with
   | .some (.let ids type) => ids.map (·, type)
   | _ => panic! "lets_vars: unexpected step"
 
-def translate_proofs (lets: Option ProofStep) (thms_proofs: List (ThmDecl × Option _Proof))
+def translate_proofs (lets: List ProofStep) (thms_proofs: List (ThmDecl × Option _Proof))
     : CoreM (List (ThmDecl × Option Term)) :=
   thms_proofs.mapM (fun (decl, proof) => withRef decl.thm do
-    let thm ← resolve_term (lets_vars lets) decl.thm
+    let thm ← resolve_term (lets.flatMap step_decl_vars_types) decl.thm
     pure ({decl with thm := ← generalize lets thm},
           ← proof.mapM (translate_proof lets thm)))
 
-def of_props_proofs (lets: Option ProofStep) (ps: TSyntax `props_proofs) :
+def of_props_proofs (lets: List ProofStep) (ps: TSyntax `props_proofs) :
         CoreM (List (ThmDecl × Option Term)) :=
   match ps with
     | `(props_proofs| $s:top_sentence $[ $_:_proof_dot $proof:proof ]?) => do
@@ -338,8 +338,8 @@ def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
     | [c] => Option.some c  -- use corollary_of by default if there is just one
     | _ => .none
   match body with
-    | `(theorem_body| $[$ls:let_step .]? $ps:props_proofs) => do
-        let thms_proofs ← of_props_proofs (← ls.mapM of_let_step) ps
+    | `(theorem_body| $[$ls:let_step .]* $ps:props_proofs) => do
+        let thms_proofs ← of_props_proofs (← ls.toList.mapM of_let_step) ps
         let (commands, names) := List.unzip $ ← thms_proofs.mapM
           (fun (⟨label, thm, thm_name, attr⟩, proof) => withRef thm do
             let proof := proof.getD (← proof_by by_default)

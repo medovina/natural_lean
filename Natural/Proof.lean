@@ -482,23 +482,22 @@ inductive _Proof where
   | steps (l: List ProofStep)
   | proof_by (r: Option Reason)
 
-def generalize (lets: Option ProofStep) (t: Term) : CoreM Term := match lets with
-  | .none => pure t
-  | .some (.let ids type) =>
-      let ids := (ids.inter (free_vars t)).toArray.map mkIdent
-      if ids == #[] then pure t else `(∀ $ids:ident* : $type, $t)
-  | _ => throwError "generalize: unexpected step"
+def generalize (lets: List ProofStep) (t: Term) : CoreM Term :=
+  let free := free_vars t
+  let ids := (lets.flatMap step_decl_vars_types).filterMap (fun (id, type) =>
+    if id ∈ free then some (mkIdent id, type) else none)
+  if ids == [] then pure t else mk_binder .all ids t
 
-def translate_proof (lets: Option ProofStep) (thm: Term): _Proof → CoreM Term
+def translate_proof (lets: List ProofStep) (thm: Term): _Proof → CoreM Term
   | .steps steps => do
-      let steps ← match lets with
-        | .none => pure steps
-        | .some (.let ids type) => match steps with
-          | .let .. :: _ => pure steps
-          | _ =>
-            let vars := ids.inter (free_vars thm)
-            pure $ .let vars type :: steps
+      let trim : ProofStep → CoreM (Option ProofStep)
+        | .let ids type =>
+            let ids := ids.inter (free_vars thm)
+            pure $ if ids == [] then none else some (.let ids type)
         | _ => throwError "of_proof: unexpected step"
+      let steps ← match steps with
+          | .let .. :: _ => pure steps
+          | _ => pure $ (← lets.filterMapM trim) ++ steps
       let blocks := infer_blocks steps
       trace[natural.tree] show_blocks blocks
       let blocks ← blocks.mapM (resolve_block [])
