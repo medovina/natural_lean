@@ -13,7 +13,7 @@ Definition.  For any S : Set(α) and x : α, x ∈ S iff S(x) is true.
 @[implicit_reducible]
 def Set.ofPred {α : Type u} (p : α → Prop) : Set α := p
 
-notation "{" x ":" type "|" body "}" => Set.ofPred fun x : type => body
+notation "{" x " : " type " | " body "}" => Set.ofPred fun x : type => body
 
 @[simp]
 theorem mem_ofPred_eq {x : α} {p : α → Prop} : (x ∈ {y : α | p y}) = p x := rfl

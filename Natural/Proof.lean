@@ -3,6 +3,7 @@ import Aesop
 import Natural.Prop
 
 open Lean
+open Std.Format
 
 namespace Natural
 
@@ -143,18 +144,32 @@ partial def all_free_vars : List ProofStep → List Name
       (step_free_vars step ++ all_free_vars steps).removeAll (step_decl_vars step) |>.eraseDups
 end
 
-instance: ToString ProofStep where
-  toString
-    | .assert .. => "assert"
-    | .assert_chain .. => "assert_chain"
-    | .let ids _ => s!"let {ids}"
-    | .let_def id _e => s!"let_def {id}"
-    | .assume _ => s!"assume"
-    | .is_some .. => s!"is_some"
-    | .if_otherwise .. => "if_otherwise"
-    | .biconditional .. => "biconditional"
-    | .case _ _ => "case"
-    | .group _ => "group"
+def fmt_term (t: Term) : CoreM Format := do
+  let ctx : PPContext := {
+    env := (← getEnv), mctx := {}, lctx := {}, opts := (← getOptions),
+    currNamespace := (← getCurrNamespace), openDecls := (← getOpenDecls) }
+  Lean.ppTerm ctx t
+
+def fmt_chain : List Term → List String → CoreM Format
+  | [t], [] => do pure f!"{← fmt_term t}"
+  | t :: ts, op :: ops => do
+      pure $ f!"{← fmt_term t}\n{op} {← fmt_chain ts ops}"
+  | _, _ => panic! "fmt_chain"
+
+def nestB := nest 4
+
+def show_step : ProofStep → CoreM Format
+  | .assert p _ => do pure f!"assert {← fmt_term p}"
+  | .assert_chain ts ops _ => do
+      pure $ nestB f!"assert_chain\n{← fmt_chain ts ops}"
+  | .let ids type => do pure f!"let {ids} : {← fmt_term type}"
+  | .let_def id t => do pure f!"let_def {id} = {← fmt_term t}"
+  | .assume t => do pure f!"assume {← fmt_term t}"
+  | .is_some t _ => do pure f!"is_some {← fmt_term t}"
+  | .if_otherwise _ _ _ concl => do pure f!"if_otherwise (conclusion: {← fmt_term concl})"
+  | .biconditional .. => pure "biconditional"
+  | .case _ concl => do pure f!"case (conclusion: {← fmt_term concl})"
+  | .group _ => pure "group"
 
 def of_begin_chain (t: TSyntax ``begin_chain) : CoreM (Term × String × Term × Term) := withRef t
   do match t with
@@ -314,11 +329,12 @@ structure Block where
   blocks: List Block
 deriving Nonempty
 
-partial def show_blocks (blocks: List Block): String := "\n" ++
-  let rec f (indent: String) (blocks: List Block): List String :=
-    blocks.flatMap (fun ⟨step, children⟩ =>
-      (indent ++ toString step) :: f (indent ++ "    ") children)
-  "\n".intercalate (f "" blocks)
+partial def show_blocks (blocks: List Block): CoreM Format :=
+  let show1 : Block → CoreM Format
+    | ⟨step, children⟩ =>
+        if children.isEmpty then do pure (← show_step step)
+        else do pure $ nestB ((← show_step step) ++ "\n" ++ (← show_blocks children))
+  do pure $ joinSep (← blocks.mapM show1) "\n"
 
 def is_assert_false : ProofStep → Bool
   | .assert t _ => Syntax.getId t == ``False
@@ -499,8 +515,8 @@ def translate_proof (lets: List ProofStep) (thm: Term): _Proof → CoreM Term
           | .let .. :: _ => pure steps
           | _ => pure $ (← lets.filterMapM trim) ++ steps
       let blocks := infer_blocks steps
-      trace[natural.tree] show_blocks blocks
       let blocks ← blocks.mapM (resolve_block [])
+      trace[natural.tree] pretty ("\n" ++ (← show_blocks blocks))
       Prod.fst <$> translate True [] (← `(())) none blocks
   | .proof_by (.some (.by_definition_of i)) => do
       let env ← getEnv
