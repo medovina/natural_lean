@@ -83,7 +83,10 @@ syntax ident "[" expr "]" : expr  -- quotient type projection
 
 -- prop
 
-kdef rel_op = "=" | "≠" | "<" | "≮" | "≤" | ">" | "≯" | "≥" | "∈" | "~"
+kdef rel_op =
+  "=" | "≠" | "<" | "≮" | "≤" | ">" | "≯" | "≥" |
+  "∈" | "~" |
+  "|" | "∣"   -- vertical bar, division symbol: we accept either
 
 kdef binary_op = "+" | "·" | "×" | "^" | "<" | "≤" | "~"
 

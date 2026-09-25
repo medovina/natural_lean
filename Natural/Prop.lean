@@ -108,7 +108,10 @@ def syntax_atom (t: TSyntax α): String := match t.raw with
 
 def mk_false : Term := mkIdent ``False
 
-def op_map := [("·", "*"), ("×", "*"), ("~", "≈")]
+def op_map := [
+  ("·", "*"), ("×", "*"), ("~", "≈"),
+  ("|", "∣")  -- map vertical bar to division symbol
+  ]
 
 def map_op (op: String) := (op_map.lookup op).getD op
 
@@ -117,7 +120,7 @@ def of_binary_op (op: TSyntax α): String := map_op (syntax_atom op)
 def op_class := [
   ("+", `add, ``Add), ("*", `mul, ``Mul), ("^", `pow, ``Pow),
   ("<", `lt, ``LT), ("≤", `le, ``LE), ("≈", `Equiv, ``HasEquiv),
-  ("∈", `mem, ``Membership)]
+  ("∈", `mem, ``Membership), ("∣", `dvd, `Dvd) ]
 
 def super_char (s: Syntax) : Char := (s.getArg 0).getAtomVal.front
 

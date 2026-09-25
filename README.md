@@ -428,6 +428,9 @@ at least one of x < y, x = y, y < x is true
 ```
 
 Natural Lean follows the usual precedence for Boolean operators:  `and` normally has the highest precedence, followed in turn by `or`, `implies` and `iff`.  For example, `x > 0 and y > 0 or z > 0` means `(x > 0 and y > 0) or z > 0`.  However, a comma before `and` or `or`will cause the operator to have a low precedence.  For example, `x > 0, and y > 0 or z > 0` means `x > 0 and (y > 0 or z > 0)`.
+
+In Natural Lean some relational operators look slightly different than in native Lean.  Natural Lean uses `~` for an equivalence relation, whereas the native Lean symbol is `≈`.   Also, Natural Lean accepts either a vertical bar `|` or the division symbol `∣` to mean "divides", e.g. `3 | 12`.  Native Lean accepts only the division symbol, which looks similar to a vertical bar but is more difficult to type. 
+
 #### Operator chains
 
 A proposition may contain __chained relational operators__: for example, `x < y ≤ z = w` has the same meaning as `x < y and y ≤ z and z = w`.  In an assertion, each step in a chain may optionally have a reason:
