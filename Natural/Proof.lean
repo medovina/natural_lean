@@ -498,11 +498,12 @@ inductive _Proof where
   | steps (l: List ProofStep)
   | proof_by (r: Option Reason)
 
+def lets_vars (lets: List ProofStep) : LocalEnv := lets.flatMap step_decl_vars_types
+
 def generalize (lets: List ProofStep) (t: Term) : CoreM Term :=
   let free := free_vars t
-  let ids := (lets.flatMap step_decl_vars_types).filterMap (fun (id, type) =>
-    if id ∈ free then some (mkIdent id, type) else none)
-  if ids == [] then pure t else mk_binder .all ids t
+  let ids := (lets_vars lets).filter (fun (id, _type) => id ∈ free)
+  for_all ids t
 
 def translate_proof (lets: List ProofStep) (thm: Term): _Proof → CoreM Term
   | .steps steps => do

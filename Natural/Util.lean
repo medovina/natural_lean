@@ -171,6 +171,9 @@ def mk_binder (bt: BinderType) (xs: List (Ident × Term)) (t: Term) : CoreM Term
     | .all => do `(∀ $(← binders xs)*, $t)
     | .exists => do `(∃ $(← ex_binders xs)*, $t)
 
+def for_all (xs: List (Name × Term)) (t: Term) : CoreM Term :=
+  if xs == [] then pure t else mk_binder .all (map_fst mkIdent xs) t
+
 def bound_vars (t: Term): List (Name × Term) := match match_binder t with
   | .some (_, vars, _) => map_fst (·.getId) vars
   | .none => []

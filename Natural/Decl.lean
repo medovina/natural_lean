@@ -128,6 +128,10 @@ def of_top_sentence : TSyntax ``top_sentence → CoreM (Term × Option Ident × 
       pure (← of_prop p, ← of_post_name pn)
   | _ => throwError "unknown top_sentence"
 
+def of_let_steps : TSyntax ``let_steps → CoreM (List ProofStep)
+  | `(let_steps| $[$ls:let_step .]*) => ls.toList.mapM of_let_step
+  | _ => throwError "unknown let_steps"
+
 abbrev Label := Name
 
 structure ThmDecl where
@@ -137,9 +141,9 @@ structure ThmDecl where
   attr: Option Ident
 
 def of_prop_item : TSyntax ``prop_item → CoreM ThmDecl
-  | `(prop_item| $i:label . $s:top_sentence) => do
+  | `(prop_item| $i:label . $ls:let_steps $s:top_sentence) => do
       let (thm, name, attr) ← of_top_sentence s
-      pure ⟨← of_label i, thm, name, attr⟩
+      pure ⟨← of_label i, ← for_all (lets_vars (← of_let_steps ls)) thm, name, attr⟩
   | _ => throwError "unknown prop_item"
 
 def parse_def_eq : Term → CoreM (Term × String × Term × Term)
@@ -189,7 +193,7 @@ def is_implicit_quotient (x: Term) (y: Term): Option (Ident × Term × Term) :=
         | _, _ => .none
     | _, _ => .none
 
-def op_def_commands (op: String) (op_name: Name) (args: List (Name × Term)) (eqs: List Term)
+def op_def_commands (op: String) (op_name: Name) (env: List (Name × Term)) (eqs: List Term)
     (justification: Option Ident) : CoreM (List Command × Term × Ident) := do
   match eqs with
     | [eq] =>
@@ -198,7 +202,7 @@ def op_def_commands (op: String) (op_name: Name) (args: List (Name × Term)) (eq
         if let .some (type, x, y) := is_implicit_quotient x y then
               -- implicit function definition on quotient type
               let aux_name ← embed_name type (op_name ++ `aux)
-              let (tx, ty) ← mapM_pair (pattern_type args) (x, y)
+              let (tx, ty) ← mapM_pair (pattern_type env) (x, y)
               let aux ← `(def $aux_name | ($x : $tx), ($y : $ty) => $r)
               let by_thms ← proof_by_multi (mkIdent ``Quotient.sound :: justification.toList)
               let fname ← embed_name type op_name
@@ -206,7 +210,7 @@ def op_def_commands (op: String) (op_name: Name) (args: List (Name × Term)) (eq
                 Quotient.lift₂ $aux_name $by_thms a b)
               pure ([aux, d], type, fname)
         else  -- direct function definition
-              let (tx, ty) ← mapM_pair (pattern_type args) (x, y)
+              let (tx, ty) ← mapM_pair (pattern_type env) (x, y)
               let fname ← embed_name tx op_name
               let d ← match x, y with
                 | `($x:ident), `($y:ident) => `(def $fname ($x : $tx) ($y : $ty) := $r)
@@ -214,7 +218,7 @@ def op_def_commands (op: String) (op_name: Name) (args: List (Name × Term)) (eq
               pure ([d], ⟨tx⟩, fname)
     | eq :: _ => do  -- recursive function definition by cases
         let (x, _, _, _) ← parse_def_eq eq
-        let target_type ← pattern_type args x
+        let target_type ← pattern_type env x
         let fname ← embed_name target_type op_name
         let alts ← eqs.mapM (eq_to_alt_expr op fname)
         let c ← `(set_option linter.unusedVariables false in
@@ -223,11 +227,11 @@ def op_def_commands (op: String) (op_name: Name) (args: List (Name × Term)) (eq
         pure ([c], target_type, fname)
     | _ => throwError "equation expected"
 
-def generate_op_def (op: String) (args: List (Name × Term)) (eqs: List Term)
+def generate_op_def (op: String) (env: List (Name × Term)) (eqs: List Term)
     (justification: Option Ident) : CoreM (List Command) := do
   let (op_name, cl) ← (op_class.lookup op).getDM $ throwError "generate_def: no op"
-  let eqs ← eqs.mapM (resolve_term args)
-  let (def_cmds, target_type, fname) ← op_def_commands op op_name args eqs justification
+  let eqs ← eqs.mapM (resolve_term env)
+  let (def_cmds, target_type, fname) ← op_def_commands op op_name env eqs justification
 
   let instName ← embed_name target_type (Name.mkSimple ("inst" ++ cl.toString))
 
@@ -263,13 +267,13 @@ def infer_type : TSyntax `expr → CoreM Term
   | _ => throwError "must specify constant type"
 
 def of_direct_def : TSyntax `direct_def → CoreM (List Command)
-  | `(direct_def| $[$ls:let_step .]*  $p:prop . $just:justification ?) => do
-      let ls ← ls.toList.mapM of_let_step
+  | `(direct_def| $ls:let_steps $p:prop . $just:justification ?) => do
+      let lets ← of_let_steps ls
       let p ← of_prop p
       let (vars, eq) := match match_binder p with
         | .some (.all, vars, t) => (vars, t)
         | _ => ([], p)
-      let args := ls.flatMap step_decl_vars_types ++ map_fst TSyntax.getId vars
+      let args := lets_vars lets ++ map_fst TSyntax.getId vars
       let (_, op, _, _) ← parse_def_eq eq
       generate_op_def op args [eq] (← just.mapM of_justification)
   | `(direct_def| $n:num $[: $type:type]? = $e:expr .) => do
@@ -302,15 +306,10 @@ def match_proofs : List ThmDecl → List (Label × _Proof) → CoreM (List (ThmD
   | decl :: ts, [] => .cons (decl, .none) <$> match_proofs ts []
   | [], (j, _) :: _ => throwError s!"unmatched proof label: {j}"
 
-def lets_vars (lets: Option ProofStep) : LocalEnv := match lets with
-  | .none => []
-  | .some (.let ids type) => ids.map (·, type)
-  | _ => panic! "lets_vars: unexpected step"
-
 def translate_proofs (lets: List ProofStep) (thms_proofs: List (ThmDecl × Option _Proof))
     : CoreM (List (ThmDecl × Option Term)) :=
   thms_proofs.mapM (fun (decl, proof) => withRef decl.thm do
-    let thm ← resolve_term (lets.flatMap step_decl_vars_types) decl.thm
+    let thm ← resolve_term (lets_vars lets) decl.thm
     pure ({decl with thm := ← generalize lets thm},
           ← proof.mapM (translate_proof lets thm)))
 
@@ -342,8 +341,8 @@ def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
     | [c] => Option.some c  -- use corollary_of by default if there is just one
     | _ => .none
   match body with
-    | `(theorem_body| $[$ls:let_step .]* $ps:props_proofs) => do
-        let thms_proofs ← of_props_proofs (← ls.toList.mapM of_let_step) ps
+    | `(theorem_body| $ls:let_steps $ps:props_proofs) => do
+        let thms_proofs ← of_props_proofs (← of_let_steps ls) ps
         let (commands, names) := List.unzip $ ← thms_proofs.mapM
           (fun (⟨label, thm, thm_name, attr⟩, proof) => withRef thm do
             let proof := proof.getD (← proof_by by_default)

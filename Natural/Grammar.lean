@@ -74,7 +74,7 @@ syntax nat : expr
 syntax ident : expr
 syntax:80 expr:80 super_expr : expr
 syntax:80 expr:81 "^" expr:80 : expr
-syntax:75 (priority := 1) expr:75 expr:76 : expr
+syntax:75 (priority := 1) expr:75 noWs expr:76 : expr
 syntax:70 expr:70 ("·" <|> "×") expr:71 : expr
 syntax:65 expr:65 "+" expr:66 : expr
 syntax (priority := 2) expr "(" expr ")" : expr
@@ -312,12 +312,14 @@ syntax post_name := ("[" thm_name (":" attrib)? "]")?
 
 syntax top_sentence := prop "." post_name
 
-syntax prop_item := label "." top_sentence
+syntax let_steps := (let_step ".")*
+
+syntax prop_item := label "." let_steps top_sentence
 
 syntax _operator := "binary" ? ("operation" <|> "operator")
 
 declare_syntax_cat direct_def
-syntax (priority := 1) (let_step ".")* prop "." justification ? : direct_def
+syntax (priority := 1) let_steps prop "." justification ? : direct_def
 syntax (priority := 2) num (":" type)? "=" expr "." : direct_def
 
 syntax cases_def :=
@@ -339,7 +341,7 @@ sdef props_proofs
   | prop_item+ (_proof_dot proof_items)?
 
 sdef theorem_body
-  | (let_step ".")* props_proofs
+  | let_steps props_proofs
   | "The" _operator binary_op "is" _a ? natural_type "on" type "." post_name
 
 syntax _theorem := thm_name ? str ? "." theorem_body

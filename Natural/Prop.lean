@@ -144,7 +144,7 @@ mutual
       | `(expr| $i:ident) => pure i
       | `(expr| $e:expr $s:super_expr) => `($(← of_expr e) ^ $(← of_super_expr s))
       | `(expr| $e:expr ^ $f:expr) => `($(← of_expr e) ^ $(← of_expr f))
-      | `(expr| $e:expr $f:expr)
+      | `(expr| $e:expr$f:expr)
       | `(expr| $e:expr · $f:expr)
       | `(expr| $e:expr × $f:expr) => `($(← of_expr e) * $(← of_expr f))
       | `(expr| $e:expr + $f:expr) => `($(← of_expr e) + $(← of_expr f))
