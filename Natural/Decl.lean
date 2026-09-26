@@ -132,9 +132,14 @@ def of_top_sentence : TSyntax ``top_sentence → CoreM (Term × Option Ident × 
       pure (← of_prop p, ← of_post_name pn)
   | _ => throwError "unknown top_sentence"
 
+def of_init_sentence : TSyntax ``init_sentence → CoreM (List ProofStep)
+  | `(init_sentence| $iss:init_step /* .) =>
+      iss.getElems.toList.mapM of_init_step
+  | _ => throwError "unknown init_sentence"
+
 def of_init_steps : TSyntax ``init_steps → CoreM (List ProofStep)
-  | `(init_steps| $[$iss:init_step .]*) => iss.toList.mapM of_init_step
-  | _ => throwError "unknown let_steps"
+  | `(init_steps| $iss:init_sentence*) => iss.toList.flatMapM of_init_sentence
+  | _ => throwError "unknown init_steps"
 
 abbrev Label := Name
 

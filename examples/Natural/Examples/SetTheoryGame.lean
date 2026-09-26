@@ -4,6 +4,10 @@ namespace Natural
 
 -- subset world
 
-Theorem.
+Theorem.  Let A, B, C : Set(T).
 
-  a. Let U be a type.  Let A : Set(U).  Let x : U.  Suppose that x ∈ A.  Then x ∈ A.
+  a. Let x : T.  Suppose that x ∈ A.  Then x ∈ A.
+
+  b. Suppose that A ⊆ B.  Let x : T, and suppose that x ∈ A.  Then x ∈ B.
+
+  c. Suppose that A ⊆ B and B ⊆ C.  Let x : T, and suppose that x ∈ A.  Then x ∈ C.

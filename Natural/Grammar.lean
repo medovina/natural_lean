@@ -315,7 +315,9 @@ syntax post_name := ("[" thm_name (":" attrib)? "]")?
 
 syntax top_sentence := "Then"? prop "." post_name
 
-syntax init_steps := (init_step ".")*
+syntax init_sentence := sepBy1(init_step, "/", "," ? "and") "."
+
+syntax init_steps := init_sentence*
 
 syntax prop_item := label "." init_steps top_sentence
 
