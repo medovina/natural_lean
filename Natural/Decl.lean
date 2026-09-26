@@ -124,12 +124,12 @@ def of_post_name : TSyntax ``post_name → CoreM (Option Ident × Option Ident)
   | _ => throwError "unknown post_name"
 
 def of_top_sentence : TSyntax ``top_sentence → CoreM (Term × Option Ident × Option Ident)
-  | `(top_sentence| $p:prop . $pn:post_name) => do
+  | `(top_sentence| $[Then]? $p:prop . $pn:post_name) => do
       pure (← of_prop p, ← of_post_name pn)
   | _ => throwError "unknown top_sentence"
 
-def of_let_steps : TSyntax ``let_steps → CoreM (List ProofStep)
-  | `(let_steps| $[$ls:let_step .]*) => ls.toList.mapM of_let_step
+def of_init_steps : TSyntax ``init_steps → CoreM (List ProofStep)
+  | `(init_steps| $[$iss:init_step .]*) => iss.toList.mapM of_init_step
   | _ => throwError "unknown let_steps"
 
 abbrev Label := Name
@@ -141,9 +141,9 @@ structure ThmDecl where
   attr: Option Ident
 
 def of_prop_item : TSyntax ``prop_item → CoreM ThmDecl
-  | `(prop_item| $i:label . $ls:let_steps $s:top_sentence) => do
+  | `(prop_item| $i:label . $iss:init_steps $s:top_sentence) => do
       let (thm, name, attr) ← of_top_sentence s
-      pure ⟨← of_label i, ← for_all (lets_vars (← of_let_steps ls)) thm, name, attr⟩
+      pure ⟨← of_label i, ← apply_init_steps (← of_init_steps iss) thm, name, attr⟩
   | _ => throwError "unknown prop_item"
 
 def parse_def_eq : Term → CoreM (Term × String × Term × Term)
@@ -267,13 +267,13 @@ def infer_type : TSyntax `expr → CoreM Term
   | _ => throwError "must specify constant type"
 
 def of_direct_def : TSyntax `direct_def → CoreM (List Command)
-  | `(direct_def| $ls:let_steps $p:prop . $just:justification ?) => do
-      let lets ← of_let_steps ls
+  | `(direct_def| $[$ls:let_step .]*  $p:prop . $just:justification ?) => do
+      let ls ← ls.toList.mapM of_let_step
       let p ← of_prop p
       let (vars, eq) := match match_binder p with
         | .some (.all, vars, t) => (vars, t)
         | _ => ([], p)
-      let args := lets_vars lets ++ map_fst TSyntax.getId vars
+      let args := lets_vars ls ++ map_fst TSyntax.getId vars
       let (_, op, _, _) ← parse_def_eq eq
       generate_op_def op args [eq] (← just.mapM of_justification)
   | `(direct_def| $n:num $[: $type:type]? = $e:expr .) => do
@@ -306,25 +306,25 @@ def match_proofs : List ThmDecl → List (Label × _Proof) → CoreM (List (ThmD
   | decl :: ts, [] => .cons (decl, .none) <$> match_proofs ts []
   | [], (j, _) :: _ => throwError s!"unmatched proof label: {j}"
 
-def translate_proofs (lets: List ProofStep) (thms_proofs: List (ThmDecl × Option _Proof))
+def translate_proofs (init_steps: List ProofStep) (thms_proofs: List (ThmDecl × Option _Proof))
     : CoreM (List (ThmDecl × Option Term)) :=
   thms_proofs.mapM (fun (decl, proof) => withRef decl.thm do
-    let thm ← resolve_term (lets_vars lets) decl.thm
-    pure ({decl with thm := ← generalize lets thm},
-          ← proof.mapM (translate_proof lets thm)))
+    let thm ← resolve_term (lets_vars init_steps) decl.thm
+    pure ({decl with thm := ← generalize init_steps thm},
+          ← proof.mapM (translate_proof init_steps thm)))
 
-def of_props_proofs (lets: List ProofStep) (ps: TSyntax `props_proofs) :
+def of_props_proofs (init_steps: List ProofStep) (ps: TSyntax `props_proofs) :
         CoreM (List (ThmDecl × Option Term)) :=
   match ps with
     | `(props_proofs| $s:top_sentence $[ $_:_proof_dot $proof:proof ]?) => do
         let (thm, opt_name, opt_attr) ← of_top_sentence s
         let decl := ThmDecl.mk none thm opt_name opt_attr
-        translate_proofs lets [(decl, ← proof.mapM of_proof)]
+        translate_proofs init_steps [(decl, ← proof.mapM of_proof)]
     | `(props_proofs| $ps:prop_item* $[ $_:_proof_dot $pis:proof_items ]?) => do
         let label_thms ← ps.toList.mapM of_prop_item
         let label_proofs := (← pis.mapM of_proof_items).getD []
         let thms_proofs ← match_proofs label_thms label_proofs
-        translate_proofs lets thms_proofs
+        translate_proofs init_steps thms_proofs
     | _ => throwError "unknown prop_or_items"
 
 def mk_decl (is_instance: Bool) (attr: Option Ident) (name: Option Ident)
@@ -341,8 +341,8 @@ def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
     | [c] => Option.some c  -- use corollary_of by default if there is just one
     | _ => .none
   match body with
-    | `(theorem_body| $ls:let_steps $ps:props_proofs) => do
-        let thms_proofs ← of_props_proofs (← of_let_steps ls) ps
+    | `(theorem_body| $ls:init_steps $ps:props_proofs) => do
+        let thms_proofs ← of_props_proofs (← of_init_steps ls) ps
         let (commands, names) := List.unzip $ ← thms_proofs.mapM
           (fun (⟨label, thm, thm_name, attr⟩, proof) => withRef thm do
             let proof := proof.getD (← proof_by by_default)
@@ -354,7 +354,9 @@ def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
     | `(theorem_body| The $_:_operator $op:binary_op is $_:_a ? $kind:natural_type
                       on $type:type . $pn:post_name) => withRef body do
         let env ← getEnv
-        let kind ← of_natural_type kind  -- name of type class or structure
+        let kind ← match (← of_natural_type kind) with
+          | `($kind:ident) => pure kind  -- name of type class or structure
+          | _ => throwError "id expected"
         unless Lean.isStructure env kind.getId do throwError "not a structure"
         let type ← of_type type
         let (name, attr) ← of_post_name pn

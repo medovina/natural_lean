@@ -240,8 +240,13 @@ def of_let_step: TSyntax `let_step → CoreM ProofStep
         pure $ .let ((← of_id_list xs).map TSyntax.getId) (← of_natural_type type)
   | _ => throwError "unknown let_step"
 
+def of_init_step: TSyntax `init_step → CoreM ProofStep
+  | `(init_step| $ls:let_step) => of_let_step ls
+  | `(init_step| $_:_assume $p:prop) => do pure $ .assume (← of_prop p)
+  | s => throwError s!"unknown init_step: {s}"
+
 def of_let_or_assume: TSyntax `let_or_assume → CoreM ProofStep
-  | `(let_or_assume| $ls:let_step) => of_let_step ls
+  | `(let_or_assume| $i:init_step) => of_init_step i
   | `(let_or_assume| $_:_let $id = $e) =>
         do pure $ .let_def id.getId (← of_expr e)
   | `(let_or_assume| $_:_let $id = $e for some $vars:ids_types) =>
@@ -253,7 +258,6 @@ def of_let_or_assume: TSyntax `let_or_assume → CoreM ProofStep
               let p ← `(∃ $(← ex_binders vars)*, $id = $(← of_expr e))
               (pure $ ProofStep.is_some p (.some (.tactic tac)))
           | _ => withRef e do throwError "expected quotient projection"
-  | `(let_or_assume| $_:_assume $p:prop) => do pure $ .assume (← of_prop p)
   | _ => throwError "unknown let_or_assume"
 
 def of_proof_if_prop: TSyntax `proof_if_prop → CoreM ProofStep
@@ -500,21 +504,31 @@ inductive _Proof where
 
 def lets_vars (lets: List ProofStep) : LocalEnv := lets.flatMap step_decl_vars_types
 
-def generalize (lets: List ProofStep) (t: Term) : CoreM Term :=
-  let free := free_vars t
-  let ids := (lets_vars lets).filter (fun (id, _type) => id ∈ free)
-  for_all ids t
+def apply_init_step (step: ProofStep) (thm: Term): CoreM Term := match step with
+  | .let .. => for_all (step_decl_vars_types step) thm
+  | .assume a => `($a → $thm)
+  | _ => throwError "apply_init_step"
 
-def translate_proof (lets: List ProofStep) (thm: Term): _Proof → CoreM Term
+def apply_init_steps (steps: List ProofStep) (thm: Term): CoreM Term :=
+  steps.foldrM apply_init_step thm
+
+def trim_step (thm: Term) : ProofStep → Option ProofStep
+  | .let ids type =>
+      let ids := ids.inter (free_vars thm)
+      if ids == [] then none else some (.let ids type)
+  | step => pure step
+
+def trim_steps (thm: Term) (steps: List ProofStep): List ProofStep :=
+  steps.filterMap (trim_step thm)
+
+def generalize (init_steps: List ProofStep) (t: Term) : CoreM Term :=
+  apply_init_steps (trim_steps t init_steps) t
+
+def translate_proof (init_steps: List ProofStep) (thm: Term): _Proof → CoreM Term
   | .steps steps => do
-      let trim : ProofStep → CoreM (Option ProofStep)
-        | .let ids type =>
-            let ids := ids.inter (free_vars thm)
-            pure $ if ids == [] then none else some (.let ids type)
-        | _ => throwError "of_proof: unexpected step"
       let steps ← match steps with
           | .let .. :: _ => pure steps
-          | _ => pure $ (← lets.filterMapM trim) ++ steps
+          | _ => pure $ trim_steps thm init_steps ++ steps
       let blocks := infer_blocks steps
       let blocks ← blocks.mapM (resolve_block [])
       trace[natural.tree] pretty ("\n" ++ (← show_blocks blocks))
@@ -525,7 +539,7 @@ def translate_proof (lets: List ProofStep) (thm: Term): _Proof → CoreM Term
       let .some info := env.find? q | throwError "type not found"
       let .some val := info.value? | throwError "no value"
       unless val.isAppOf ``Quotient do throwError "not a quotient type"
-      let gthm ← generalize lets thm
+      let gthm ← generalize init_steps thm
       let qvars := (bound_vars gthm).filterMap (fun (x, type) => do
         if Syntax.getId type == q then some (mkIdent x) else none)
       if qvars == [] then throwError "no arguments of given type"

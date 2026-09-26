@@ -73,10 +73,11 @@ def idents_to_nat_type (n1: Ident) (n2: Option Ident) := match n2 with
   | .some n2 => s!"{n1.getId.toString} {singular n2.getId.toString}"
   | .none => singular n1.getId.toString
 
-def of_natural_type (ntype: TSyntax ``natural_type) : CoreM Ident :=
+def of_natural_type (ntype: TSyntax ``natural_type) : CoreM Term :=
   withRef ntype do match ntype with
     | `(natural_type| $n1:ident $n2:ident ?) => do
         let s := idents_to_nat_type n1 n2
+        if s == "type" then `(Type) else
         mkIdentFromRef (← lookup_natural s) (canonical := true)
     | _ => throwError "unknown natural_type"
 

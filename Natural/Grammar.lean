@@ -213,10 +213,13 @@ sdef let_step
   | atomic(_let ident,+ ":") type
   | atomic(_let id_list "be") _a ? natural_type
 
-sdef let_or_assume
+sdef init_step
   | let_step
-  | _let ident "=" expr ("for" &"some" ids_types)?
   | _assume prop
+
+sdef let_or_assume
+  | init_step
+  | _let ident "=" expr ("for" &"some" ids_types)?
 
 sdef proof_if_prop
   | _if prop ","? "then" sepBy1(proof_prop, "/", "," _so)
@@ -310,16 +313,16 @@ syntax attrib := "@" ident
 
 syntax post_name := ("[" thm_name (":" attrib)? "]")?
 
-syntax top_sentence := prop "." post_name
+syntax top_sentence := "Then"? prop "." post_name
 
-syntax let_steps := (let_step ".")*
+syntax init_steps := (init_step ".")*
 
-syntax prop_item := label "." let_steps top_sentence
+syntax prop_item := label "." init_steps top_sentence
 
 syntax _operator := "binary" ? ("operation" <|> "operator")
 
 declare_syntax_cat direct_def
-syntax (priority := 1) let_steps prop "." justification ? : direct_def
+syntax (priority := 1) (let_step ".")* prop "." justification ? : direct_def
 syntax (priority := 2) num (":" type)? "=" expr "." : direct_def
 
 syntax cases_def :=
@@ -341,7 +344,7 @@ sdef props_proofs
   | prop_item+ (_proof_dot proof_items)?
 
 sdef theorem_body
-  | let_steps props_proofs
+  | init_steps props_proofs
   | "The" _operator binary_op "is" _a ? natural_type "on" type "." post_name
 
 syntax _theorem := thm_name ? str ? "." theorem_body
