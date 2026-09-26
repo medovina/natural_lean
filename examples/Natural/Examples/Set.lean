@@ -30,3 +30,7 @@ def set_comp_elab : NaturalElab
       let type ← of_type type
       (·, #[x], type) <$> `({ $x:ident : $type | $(← of_prop p)})
   | _ => Lean.Elab.throwUnsupportedSyntax
+
+-- basic definitions on sets
+
+Definition.  Let T be a type.  Let A, B : Set(T).  A ⊆ B iff x ∈ A implies x ∈ B for all x : T.

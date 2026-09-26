@@ -6,7 +6,7 @@ Natural Lean is a library that lets you write Lean definitions, theorems, and pr
 
 For a first glimpse of Natural Lean you could look at the example file [`NatNumGame.lean`](examples/Natural/Examples/NatNumGame.lean), which proves all of the theorems from the [Natural Number Game](https://adam.math.hhu.de/#/g/leanprover-community/nng4).  (Actually there are not many  explicit proofs in this file, since Natural Lean's [default tactic](#tactics) can solve most of these problems directly.)  The file [`Nat.lean`](examples/Natural/Examples/Nat.lean) is more substantial, and includes a partial development of the natural numbers from first principles in Natural Lean, including a number of theorems with proofs.   (To see the full proofs in this file, you will want to turn on word wrap.  As one possibility, download the file, view it in Visual Studio Code, and press Alt+Z to enable wrapping.)  
 
-Natural Lean is in an __early stage of development__ and is not a practical tool for writing many Lean proofs at this time: the grammar and expressiveness of the language are still extremely limited.  You may nevertheless want to experiment with Natural Lean even in its current state.  Your feedback is welcome: you can send me [email](mailto:adam.dingle@mff.cuni.cz) or open issues in this repository.  I am actively developing the library and will be adding more features over time.
+Natural Lean is in an __early stage of development__ and is not a practical tool for writing many Lean proofs at this time: the grammar and expressiveness of the language are still quite limited.  You may nevertheless want to experiment with Natural Lean even in its current state.  Your feedback is welcome: you can send me [email](mailto:adam.dingle@mff.cuni.cz) or open issues in this repository.  I am actively developing the library and will be adding more features over time.
 
 ### Contents
 
@@ -122,7 +122,7 @@ Definition.  The binary operation + on ℕ is defined recursively such that
 
 ### Theorems
 
-A natural-language theorem is introduced by the capitalized keyword `Theorem` (as distinguished from lowercase `theorem`, which begins a theorem in native Lean syntax).  Every theorem must have a __name__, which may appear either immediately after the word `Theorem`, or in brackets after the theorem statement.  Thus, these two declarations are equivalent:
+A natural-language theorem is introduced by the capitalized keyword `Theorem` (as distinguished from lowercase `theorem`, which begins a theorem in native Lean syntax).  A theorem will typically have a __name__, which may appear either immediately after the word `Theorem`, or in brackets after the theorem statement.  Thus, these two declarations are equivalent:
 
 ```
 Theorem ℕ.succ_ne_self.  For all x : ℕ, S(x) ≠ x.
@@ -160,7 +160,7 @@ Proof.  Let x : ℕ.  x + S(0) = S(x).  Therefore x < S(x).
 
 The section [Proofs](#proofs) below describes the structure of proofs.
 
-A theorem may optionally being with a `Let` declaration introducing one or more quantified variables, so the preceding theorem may alternatively be written as
+A theorem statement may optionally begin with any number of `Let` declarations introducing one or more quantified variables and/or `Assume` statements introducing assumptions.  So the preceding theorem may alternatively be written as
 
 ```
 Theorem.  Let x : ℕ.  x < S(x).  [ℕ.lt_succ]
@@ -168,7 +168,7 @@ Theorem.  Let x : ℕ.  x < S(x).  [ℕ.lt_succ]
 Proof.  x + S(0) = S(x).  Therefore x < S(x).
 ```
 
-A `Let` declaration of this nature is automatically included at the beginning of a proof, unless the proof already begins with a `Let` declaration.
+Any `Let` declarations or `Assume` statements  of this nature are automatically included at the beginning of a proof, unless the proof already begins with a `Let` declaration.
 
 #### Theorem groups
 
@@ -192,7 +192,7 @@ Proof.
 
 In a theorem group, each theorem must have a __label__, such as "a", "b" or "c" above.  The theorem group may have an associated `Proof` section containing labelled proofs for the theorems in the group.  As in the example above, some theorems in the group might not have proofs.
 
-As visible above, a theorem group may begin with a `Let` declaration that is shared by all theorems in the group.   Any free variables in each theorem's statement will automatically be universally quantified using the type in the `Let` declaration.  Thus, the theorem group above is equivalent to
+The theorem group above begins with a `Let` declaration that is shared by all theorems in the group.   Any free variables in each theorem's statement will automatically be universally quantified using the type in such a `Let` declaration.  Thus, the theorem group above is equivalent to
 
 ```
 Theorem.
@@ -205,7 +205,7 @@ Proof.
   ...
 ```
 
-A `Let` declaration at the top of a theorem group will automatically be included at the beginning of each proof in the group, unless that proof already begins with its own `Let` declaration.
+In fact a theorem group may begin with any number of `Let` declarations or `Assume` statements, which will automatically be included at the beginning of each proof in the group, unless that proof already begins with its own `Let` declaration.
 
 A label range such as `a - c.` indicates that several theorems in a theorem group share the same proof reason.  For example,
 

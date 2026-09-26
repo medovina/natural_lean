@@ -121,7 +121,8 @@ def of_binary_op (op: TSyntax α): String := map_op (syntax_atom op)
 def op_class := [
   ("+", `add, ``Add), ("*", `mul, ``Mul), ("^", `pow, ``Pow),
   ("<", `lt, ``LT), ("≤", `le, ``LE), ("≈", `Equiv, ``HasEquiv),
-  ("∈", `mem, ``Membership), ("∣", `dvd, `Dvd) ]
+  ("∈", `mem, ``Membership), ("⊆", `Subset, `HasSubset),
+  ("∣", `dvd, `Dvd) ]
 
 def super_char (s: Syntax) : Char := (s.getArg 0).getAtomVal.front
 
@@ -224,14 +225,19 @@ abbrev LocalEnv := List (Name × Term)    -- maps name to type
 def is_num_type (n: Name) : CoreM Bool := do
   pure $ (← labelled `implicit_mul).contains n
 
-def lookup (le: LocalEnv) (n: Name) : CoreM (Option Bool) := do
+def global_type (n: Name): CoreM (Option Expr) := do
   match (← resolveGlobalName n (enableLog := false)) with
     | (name, _) :: _ =>
         let env ← getEnv
         .some <$> match env.find? name with
-          | .some cinfo => cinfo.type.constName?.toList.anyM is_num_type
+          | .some cinfo => pure cinfo.type
           | .none => throwError s!"lookup: can't find {name}"
-    | [] => (le.lookup n).mapM (fun
+    | _ => pure none
+
+def lookup (le: LocalEnv) (n: Name) : CoreM (Option Bool) := do
+  match (← global_type n) with
+    | .some type => .some <$> type.constName?.toList.anyM is_num_type
+    | .none => (le.lookup n).mapM (fun
         | `($i:ident) => is_num_type i.getId
         | _ => pure false)
 

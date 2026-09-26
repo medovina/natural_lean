@@ -97,6 +97,10 @@ def of_quotient_def (name: Ident): TSyntax ``quotient_def → CoreM (List Comman
 
 def of_type_spec (name: Ident) (sig: Option Ident): TSyntax `type_spec → CoreM (List Command)
   | `(type_spec| as $t:type .) => do
+      -- Explicitly mark a type argument as having type (Type _).  Without this we'll get
+      -- a constructor type with a max universe expression, which can cause trouble when
+      -- we declare type class instances.
+      let sig ← sig.mapM (fun id => `(bracketedBinder| ($id : Type _)))
       .singleton <$> `(def $name $(sig.toArray)* := $(← of_type t))
   | `(type_spec| $id:inductive_def) => of_inductive_def name id
   | `(type_spec| $qd:quotient_def) => of_quotient_def name qd
@@ -235,11 +239,13 @@ def generate_op_def (op: String) (env: List (Name × Term)) (eqs: List Term)
 
   let instName ← embed_name target_type (Name.mkSimple ("inst" ++ cl.toString))
 
-  -- If the target type is polymorphic (e.g. Set α), make the type class polymorphic
-  -- similarly (e.g. Membership α).
-  let type_class ← subst_base (mkIdent cl) target_type
+  let t := (← global_type cl).get!
+  let poly := t.getNumHeadForalls > 1  -- true if type class is polymorphic
+  let type_class ← if poly then
+      subst_base (mkIdent cl) target_type  -- use type argument(s) matching the target type
+    else pure $ mkIdent cl
 
-  let grind_attribute := !(is_application target_type)  -- only add for monomorphic type
+  let grind_attribute := !poly  -- only add for monomorphic type
   let attr ← if grind_attribute then .some <$> `(attributes| @[method_specs])
                                 else pure none
 
