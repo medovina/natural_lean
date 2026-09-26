@@ -76,7 +76,9 @@ syntax:80 expr:80 super_expr : expr
 syntax:80 expr:81 "^" expr:80 : expr
 syntax:75 (priority := 1) expr:75 noWs expr:76 : expr
 syntax:70 expr:70 ("·" <|> "×") expr:71 : expr
+syntax:70 expr:70 "∩" expr:71 : expr
 syntax:65 expr:65 "+" expr:66 : expr
+syntax:65 expr:65 "∪" expr:66 : expr
 syntax (priority := 2) expr "(" expr ")" : expr
 syntax "(" expr ("," expr)? ")" : expr
 syntax ident "[" expr "]" : expr  -- quotient type projection

@@ -31,6 +31,12 @@ def set_comp_elab : NaturalElab
       (·, #[x], type) <$> `({ $x:ident : $type | $(← of_prop p)})
   | _ => Lean.Elab.throwUnsupportedSyntax
 
--- basic definitions on sets
+-- subsets
 
-Definition.  Let T be a type.  Let A, B : Set(T).  A ⊆ B iff x ∈ A implies x ∈ B for all x : T.
+Definition.  Let A, B : Set(T).  A ⊆ B iff x ∈ A implies x ∈ B for all x : T.
+
+-- set operations
+
+Definition.  Let A, B : Set(T).  A ∪ B = { x : T | x ∈ A or x ∈ B }.
+
+Definition.  Let A, B : Set(T).  A ∩ B = { x : T | x ∈ A and x ∈ B }.

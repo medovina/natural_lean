@@ -51,6 +51,12 @@ partial def result_type : Term → Term
   | `($_t → $u) => result_type u
   | t => t
 
+def fmt_term (t: Term) : CoreM Format := do
+  let ctx : PPContext := {
+    env := (← getEnv), mctx := {}, lctx := {}, opts := (← getOptions),
+    currNamespace := (← getCurrNamespace), openDecls := (← getOpenDecls) }
+  Lean.ppTerm ctx t
+
 def of_const : TSyntax `const → CoreM Term
   | `(const| $i:ident) => `($i)
   | `(const| $n:num) => `($n)
@@ -120,6 +126,7 @@ def of_binary_op (op: TSyntax α): String := map_op (syntax_atom op)
 
 def op_class := [
   ("+", `add, ``Add), ("*", `mul, ``Mul), ("^", `pow, ``Pow),
+  ("∪", `union, ``Union), ("∩", `inter, ``Inter),
   ("<", `lt, ``LT), ("≤", `le, ``LE), ("≈", `Equiv, ``HasEquiv),
   ("∈", `mem, ``Membership), ("⊆", `Subset, `HasSubset),
   ("∣", `dvd, `Dvd) ]
@@ -157,7 +164,9 @@ mutual
       | `(expr| $e:expr$f:expr)
       | `(expr| $e:expr · $f:expr)
       | `(expr| $e:expr × $f:expr) => `($(← of_expr e) * $(← of_expr f))
+      | `(expr| $e:expr ∩ $f:expr) => `($(← of_expr e) ∩ $(← of_expr f))
       | `(expr| $e:expr + $f:expr) => `($(← of_expr e) + $(← of_expr f))
+      | `(expr| $e:expr ∪ $f:expr) => `($(← of_expr e) ∪ $(← of_expr f))
       | `(expr| $e:expr ( $f:expr )) => `(app_or_mul $(← of_expr e) $(← of_expr f))
       | `(expr| ( $e:expr )) => of_expr e
       | `(expr| ( $e:expr , $f:expr)) => `( ($(← of_expr e), $(← of_expr f)) )
@@ -280,7 +289,10 @@ partial def resolve (le: LocalEnv) (s: Syntax) : CoreM (Term × Bool) := withRef
       | .none => match s with
         | `(bind $xs:ident*, $type, $t) =>
             let vars := xs.toList.map (·.getId, type)
-            resolve (vars ++ le) t
+            -- Also declare the type in the environment, which allows it
+            -- to be implicit.
+            let type_decl := (as_ident type).toList.map (·.getId, ← `(Type))
+            resolve (vars ++ type_decl ++ le) t
         | _ => match s with
           | .node info kind args => do
               let args ← args.mapM (resolve1 le)

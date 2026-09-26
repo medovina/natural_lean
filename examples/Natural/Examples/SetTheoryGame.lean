@@ -18,8 +18,10 @@ Theorem.  Let A, B, C : Set(T).
 
   f. Suppose that A ⊆ B and B ⊆ C.  Then A ⊆ C.
 
--- complement world
+-- intersection world
 
 Theorem.  Let A, B : Set(T).
 
-  a. Let x : T.  Suppose that x ∈ A and x ∉ B.  Then A ⊆ B is false.
+  a. Let x : T.  Suppose that x ∈ A and x ∈ B.  Then x ∈ A.
+
+  b. Suppose that x ∈ A ∩ B.  Then x ∈ B.

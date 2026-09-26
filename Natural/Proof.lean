@@ -144,12 +144,6 @@ partial def all_free_vars : List ProofStep → List Name
       (step_free_vars step ++ all_free_vars steps).removeAll (step_decl_vars step) |>.eraseDups
 end
 
-def fmt_term (t: Term) : CoreM Format := do
-  let ctx : PPContext := {
-    env := (← getEnv), mctx := {}, lctx := {}, opts := (← getOptions),
-    currNamespace := (← getCurrNamespace), openDecls := (← getOpenDecls) }
-  Lean.ppTerm ctx t
-
 def fmt_chain : List Term → List String → CoreM Format
   | [t], [] => do pure f!"{← fmt_term t}"
   | t :: ts, op :: ops => do
