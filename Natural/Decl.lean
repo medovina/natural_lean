@@ -137,8 +137,22 @@ def of_init_sentence : TSyntax ``init_sentence → CoreM (List ProofStep)
       iss.getElems.toList.mapM of_init_step
   | _ => throwError "unknown init_sentence"
 
-def of_init_steps : TSyntax ``init_steps → CoreM (List ProofStep)
-  | `(init_steps| $iss:init_sentence*) => iss.toList.flatMapM of_init_sentence
+def with_implicit_let (env: LocalEnv) (steps: List ProofStep) : CoreM (List ProofStep) :=
+  match steps with
+    | [] => pure []
+    | step :: rest => do
+        let steps ← match step with
+          | .assume t => match t with
+            | `($x:ident ∈ $_) =>
+                if (env.lookup x.getId).isSome then pure [step]
+                else do pure $ [.let [x.getId] (← `(_)), step]
+            | _ => pure [step]
+          | _ => pure [step]
+        do pure $ steps ++ (← with_implicit_let (lets_vars steps ++ env) rest)
+
+def of_init_steps (env: LocalEnv): TSyntax ``init_steps → CoreM (List ProofStep)
+  | `(init_steps| $iss:init_sentence*) =>
+      iss.toList.flatMapM of_init_sentence >>= with_implicit_let env
   | _ => throwError "unknown init_steps"
 
 abbrev Label := Name
@@ -149,10 +163,10 @@ structure ThmDecl where
   name: Option Ident
   attr: Option Ident
 
-def of_prop_item : TSyntax ``prop_item → CoreM ThmDecl
+def of_prop_item (env: LocalEnv) : TSyntax ``prop_item → CoreM ThmDecl
   | `(prop_item| $i:label . $iss:init_steps $s:top_sentence) => do
       let (thm, name, attr) ← of_top_sentence s
-      pure ⟨← of_label i, ← apply_init_steps (← of_init_steps iss) thm, name, attr⟩
+      pure ⟨← of_label i, ← apply_init_steps (← of_init_steps env iss) thm, name, attr⟩
   | _ => throwError "unknown prop_item"
 
 def parse_def_eq : Term → CoreM (Term × String × Term × Term)
@@ -297,7 +311,7 @@ def of_cases_def : TSyntax ``cases_def → CoreM (List Command)
   | `(cases_def| The $_:_operator $op:binary_op on $_type:ident is defined recursively
                     such that for all $ids_type:ids_types , $items:prop_item*) => do
       let args ← of_ids_types ids_type
-      let eqs ← .map ThmDecl.thm <$> items.toList.mapM of_prop_item
+      let eqs ← .map ThmDecl.thm <$> items.toList.mapM (of_prop_item [])
       generate_op_def (of_binary_op op) (map_fst TSyntax.getId args) eqs none
   | _ => throwError "unknown cases_def"
 
@@ -332,7 +346,8 @@ def of_props_proofs (init_steps: List ProofStep) (ps: TSyntax `props_proofs) :
         let decl := ThmDecl.mk none thm opt_name opt_attr
         translate_proofs init_steps [(decl, ← proof.mapM of_proof)]
     | `(props_proofs| $ps:prop_item* $[ $_:_proof_dot $pis:proof_items ]?) => do
-        let label_thms ← ps.toList.mapM of_prop_item
+        let env := lets_vars init_steps
+        let label_thms ← ps.toList.mapM (of_prop_item env)
         let label_proofs := (← pis.mapM of_proof_items).getD []
         let thms_proofs ← match_proofs label_thms label_proofs
         translate_proofs init_steps thms_proofs
@@ -352,8 +367,8 @@ def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
     | [c] => Option.some c  -- use corollary_of by default if there is just one
     | _ => .none
   match body with
-    | `(theorem_body| $ls:init_steps $ps:props_proofs) => do
-        let thms_proofs ← of_props_proofs (← of_init_steps ls) ps
+    | `(theorem_body| $iss:init_steps $ps:props_proofs) => do
+        let thms_proofs ← of_props_proofs (← of_init_steps [] iss) ps
         let (commands, names) := List.unzip $ ← thms_proofs.mapM
           (fun (⟨label, thm, thm_name, attr⟩, proof) => withRef thm do
             let proof := proof.getD (← proof_by by_default)

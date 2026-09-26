@@ -19,14 +19,16 @@ Natural Lean is in an __early stage of development__ and is not a practical tool
   - [Corollaries](#corollaries)
 - [Proofs](#proofs)
   - [Sequences of proof steps](#sequences-of-proof-steps)
+  - [Declaring variables via a membership assumption](#declaring-variables-via-a-membership-assumption)
 - [Propositions](#propositions)
   - [Operator chains](#operator-chains)
 - [Expressions](#expressions)
 - [Types](#types)
 - [Natural names](#natural-names)
 - [Type classes](#type-classes)
-- [Quotient types](#quotient-types)
 - [Tactics](#tactics)
+- [Quotient types](#quotient-types)
+  - [Proving theorems about quotient types](#proving-theorems-about-quotient-types)
 - [Visual Studio Code integration](#visual-studio-code-integration)
 - [Hints and tips](#hints-and-tips)
   - [Proving steps](#proving-steps)
@@ -391,7 +393,16 @@ Thus we have shown that x + S(z) = y + S(z) implies x = y,
 so S(z) ∈ A.
 ```
 
-This sounds more like textbook mathematics, and illustrates the writing style for which Natural Lean is intended. 
+This sounds more like textbook mathematics, and illustrates the writing style for which Natural Lean is intended.
+
+#### Declaring variables via a membership assumption
+
+As a notational convenience, you may write `Suppose that x ∈ A` without first declaring that the variable `x` exists.  In other words, the `Let` statement is optional in this sequence:
+```
+Let x : Nat.  Suppose that x ∈ A.
+```
+
+(Currently Natural Lean allows this abbreviated notation only in the statement of a theorem, not inside a proof.)
 
 ### Propositions
 
@@ -563,6 +574,7 @@ Corollary.  The operator ~ is an equivalence relation on Nat × Nat.
 ```
 
 "equivalence relation" is the natural name of the `Equivalence` structure type.  In the declaration above, the `refl`, `symm` and `trans` propositions in that structure will be proved by the theorems `equiv_refl`, `equiv_symm` and `equiv_trans` respectively.
+
 ### Tactics
 
 When an assertion does not contain a reason, or when a theorem does not include a proof at all, Natural Lean will attempt to prove the assertion or theorem using a tactic named `default` which tries each of `trivial`, `grind` and `aesop` in turn.  In the future I intend to make the default tactic configurable by any development in Natural Lean, but for the moment it is fixed.
