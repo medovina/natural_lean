@@ -85,7 +85,7 @@ syntax ident "[" expr "]" : expr  -- quotient type projection
 
 kdef rel_op =
   "=" | "≠" | "<" | "≮" | "≤" | ">" | "≯" | "≥" |
-  "~" | "∈" | "⊆" |
+  "~" | "∈" | "∉" | "⊆" |
   "|" | "∣"   -- vertical bar, division symbol: we accept either
 
 kdef binary_op = "+" | "·" | "×" | "^" | "<" | "≤" | "~"
@@ -117,9 +117,11 @@ kdef _is_have = "this is" | "we have"
 
 syntax have_contradiction := _is_have &"a" "contradiction"
 
+syntax is_tf := &"is" (&"true" <|> &"false")
+
 sdef_extend prop
-  | atomic(expr &"is") &"true"
-  | atomic(rel_prop)
+  | atomic(expr is_tf)
+  | atomic(rel_prop) is_tf ?
   |:35 prop:36 "and" prop:35
   |:30 atomic(_either ? prop:31 "or") prop:30
   |:25 prop:26 "implies" prop:25

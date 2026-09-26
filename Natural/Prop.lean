@@ -139,6 +139,14 @@ partial def of_super_expr : TSyntax `super_expr → CoreM Term
       `($(← of_super_expr e) + $(← of_super_expr f))
   | _ => throwError "unknown super_expr"
 
+def apply_tf (b: Bool) (t: Term): CoreM Term :=
+  if b then pure t else `(¬ $t)
+
+def of_is_tf : TSyntax ``is_tf → CoreM Bool
+  | `(is_tf| is true) => pure true
+  | `(is_tf| is false) => pure false
+  | _ => throwError "unknown is_tf"
+
 mutual
   partial def of_expr (expr: TSyntax `expr): CoreM Term := withRef expr do
     match expr with
@@ -194,8 +202,9 @@ mutual
 
   partial def of_prop (prop: TSyntax `prop): CoreM Term := withRef prop do
     match prop with
-      | `(prop| $e:expr is true) => of_expr e
-      | `(prop| $e:rel_prop) => of_rel_prop e
+      | `(prop| $e:expr $b:is_tf) => apply_tf (← of_is_tf b) (← of_expr e)
+      | `(prop| $e:rel_prop $b:is_tf ?) =>
+            apply_tf ((← b.mapM of_is_tf).getD true) (← of_rel_prop e)
       | `(prop| $p:prop and $q:prop) => do `($(← of_prop p) ∧ $(← of_prop q))
       | `(prop| $_:_either ? $p:prop or $q:prop) => do `($(← of_prop p) ∨ $(← of_prop q))
       | `(prop| $p:prop implies $q:prop)
@@ -209,7 +218,7 @@ mutual
             let xs ← of_ids_types ids_type
             let b ← s.elim (pure true) of_some_or_no
             let t ← `(∃ $(← ex_binders xs)*, $(← of_prop p))
-            if b then pure t else `(¬ $t)
+            apply_tf b t
       | `(prop| $p:prop $_:_for some $ids_type:ids_types) => do
             let xs ← of_ids_types ids_type
             `(∃ $(← ex_binders xs)*, $(← of_prop p))
