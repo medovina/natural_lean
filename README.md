@@ -402,7 +402,7 @@ As a notational convenience, you may write `Suppose that x ∈ A` without first 
 Let x : Nat.  Suppose that x ∈ A.
 ```
 
-(Currently Natural Lean allows this abbreviated notation only in the statement of a theorem, not inside a proof.)
+(This is especially convenient in inductive proofs, which often make this sort of assumption.)
 
 ### Propositions
 

@@ -38,7 +38,7 @@ Proof. Let x, y : ℕ.  Let
 
     A = { z : ℕ | (x + y) + z = x + (y + z) }.
 
-  First, 0 ∈ A.  Second, let z : ℕ and assume z ∈ A.  Then (x + y) + z = x + (y + z).  Now,
+  First, 0 ∈ A.  Second, suppose that z ∈ A.  Then (x + y) + z = x + (y + z).  Now,
 
     x + (y + S(z)) = x + (S(y + z))
                    = S(x + (y + z))
@@ -62,7 +62,7 @@ Proof.
 
     B = { y: ℕ | S(x) + y = S(x + y) }.
 
-  Clearly 0 ∈ B.  Now let y : ℕ and suppose that y ∈ B.  Then
+  Clearly 0 ∈ B.  Now suppose that y ∈ B.  Then
 
     S(x) + S(y) = S(S(x) + y)
                 = S(S(x + y)) by the inductive hypothesis
@@ -83,7 +83,7 @@ Proof.  Let y : ℕ.  Let
     0 + y = y
           = y + 0.
 
-  So 0 ∈ C.  Now let x : ℕ, and suppose that x ∈ C.  Then
+  So 0 ∈ C.  Now suppose that x ∈ C.  Then
 
     S(x) + y = S(x + y) by ℕ.succ_add
              = S(y + x)
@@ -103,7 +103,7 @@ Proof.  Let x, y : ℕ.  Let
 
   First, x + 0 = y + 0 implies x = y, so 0 ∈ A.
 
-  Second, let z : ℕ and assume z ∈ A.  Then x + z = y + z implies x = y.  Now assume x + S(z) = y + S(z).  Then S(x + z) = S(y + z).  Therefore x + z = y + z.  Hence by the inductive hypothesis x = y.  Thus we have shown that x + S(z) = y + S(z) implies x = y, so S(z) ∈ A.  Therefore z ∈ A implies S(z) ∈ A.  By induction z ∈ A for all z : ℕ.
+  Second, assume z ∈ A.  Then x + z = y + z implies x = y.  Now assume x + S(z) = y + S(z).  Then S(x + z) = S(y + z).  Therefore x + z = y + z.  Hence by the inductive hypothesis x = y.  Thus we have shown that x + S(z) = y + S(z) implies x = y, so S(z) ∈ A.  Therefore z ∈ A implies S(z) ∈ A.  By induction z ∈ A for all z : ℕ.
 
 Theorem.  For all x, y, z : ℕ,
 
@@ -117,7 +117,7 @@ Proof.  Let x : ℕ.  Let
 
     A = { y : ℕ | y ≠ S(x) + y }.
 
-  0 ≠ S(x), so 0 ∈ A.  Now let y : ℕ, and assume that y ∈ A.  Then y ≠ S(x) + y.  Hence S(y) ≠ S(S(x) + y).  But S(S(x) + y) = S(x) + S(y).  Hence S(y) ≠ S(x) + S(y), so S(y) ∈ A.  Thus we have shown that y ∈ A implies S(y) ∈ A.  By induction y ∈ A for all y : ℕ.
+  0 ≠ S(x), so 0 ∈ A.  Now assume that y ∈ A.  Then y ≠ S(x) + y.  Hence S(y) ≠ S(S(x) + y).  But S(S(x) + y) = S(x) + S(y).  Hence S(y) ≠ S(x) + S(y), so S(y) ∈ A.  Thus we have shown that y ∈ A implies S(y) ∈ A.  By induction y ∈ A for all y : ℕ.
 
 -- ordering: definition
 
@@ -148,7 +148,7 @@ Proof.  Let x, y : ℕ.  If x < y and x = y then x < x, contradicting ℕ.lt_irr
 
 Let x, y : ℕ.  Let A = { x : ℕ | x < y or x = y or y < x }.  First, by ℕ.is_zero_or_succ we have either y = 0, or y = S(u) for some u : ℕ.  Hence either y = 0, or 0 + S(u) = y for some u : ℕ.  So y = 0 or 0 < y.  Thus 0 ∈ A.
 
-Now let v : ℕ, and assume that v ∈ A.  Then v < y or v = y or y < v.
+Now assume that v ∈ A.  Then v < y or v = y or y < v.
 
 Case 1: v < y.  Then v + S(z) = y for some z : ℕ.  By ℕ.is_zero_or_succ either z = 0, or z = S(u) for some u : ℕ.  Suppose that z = 0.  Then v + S(0) = y, that is S(v) = y.  Otherwise z = S(u) for some u : ℕ.  Then
 
@@ -269,7 +269,7 @@ Proof.  Let y, z : ℕ.  Let
 
     A = { x : ℕ | (y + z) · x = y · x + z · x }.
 
-  Clearly 0 ∈ A.  Second, Let x : ℕ, and assume that x ∈ A.  Then (y + z) · x = y · x + z · x.  Hence
+  Clearly 0 ∈ A.  Second, assume that x ∈ A.  Then (y + z) · x = y · x + z · x.  Hence
 
     (y + z) · S(x) = ((y + z) · x) + (y + z)
                    = (y · x + z · x) + (y + z)  by the inductive hypothesis
@@ -291,7 +291,7 @@ Theorem.  For all x, y : ℕ,
 
     x · y = y · x.  [ℕ.mul_comm]
 
-Proof.  Let x : ℕ.  Let A = { y : ℕ | x · y = y · x }.  Clearly 0 ∈ A.  Now let y : ℕ, and assume that y ∈ A.  Thus x · y = y · x.  Hence
+Proof.  Let x : ℕ.  Let A = { y : ℕ | x · y = y · x }.  Clearly 0 ∈ A.  Now assume that y ∈ A.  Thus x · y = y · x.  Hence
 
     x · S(y) = (x · y) + x
              = (y · x) + x           by the inductive hypothesis
@@ -315,7 +315,7 @@ Proof.  Let x, y : ℕ.  Let
 
   B = { z : ℕ | x · (y · z) = (x · y) · z }.
 
-Clearly 0 ∈ B.  Let z : ℕ, and suppose that z ∈ B.  Thus x · (y · z) = (x · y) · z.  Hence
+Clearly 0 ∈ B.  Suppose that z ∈ B.  Thus x · (y · z) = (x · y) · z.  Hence
 
     x · (y · S(z)) = x · (y · z + y)
                    = x · (y · z) + x · y   by ℕ.mul_add
