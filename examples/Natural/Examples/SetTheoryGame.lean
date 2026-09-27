@@ -37,7 +37,3 @@ Theorem.  Let A, B, C : Set(T).
   g. A ∩ B = B ∩ A.
 
   h. (A ∩ B) ∩ C = A ∩ (B ∩ C).
-
-Proof.
-
-  h. Let A, B, C : Set(T). Let x : T.  Suppose that x ∈ (A ∩ B) ∩ C.  Then x ∈ A ∩ (B ∩ C).  Conversely, suppose that x ∈ A ∩ (B ∩ C).  Then x ∈ (A ∩ B) ∩ C.

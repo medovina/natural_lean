@@ -8,6 +8,10 @@ Definition.  The type Set(T) is defined as T → Prop.
 
 Definition.  For any S : Set(T) and x : T, x ∈ S iff S(x) is true.
 
+@[ext, grind ext]
+theorem ext {a b : Set α} (h : ∀ (x : α), x ∈ a ↔ x ∈ b) : a = b :=
+  funext (fun x ↦ propext (h x))
+
 -- Define set comprehension notation.  Currently a notation definition is not possible in Natural Lean, so we use native Lean commands here.
 
 @[implicit_reducible]
