@@ -8,9 +8,9 @@ Theorem.  Let A, B, C : Set(T).
 
   a. Suppose that x ∈ A.  Then x ∈ A.
 
-  b. Suppose that A ⊆ B.  Suppose that x ∈ A.  Then x ∈ B.
+  b. Suppose that A ⊆ B and x ∈ A.  Then x ∈ B.
 
-  c. Suppose that A ⊆ B and B ⊆ C.  Suppose that x ∈ A.  Then x ∈ C.
+  c. Suppose that A ⊆ B and B ⊆ C and x ∈ A.  Then x ∈ C.
 
   d. Suppose that A ⊆ B and for all x : T, x ∈ B implies x ∈ C.  Then x ∈ A implies x ∈ C for all x : T.
 
@@ -22,13 +22,13 @@ Theorem.  Let A, B, C : Set(T).
 
 Theorem.  Let A, B, C : Set(T).
 
-  a. Let x : T.  Suppose that x ∈ A and x ∈ B.  Then x ∈ A.
+  a. Suppose that x ∈ A and x ∈ B.  Then x ∈ A.
 
   b. Suppose that x ∈ A ∩ B.  Then x ∈ B.
 
   c. A ∩ B ⊆ A.
 
-  d. Let x : T.  Suppose that x ∈ A and x ∈ B.  Then x ∈ A ∩ B.
+  d. Suppose that x ∈ A and x ∈ B.  Then x ∈ A ∩ B.
 
   e. Suppose that A ⊆ B and A ⊆ C.  Then A ⊆ B ∩ C.
 

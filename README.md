@@ -19,7 +19,7 @@ Natural Lean is in an __early stage of development__ and is not a practical tool
   - [Corollaries](#corollaries)
 - [Proofs](#proofs)
   - [Sequences of proof steps](#sequences-of-proof-steps)
-  - [Declaring variables via a membership assumption](#declaring-variables-via-a-membership-assumption)
+  - [Declaring variables by assumption](#declaring-variables-by-assumption)
 - [Propositions](#propositions)
   - [Operator chains](#operator-chains)
 - [Expressions](#expressions)
@@ -395,7 +395,7 @@ so S(z) ∈ A.
 
 This sounds more like textbook mathematics, and illustrates the writing style for which Natural Lean is intended.
 
-#### Declaring variables via a membership assumption
+#### Declaring variables by assumption
 
 As a notational convenience, you may write `Suppose that x ∈ A` without first declaring that the variable `x` exists.  In other words, the `Let` statement is optional in this sequence:
 ```

@@ -39,6 +39,10 @@ def multi_or : List Term → CoreM Term := foldr1M (fun t a => `($t ∨ $a))
 
 def multi_prod : List Term → CoreM Term := foldr1M (fun t a => `($t * $a))
 
+partial def split_and : Term → List Term
+  | `($t ∧ $u) => split_and t ++ split_and u
+  | t => [t]
+
 def at_most (ts: List Term) : CoreM (List Term) :=
   let pair (t: Term) (u: Term) := do
     `(¬($t ∧ $u))

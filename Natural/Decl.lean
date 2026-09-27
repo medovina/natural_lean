@@ -137,16 +137,30 @@ def of_init_sentence : TSyntax ``init_sentence → CoreM (List ProofStep)
       iss.getElems.toList.mapM of_init_step
   | _ => throwError "unknown init_sentence"
 
+def is_implicit_let (env: LocalEnv) : Term → Option Ident
+  | `($x:ident ∈ $_) =>
+      if (env.lookup x.getId).isSome then none else some x
+  | _ => none
+
+def elim_implicit_let (env: LocalEnv) : List Term → CoreM (List ProofStep)
+  | [] => pure []
+  | u :: rest => do
+      let (us, env) ← match is_implicit_let env u with
+        | .some x => do
+          let anon_type ← `(_)
+          pure $ ([ProofStep.let [x.getId] anon_type, .assume u], ((x.getId, anon_type) :: env))
+        | none => pure ([.assume u], env)
+      pure $ us ++ (← elim_implicit_let env rest)
+
 def with_implicit_let (env: LocalEnv) (steps: List ProofStep) : CoreM (List ProofStep) :=
   match steps with
     | [] => pure []
     | step :: rest => do
         let steps ← match step with
-          | .assume t => match t with
-            | `($x:ident ∈ $_) =>
-                if (env.lookup x.getId).isSome then pure [step]
-                else do pure $ [.let [x.getId] (← `(_)), step]
-            | _ => pure [step]
+          | .assume t =>
+              let ts := split_and t
+              if ts.any (fun u => (is_implicit_let env u).isSome)
+                then elim_implicit_let env ts else pure [step]
           | _ => pure [step]
         do pure $ steps ++ (← with_implicit_let (lets_vars steps ++ env) rest)
 
