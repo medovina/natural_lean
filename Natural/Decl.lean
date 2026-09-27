@@ -164,7 +164,7 @@ structure ThmDecl where
   attr: Option Ident
 
 def of_prop_item (env: LocalEnv) : TSyntax ``prop_item → CoreM ThmDecl
-  | `(prop_item| $i:label . $iss:init_steps $s:top_sentence) => do
+  | `(prop_item| $i:label . $iss:init_steps $s:top_sentence) => withRef s do
       let (thm, name, attr) ← of_top_sentence s
       pure ⟨← of_label i, ← apply_init_steps (← of_init_steps env iss) thm, name, attr⟩
   | _ => throwError "unknown prop_item"
