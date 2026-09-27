@@ -37,3 +37,19 @@ Theorem.  Let A, B, C : Set(T).
   g. A ∩ B = B ∩ A.
 
   h. (A ∩ B) ∩ C = A ∩ (B ∩ C).
+
+-- union world
+
+Theorem.  Let A, B, C : Set(T).
+
+  a. Suppose that x ∈ A.  Then x ∈ A or x ∈ B.
+
+  b. B ⊆ A ∪ B.
+
+  c. Suppose that A ⊆ C and B ⊆ C.  Then A ∪ B ⊆ C.
+
+  d. A ∪ B ⊆ B ∪ A.
+
+  e. A ∪ B = B ∪ A.
+
+  f. (A ∪ B) ∪ C = A ∪ (B ∪ C).

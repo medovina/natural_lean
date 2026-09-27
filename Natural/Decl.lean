@@ -156,18 +156,12 @@ def of_prop_item (env: LocalEnv) : TSyntax ``prop_item → CoreM ThmDecl
       pure ⟨← of_label i, ← apply_init_steps (← of_init_steps env iss) thm, name, attr⟩
   | _ => throwError "unknown prop_item"
 
-def parse_def_eq : Term → CoreM (Term × String × Term × Term)
+def parse_eq : Term → CoreM (String × List Term × Term)
   | `($l = $r)
   | `($l ↔ $r) => do
       let (a, op, b) ← parse_infix l
-      pure (a, map_op op, b, r)
+      pure (map_op op, [a, b], r)
   | _ => throwError "equation expected"
-
-def eq_to_alt_expr (op: String) (fname: Ident) (t: Term): CoreM (TSyntax ``matchAltExpr) := do
-  let (a, op', b, r) ← parse_def_eq t
-  if op == op' then
-    `(matchAltExpr| | $a, $b => $(replace_infix op fname r))
-  else throwError "wrong infix op"
 
 partial def pattern_type (args: LocalEnv) : Term → CoreM Term :=
   let rec f : Term → CoreM Term
@@ -203,52 +197,81 @@ def is_implicit_quotient (x: Term) (y: Term): Option (Ident × Term × Term) :=
         | _, _ => .none
     | _, _ => .none
 
-def op_def_commands (op: String) (op_name: Name) (env: List (Name × Term)) (eqs: List Term)
-    (justification: Option Ident) : CoreM (List Command × Term × Ident) := do
+def is_mkquot : Term → Option (Ident × Term)
+    | `($f:ident $x) =>
+      match f.getId.components with
+        | [q, `mk_quot] => .some (mkIdent q, x)
+        | _  => .none
+    | _ => .none
+
+def rm_mkquot (t: Term): CoreM Term := match is_mkquot t with
+  | .some (_, t) => pure t
+  | .none => throwError "expected quotient projection"
+
+def DefEq := List Term × Term
+
+def def_pat_command (name: Ident) (arg_types: List Term) (eqs: List DefEq)
+    : CoreM Command := do
+  let alt | (args, r) => do
+    let args ← args.zipWithM (fun arg type => `( ($arg : $type) )) arg_types
+    `(matchAltExpr| | $(args.toArray),* => $r)
+  let alts ← eqs.mapM alt
+  let d ← `(def $name $(alts.toArray):matchAlt*)
+  if eqs.length > 1 then `(set_option linter.unusedVariables false in $d:command) else pure d
+
+def def_command (name: Ident) (arg_types: List Term) (eqs: List DefEq): CoreM Command :=
   match eqs with
-    | [eq] =>
-        let (x, _op, y, r) ← parse_def_eq eq
-        let (x, y) := if op == "∈" then (y, x) else (x, y)
-        if let .some (type, x, y) := is_implicit_quotient x y then
-              -- implicit function definition on quotient type
-              let aux_name ← embed_name type (op_name ++ `aux)
-              let (tx, ty) ← mapM_pair (pattern_type env) (x, y)
-              let aux ← `(def $aux_name | ($x : $tx), ($y : $ty) => $r)
-              let by_thms ← proof_by_multi (mkIdent ``Quotient.sound :: justification.toList)
-              let fname ← embed_name type op_name
-              let d ← `(def $fname (a: $type) (b: $type) : $type :=
-                Quotient.lift₂ $aux_name $by_thms a b)
-              pure ([aux, d], type, fname)
-        else  -- direct function definition
-              let (tx, ty) ← mapM_pair (pattern_type env) (x, y)
-              let fname ← embed_name tx op_name
-              let d ← match x, y with
-                | `($x:ident), `($y:ident) => `(def $fname ($x : $tx) ($y : $ty) := $r)
-                | _, _ => `(def $fname | ($x : $tx), ($y : $ty) => $r)
-              pure ([d], ⟨tx⟩, fname)
-    | eq :: _ => do  -- recursive function definition by cases
-        let (x, _, _, _) ← parse_def_eq eq
-        let target_type ← pattern_type env x
-        let fname ← embed_name target_type op_name
-        let alts ← eqs.mapM (eq_to_alt_expr op fname)
-        let c ← `(set_option linter.unusedVariables false in
-          def $fname : $target_type → $target_type → $target_type
-            $(alts.toArray):matchAlt*)
-        pure ([c], target_type, fname)
-    | _ => throwError "equation expected"
+    | [(args, r)] => do
+        if args.all (fun t => t.raw.isIdent) then
+          let args ← binders ((args.map as_ident!).zip arg_types)
+          `(def $name $args* := $r)
+        else def_pat_command name arg_types eqs
+    | _ => def_pat_command name arg_types eqs
+
+def swap_args : List α → List α
+  | [x, y] => [y, x]
+  | _ => panic! "swap_args"
 
 def generate_op_def (op: String) (env: List (Name × Term)) (eqs: List Term)
     (justification: Option Ident) : CoreM (List Command) := do
   let (op_name, cl) ← (op_class.lookup op).getDM $ throwError "generate_def: no op"
-  let eqs ← eqs.mapM (resolve_term env)
-  let (def_cmds, target_type, fname) ← op_def_commands op op_name env eqs justification
 
-  let instName ← embed_name target_type (Name.mkSimple ("inst" ++ cl.toString))
+  let eqs ← eqs.mapM (resolve_term env)
+  let defeqs := (← eqs.mapM parse_eq).map (·.2)  -- gather args into lists
+  let defeqs := if op == "∈" then map_fst swap_args defeqs else defeqs
+  let arg1 ← match defeqs with
+    | (arg :: _, _) :: _ => pure arg
+    | _ => throwError "generate_op_def: no arg"
+
+  let (is_quotient, type, dname, defeqs) ← match is_mkquot arg1 with
+    | .some (qtype, _) =>
+        let defeqs ← mapM_fst (List.mapM rm_mkquot) defeqs  -- remove projections
+        pure (true, as_term qtype, op_name ++ `aux, defeqs)
+    | .none => do
+        pure (false, ← pattern_type env arg1, op_name, defeqs)
+
+  let args_types ← match defeqs with
+    | [(ts, _)] => ts.mapM (pattern_type env)
+    | (ts, _) :: _ => pure $ ts.map (fun _ => type)
+    | _ => throwError "generate_op_def: no arg"
+
+  let def_name ← embed_name type dname
+  let fname ← embed_name type op_name
+
+  let defeqs := if is_quotient then defeqs else map_snd (replace_infix op fname) defeqs
+  let def_cmd ← def_command def_name args_types defeqs
+
+  let lift_cmd ← if is_quotient then List.singleton <$> do
+    let by_thms ← proof_by_multi (mkIdent ``Quotient.sound :: justification.toList)
+    `(def $fname (a: $type) (b: $type) : $type := Quotient.lift₂ $def_name $by_thms a b)
+  else pure []
+
+  let instName ← embed_name type (Name.mkSimple ("inst" ++ cl.toString))
 
   let t := (← global_type cl).get!
   let poly := t.getNumHeadForalls > 1  -- true if type class is polymorphic
   let type_class ← if poly then
-      subst_base (mkIdent cl) target_type  -- use type argument(s) matching the target type
+      subst_base (mkIdent cl) type  -- use type argument(s) matching the target type
     else pure $ mkIdent cl
 
   let grind_attribute := !poly  -- only add for monomorphic type
@@ -256,9 +279,9 @@ def generate_op_def (op: String) (env: List (Name × Term)) (eqs: List Term)
                                 else pure none
 
   -- Declare that the function we defined implements the operator (op).
-  let i ← `(
+  let impl_cmd ← `(
     $attr:attributes ?
-    instance $instName:ident : $type_class $(⟨target_type⟩) where
+    instance $instName:ident : $type_class $(⟨type⟩) where
       $(mkIdent op_name):ident := $fname
   )
 
@@ -269,10 +292,10 @@ def generate_op_def (op: String) (env: List (Name × Term)) (eqs: List Term)
   else pure none
 
   let m ←
-    if op == "*" then (as_ident target_type).bindM (fun i => `(attribute [implicit_mul] $i))
+    if op == "*" then (as_ident type).bindM (fun i => `(attribute [implicit_mul] $i))
   else pure none
 
-  pure (def_cmds ++ [i] ++ g.toList ++ m.toList)
+  pure ([def_cmd] ++ lift_cmd ++ [impl_cmd] ++ g.toList ++ m.toList)
 
 def infer_type : TSyntax `expr → CoreM Term
   | `(expr| $t:ident [ $_:expr ]) => pure t
@@ -286,7 +309,7 @@ def of_direct_def : TSyntax `direct_def → CoreM (List Command)
         | .some (.all, vars, t) => (vars, t)
         | _ => ([], p)
       let args := lets_vars ls ++ map_fst TSyntax.getId vars
-      let (_, op, _, _) ← parse_def_eq eq
+      let (op, _, _) ← parse_eq eq
       generate_op_def op args [eq] (← just.mapM of_justification)
   | `(direct_def| $n:num $[: $type:type]? = $e:expr .) => do
       let expr ← of_expr e >>= resolve_term []

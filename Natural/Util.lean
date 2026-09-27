@@ -18,6 +18,12 @@ namespace Natural
 def map_fst (f : α → γ) (pairs : List (α × β)) :=
   pairs.map (fun (x, y) => (f x, y))
 
+def map_snd (f : β → γ) (pairs : List (α × β)) :=
+  pairs.map (fun (x, y) => (x, f y))
+
+def mapM_fst [Monad m] (f: α → m γ) (pairs : List (α × β)) :=
+  pairs.mapM (fun (x, y) => do pure (← f x, y))
+
 def mapM_pair {α : Type u} {β : Type v} [Monad m] (f : α → m β) : α × α → m (β × β)
   | (x, y) => (·,·) <$> f x <*> f y
 
@@ -104,6 +110,10 @@ def nat : Parser :=
 def as_ident : Term → Option Ident
   | `($i:ident) => .some i
   | _ => .none
+
+def as_ident! (t: Term): Ident := (as_ident t).get!
+
+def as_term (t: TSyntax α): Term := ⟨t.raw⟩
 
 def id_append (id: Ident) (name: Name) := mkIdent (id.getId ++ name)
 
