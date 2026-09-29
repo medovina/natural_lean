@@ -3,6 +3,8 @@ import Natural.Init
 
 open Lean
 open Lean.Elab
+open Lean.Elab.Term
+open Lean.Meta
 open Lean.Syntax
 
 namespace Natural
@@ -244,8 +246,9 @@ end
 
 abbrev LocalEnv := List (Name × Term)    -- maps name to type
 
-def is_num_type (n: Name) : CoreM Bool := do
-  pure $ (← labelled `implicit_mul).contains n
+def is_declared (n: Name): MetaM Bool := do
+  pure $ (← getLCtx).usesUserName n ||
+         (← resolveGlobalName n (enableLog := false)) != []
 
 def global_type (n: Name): CoreM (Option Expr) := do
   match (← resolveGlobalName n (enableLog := false)) with
@@ -256,55 +259,61 @@ def global_type (n: Name): CoreM (Option Expr) := do
           | .none => throwError s!"lookup: can't find {name}"
     | _ => pure none
 
-def lookup (le: LocalEnv) (n: Name) : CoreM (Option Bool) := do
-  match (← global_type n) with
-    | .some type => .some <$> type.constName?.toList.anyM is_num_type
-    | .none => (le.lookup n).mapM (fun
-        | `($i:ident) => is_num_type i.getId
-        | _ => pure false)
+def is_numeric (t: Term): TermElabM Bool :=
+  match t with
+    | `($_:num) => pure true
+    | _ => do
+        let e ← elabTerm t none
+        let type ← inferType e
+        let inst ← mkAppM `Mul #[type]
+        match (← trySynthInstance inst) with
+          | .some _ => pure true
+          | _ => pure false
 
-def arith_ops := [`«term_+_», `«term_*_», `«term_^_»]
+-- Bind a name to a type, allowing implicit parameters in the type, then run f.
+def withLocal (name: Name) (type: Term) (f: TermElabM α) : TermElabM α :=
+  withAutoBoundImplicit $ do withLocalDecl name .default (← elabType type) (fun _var =>
+    withoutAutoBoundImplicit f)
 
 mutual
-partial def resolve (le: LocalEnv) (s: Syntax) : CoreM (Term × Bool) := withRef s do
+
+partial def resolve (s: Syntax) : TermElabM Term := withRef s do
   match s with
-    | `($n:num) => pure (n, true)
+    | `($n:num) => pure n
     | `($i:ident) => do
         let n := i.getId
-        if n.toString.contains "_@" then pure (⟨s⟩, false) else
-        match (← lookup le n) with
-          | .some is_numeric => pure (⟨s⟩, is_numeric)
-          | .none =>
-            let vars := n.toString.toList.map (fun c => Name.mkSimple c.toString)
-            if ← vars.allM (fun x => Option.isSome <$> lookup le x)
-            then pure (← multi_prod (← vars.mapM name_to_term), true)
-            else throwErrorAt s (
-              if vars.length == 1 then s!"undefined: {n}"
-              else s!"{n} is neither defined nor an implicit product")
+        if n.toString.contains "_@" then pure ⟨s⟩ else
+        if (← is_declared n) then pure ⟨s⟩ else
+          let vars := n.toString.toList.map (fun c => Name.mkSimple c.toString)
+          if ← vars.allM (is_declared ·)
+          then pure (← multi_prod (← vars.mapM (name_to_term ·)))
+          else throwErrorAt s (
+            if vars.length == 1 then s!"undefined: {n}"
+            else s!"{n} is neither defined nor an implicit product")
     | `(app_or_mul $t:term $u:term) => do
-        let (t, t_is_numeric) ← resolve le t
-        let u ← resolve1 le u
-        if t_is_numeric then do pure (← `($t * $u), true)
-                    else do pure (← `($t $u), false)
+        let t ← resolve t
+        let u ← resolve u
+        if ← is_numeric t
+          then do pure (← `($t * $u))
+          else do pure (← `($t $u))
     | _ => match match_binder s with
       | .some (bt, vars, t) => do
           let names := map_fst TSyntax.getId vars
-          pure $ (← mk_binder bt vars (← resolve1 (names ++ le) t), false)
+          pure $ (← mk_binder bt vars (← resolve_term names t))
       | .none => match s with
         | `(bind $xs:ident*, $type, $t) =>
             let vars := xs.toList.map (·.getId, type)
-            -- Also declare the type in the environment, which allows it
-            -- to be implicit.
+            -- Also declare the type in the environment, which allows it to be implicit.
             let type_decl := (as_ident type).toList.map (·.getId, ← `(Type))
-            resolve (vars ++ type_decl ++ le) t
+            resolve_term (vars ++ type_decl) t
         | _ => match s with
           | .node info kind args => do
-              let args ← args.mapM (resolve1 le)
-              pure (⟨.node info kind args⟩, kind ∈ arith_ops)
-          | _ => pure (⟨s⟩, false)
+              let args ← args.mapM resolve
+              pure ⟨.node info kind args⟩
+          | _ => pure ⟨s⟩
 
-partial def resolve1 (le: LocalEnv) (s: Syntax) : CoreM Term := (·.1) <$> resolve le s
+partial def resolve_term (le: LocalEnv) (t: Term) : TermElabM Term := match le with
+  | [] => resolve t.raw
+  | (name, type) :: rest => withLocal name type (resolve_term rest t)
+
 end
-
-def resolve_term (le: LocalEnv) (t: Term) : CoreM Term :=
-  (·.1) <$> resolve le t.raw

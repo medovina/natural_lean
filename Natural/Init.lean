@@ -37,8 +37,6 @@ unsafe initialize naturalElabAttribute : KeyedDeclsAttribute NaturalElab ←
   mkElabAttribute NaturalElab `builtin_natural_elab `natural_elab
     `Natural `Natural.NaturalElab "expr"
 
-register_label_attr implicit_mul
-
 -- tracing
 
 initialize

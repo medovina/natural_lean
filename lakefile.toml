@@ -11,6 +11,9 @@ name = "batteries"
 scope = "leanprover-community"
 rev = "main"
 
+[leanOptions]
+relaxedAutoImplicit = false
+
 [[lean_lib]]
 name = "Natural"
 

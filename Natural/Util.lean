@@ -24,6 +24,9 @@ def map_snd (f : β → γ) (pairs : List (α × β)) :=
 def mapM_fst [Monad m] (f: α → m γ) (pairs : List (α × β)) :=
   pairs.mapM (fun (x, y) => do pure (← f x, y))
 
+def mapM_snd [Monad m] (f: β → m γ) (pairs : List (α × β)) :=
+  pairs.mapM (fun (x, y) => do pure (x, ← f y))
+
 def mapM_pair {α : Type u} {β : Type v} [Monad m] (f : α → m β) : α × α → m (β × β)
   | (x, y) => (·,·) <$> f x <*> f y
 

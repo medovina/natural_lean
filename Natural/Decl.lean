@@ -2,6 +2,7 @@ import Natural.Proof
 
 open Lean
 open Lean.Elab.Command
+open Lean.Elab.Term
 open Lean.Parser.Command
 open Lean.Parser.Term
 open Lean.Syntax
@@ -233,11 +234,11 @@ def swap_args : List α → List α
   | _ => panic! "swap_args"
 
 def generate_op_def (op: String) (env: List (Name × Term)) (eqs: List Term)
-    (justification: Option Ident) : CoreM (List Command) := do
+    (justification: Option Ident) : TermElabM (List Command) := do
   let (op_name, cl) ← (op_class.lookup op).getDM $ throwError "generate_def: no op"
 
   let eqs ← eqs.mapM (resolve_term env)
-  let defeqs := (← eqs.mapM parse_eq).map (·.2)  -- gather args into lists
+  let defeqs := (← eqs.mapM (parse_eq ·)).map (·.2)  -- gather args into lists
   let defeqs := if op == "∈" then map_fst swap_args defeqs else defeqs
   let arg1 ← match defeqs with
     | (arg :: _, _) :: _ => pure arg
@@ -245,13 +246,13 @@ def generate_op_def (op: String) (env: List (Name × Term)) (eqs: List Term)
 
   let (is_quotient, type, dname, defeqs) ← match is_mkquot arg1 with
     | .some (qtype, _) =>
-        let defeqs ← mapM_fst (List.mapM rm_mkquot) defeqs  -- remove projections
+        let defeqs ← mapM_fst (List.mapM (rm_mkquot ·)) defeqs  -- remove projections
         pure (true, as_term qtype, op_name ++ `aux, defeqs)
     | .none => do
         pure (false, ← pattern_type env arg1, op_name, defeqs)
 
   let args_types ← match defeqs with
-    | [(ts, _)] => ts.mapM (pattern_type env)
+    | [(ts, _)] => ts.mapM (pattern_type env ·)
     | (ts, _) :: _ => pure $ ts.map (fun _ => type)
     | _ => throwError "generate_op_def: no arg"
 
@@ -291,41 +292,37 @@ def generate_op_def (op: String) (env: List (Name × Term)) (eqs: List Term)
     some <$> `(attribute [grind =] $(mkIdent spec))
   else pure none
 
-  let m ←
-    if op == "*" then (as_ident type).bindM (fun i => `(attribute [implicit_mul] $i))
-  else pure none
-
-  pure ([def_cmd] ++ lift_cmd ++ [impl_cmd] ++ g.toList ++ m.toList)
+  pure ([def_cmd] ++ lift_cmd ++ [impl_cmd] ++ g.toList)
 
 def infer_type : TSyntax `expr → CoreM Term
   | `(expr| $t:ident [ $_:expr ]) => pure t
   | _ => throwError "must specify constant type"
 
-def of_direct_def : TSyntax `direct_def → CoreM (List Command)
+def of_direct_def : TSyntax `direct_def → TermElabM (List Command)
   | `(direct_def| $[$ls:let_step .]*  $p:prop . $just:justification ?) => do
-      let ls ← ls.toList.mapM of_let_step
+      let ls ← ls.toList.mapM (of_let_step ·)
       let p ← of_prop p
       let (vars, eq) := match match_binder p with
         | .some (.all, vars, t) => (vars, t)
         | _ => ([], p)
       let args := lets_vars ls ++ map_fst TSyntax.getId vars
       let (op, _, _) ← parse_eq eq
-      generate_op_def op args [eq] (← just.mapM of_justification)
+      generate_op_def op args [eq] (← just.mapM (of_justification ·))
   | `(direct_def| $n:num $[: $type:type]? = $e:expr .) => do
       let expr ← of_expr e >>= resolve_term []
-      let type ← type.elim (infer_type e) of_type
+      let type ← type.elim (infer_type e) (of_type ·)
       pure [← nat_instance type n expr]
   | _ => throwError "unknown direct_def"
 
-def of_cases_def : TSyntax ``cases_def → CoreM (List Command)
+def of_cases_def : TSyntax ``cases_def → TermElabM (List Command)
   | `(cases_def| The $_:_operator $op:binary_op on $_type:ident is defined recursively
                     such that for all $ids_type:ids_types , $items:prop_item*) => do
       let args ← of_ids_types ids_type
-      let eqs ← .map ThmDecl.thm <$> items.toList.mapM (of_prop_item [])
+      let eqs ← .map ThmDecl.thm <$> items.toList.mapM (of_prop_item [] ·)
       generate_op_def (of_binary_op op) (map_fst TSyntax.getId args) eqs none
   | _ => throwError "unknown cases_def"
 
-def of_definition : TSyntax `definition → CoreM (List Command)
+def of_definition : TSyntax `definition → TermElabM (List Command)
   | `(definition| $d:type_def) => of_type_def d
   | `(definition| $d:direct_def) => of_direct_def d
   | `(definition| $e:cases_def) => of_cases_def e
@@ -342,23 +339,23 @@ def match_proofs : List ThmDecl → List (Label × _Proof) → CoreM (List (ThmD
   | [], (j, _) :: _ => throwError s!"unmatched proof label: {j}"
 
 def translate_proofs (init_steps: List ProofStep) (thms_proofs: List (ThmDecl × Option _Proof))
-    : CoreM (List (ThmDecl × Option Term)) :=
+    : TermElabM (List (ThmDecl × Option Term)) :=
   thms_proofs.mapM (fun (decl, proof) => withRef decl.thm do
     let thm ← resolve_term (lets_vars init_steps) decl.thm
     pure ({decl with thm := ← generalize init_steps thm},
           ← proof.mapM (translate_proof init_steps thm)))
 
 def of_props_proofs (init_steps: List ProofStep) (ps: TSyntax `props_proofs) :
-        CoreM (List (ThmDecl × Option Term)) :=
+        TermElabM (List (ThmDecl × Option Term)) :=
   match ps with
     | `(props_proofs| $s:top_sentence $[ $_:_proof_dot $proof:proof ]?) => do
         let (thm, opt_name, opt_attr) ← of_top_sentence s
         let decl := ThmDecl.mk none thm opt_name opt_attr
-        translate_proofs init_steps [(decl, ← proof.mapM of_proof)]
+        translate_proofs init_steps [(decl, ← proof.mapM (of_proof ·))]
     | `(props_proofs| $ps:prop_item* $[ $_:_proof_dot $pis:proof_items ]?) => do
         let env := lets_vars init_steps
-        let label_thms ← ps.toList.mapM (of_prop_item env)
-        let label_proofs := (← pis.mapM of_proof_items).getD []
+        let label_thms ← ps.toList.mapM (of_prop_item env ·)
+        let label_proofs := (← pis.mapM (of_proof_items ·)).getD []
         let thms_proofs ← match_proofs label_thms label_proofs
         translate_proofs init_steps thms_proofs
     | _ => throwError "unknown prop_or_items"
@@ -372,7 +369,7 @@ def mk_decl (is_instance: Bool) (attr: Option Ident) (name: Option Ident)
     | Option.none => `($a:attributes ? example : $thm := $proof)
 
 def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
-          (body: TSyntax `theorem_body) : CoreM (List Command × List Ident) := do
+          (body: TSyntax `theorem_body) : TermElabM (List Command × List Ident) := do
   let by_default : Option Ident := match corollary_of with
     | [c] => Option.some c  -- use corollary_of by default if there is just one
     | _ => .none
@@ -406,13 +403,13 @@ def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
     | _ => throwError "unknown theorem"
 
 def of_theorem (corollary_of: List Ident)
-            : TSyntax ``_theorem → CoreM (List Command × List Ident)
+            : TSyntax ``_theorem → TermElabM (List Command × List Ident)
     | `(_theorem| $name:thm_name ? $_:str ? . $b:theorem_body) => do
-        let name ← name.mapM of_thm_name
+        let name ← name.mapM (of_thm_name ·)
         of_theorem_body name corollary_of b
     | _ => throwError "unknown theorem"
 
-def of_top_decl : TSyntax `top_decl → CoreM (List Command × List Ident × Bool)
+def of_top_decl : TSyntax `top_decl → TermElabM (List Command × List Ident × Bool)
   | `(top_decl| Definition . $d) => (·, [], false) <$> of_definition d
   | `(top_decl| $_:_thm $t:_theorem) => do
     let (cmds, names) ← of_theorem [] t
@@ -420,7 +417,7 @@ def of_top_decl : TSyntax `top_decl → CoreM (List Command × List Ident × Boo
   | _ => throwError "unknown top_decl"
 
 elab t:top : command => do
-  let cs : Command ← liftCoreM $ command_set =<< match t with
+  let cs : Command ← liftTermElabM $ (command_set ·) =<< match t with
     | `(top| $d:top_decl $[Corollary $ts:_theorem]*) => do
         let (commands, names, is_thm) ← of_top_decl d
         let corrs ← List.map (·.1) <$> ts.toList.mapM (fun c => withRef c.raw do

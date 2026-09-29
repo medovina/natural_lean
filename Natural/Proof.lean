@@ -3,6 +3,7 @@ import Aesop
 import Natural.Prop
 
 open Lean
+open Lean.Elab.Term
 open Std.Format
 
 namespace Natural
@@ -381,7 +382,7 @@ partial def infer_blocks (steps: List ProofStep): List Block :=
   assert! (rest.isEmpty)
   blocks
 
-partial def resolve_block (le: LocalEnv) : Block → CoreM Block
+partial def resolve_block (le: LocalEnv) : Block → TermElabM Block
   | ⟨step, children⟩ => do
       let ivars := match step with
         | .is_some .. => step_decl_vars_types step
@@ -545,7 +546,7 @@ def with_implicit_let (env: LocalEnv) (steps: List ProofStep) : CoreM (List Proo
           | _ => pure [step]
         do pure $ steps ++ (← with_implicit_let (lets_vars steps ++ env) rest)
 
-def translate_proof (init_steps: List ProofStep) (thm: Term): _Proof → CoreM Term
+def translate_proof (init_steps: List ProofStep) (thm: Term): _Proof → TermElabM Term
   | .steps steps => do
       let steps ← match steps with
           | .let .. :: _ => pure steps
