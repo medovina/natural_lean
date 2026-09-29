@@ -90,7 +90,7 @@ def of_natural_type (ntype: TSyntax ``natural_type) : CoreM Term :=
     | `(natural_type| $n1:ident $n2:ident ?) => do
         let s := idents_to_nat_type n1 n2
         if s == "type" then `(Type) else
-        mkIdentFromRef (← lookup_natural s) (canonical := true)
+        mkIdentFromRef (← lookup_natural_attr s) (canonical := true)
     | _ => throwError "unknown natural_type"
 
 def of_ids_type : TSyntax ``ids_type → CoreM (List Ident × Term)
@@ -137,6 +137,14 @@ def op_class := [
   ("∈", `mem, ``Membership), ("⊆", `Subset, `HasSubset),
   ("∣", `dvd, `Dvd) ]
 
+def lookup_op (op: String) : CoreM (Name × Name) :=
+  (op_class.lookup op).getDM $ do
+    let cl ← lookup_op_attr op
+    let fields := Lean.getStructureFieldsFlattened (← getEnv) cl false
+    match fields[0]? with
+      | .some f => pure (f, cl)
+      | .none => throwError "lookup_op: no field"
+
 def super_char (s: Syntax) : Char := (s.getArg 0).getAtomVal.front
 
 def super_string (table: List (Char × Char)) (a: TSyntaxArray α) : String :=
@@ -160,12 +168,24 @@ def of_is_tf : TSyntax ``is_tf → CoreM Bool
   | `(is_tf| is false) => pure false
   | _ => throwError "unknown is_tf"
 
+def try_elab [Monad m] [MonadExcept Exception m] {α: Type u}
+        (fns: List (α → m β)) (expr: α): m (Option β) := match fns with
+  | [] => pure none
+  | f :: rest =>
+      try some <$> f expr
+      catch ex =>
+        match ex with
+        | Lean.Exception.internal id _ =>
+          if id == unsupportedSyntaxExceptionId then try_elab rest expr
+          else throw ex
+        | _ => throw ex
+
 mutual
   partial def of_expr (expr: TSyntax `expr): CoreM Term := withRef expr do
     match expr with
       | `(expr| $n:num) => pure n
       | `(expr| $i:ident) => pure i
-      | `(expr| $e:expr $s:super_expr) => `($(← of_expr e) ^ $(← of_super_expr s))
+      | `(expr| $e:expr $s:super_expr) => `(_super $(← of_expr e) $(← of_super_expr s))
       | `(expr| $e:expr ^ $f:expr) => `($(← of_expr e) ^ $(← of_expr f))
       | `(expr| $e:expr$f:expr)
       | `(expr| $e:expr · $f:expr)
@@ -173,23 +193,15 @@ mutual
       | `(expr| $e:expr ∩ $f:expr) => `($(← of_expr e) ∩ $(← of_expr f))
       | `(expr| $e:expr + $f:expr) => `($(← of_expr e) + $(← of_expr f))
       | `(expr| $e:expr ∪ $f:expr) => `($(← of_expr e) ∪ $(← of_expr f))
-      | `(expr| $e:expr ( $f:expr )) => `(app_or_mul $(← of_expr e) $(← of_expr f))
+      | `(expr| $e:expr ( $f:expr )) => `(_app_or_mul $(← of_expr e) $(← of_expr f))
       | `(expr| ( $e:expr )) => of_expr e
       | `(expr| ( $e:expr , $f:expr)) => `( ($(← of_expr e), $(← of_expr f)) )
       | `(expr| $i:ident [ $e:expr ]) => `($(id_append i `mk_quot) $(← of_expr e))
       | _ =>
-        let elabFns := naturalElabAttribute.getEntries (← getEnv) expr.raw.getKind
-        for elabFn in elabFns do
-          try
-            let (stx, bound, type) ← elabFn.value expr
-            return (← `(bind $bound:ident*, $type:term, $stx:term))
-          catch ex =>
-            match ex with
-            | .internal id _ =>
-              if id == unsupportedSyntaxExceptionId then continue
-              else throw ex
-            | _ => throw ex
-        throwError "unknown expr"
+        let fns : List NaturalElab :=
+          (naturalElabAttribute.getEntries (← getEnv) expr.raw.getKind).map (·.value)
+        let (stx, bound, type) ← (← try_elab fns expr).getDM (throwError "unknown expr")
+        `(bind $bound:ident*, $type:term, $stx:term)
 
   partial def of_rel_prop (prop: TSyntax `rel_prop): CoreM Term := withRef prop do
     let rec build : List Term → List String → List Term
@@ -244,8 +256,6 @@ mutual
       | stx => throwError s!"unknown prop: {stx}"
 end
 
-abbrev LocalEnv := List (Name × Term)    -- maps name to type
-
 def is_declared (n: Name): MetaM Bool := do
   pure $ (← getLCtx).usesUserName n ||
          (← resolveGlobalName n (enableLog := false)) != []
@@ -259,16 +269,18 @@ def global_type (n: Name): CoreM (Option Expr) := do
           | .none => throwError s!"lookup: can't find {name}"
     | _ => pure none
 
+def has_supported_type (t: Term) (cl: Name): TermElabM Bool := do
+  let e ← elabTerm t none
+  let type ← inferType e
+  let inst ← mkAppM cl #[type]
+  match (← trySynthInstance inst) with
+    | .some _ => pure true
+    | _ => pure false
+
 def is_numeric (t: Term): TermElabM Bool :=
   match t with
     | `($_:num) => pure true
-    | _ => do
-        let e ← elabTerm t none
-        let type ← inferType e
-        let inst ← mkAppM `Mul #[type]
-        match (← trySynthInstance inst) with
-          | .some _ => pure true
-          | _ => pure false
+    | _ => has_supported_type t `Mul
 
 -- Bind a name to a type, allowing implicit parameters in the type, then run f.
 def withLocal (name: Name) (type: Term) (f: TermElabM α) : TermElabM α :=
@@ -290,12 +302,20 @@ partial def resolve (s: Syntax) : TermElabM Term := withRef s do
           else throwErrorAt s (
             if vars.length == 1 then s!"undefined: {n}"
             else s!"{n} is neither defined nor an implicit product")
-    | `(app_or_mul $t:term $u:term) => do
-        let t ← resolve t
-        let u ← resolve u
+    | `(_app_or_mul $t:term $u:term) => do
+        let (t, u) ← mapM_pair resolve (t, u)
         if ← is_numeric t
           then do pure (← `($t * $u))
           else do pure (← `($t $u))
+    | `(_super $t:term $u:term) => do
+         let t ← resolve t
+         let fns : List NaturalResolve :=
+            (naturalResolveAttribute.getEntries (← getEnv) `Natural.super).map (·.value)
+         -- We pass the resolver the unresolved term u, because it could be a
+         -- be a superscript letter representing an operation (e.g. "ᶜ").
+         match ← try_elab fns (← `(_super $t $u)) with
+          | .some t => pure t
+          | .none => `($t ^ $(← resolve u))
     | _ => match match_binder s with
       | .some (bt, vars, t) => do
           let names := map_fst TSyntax.getId vars

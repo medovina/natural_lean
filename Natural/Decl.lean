@@ -160,8 +160,8 @@ def of_prop_item (env: LocalEnv) : TSyntax ``prop_item → CoreM ThmDecl
 def parse_eq : Term → CoreM (String × List Term × Term)
   | `($l = $r)
   | `($l ↔ $r) => do
-      let (a, op, b) ← parse_infix l
-      pure (map_op op, [a, b], r)
+      let (op, args) ← parse_op l
+      pure (map_op op, args, r)
   | _ => throwError "equation expected"
 
 partial def pattern_type (args: LocalEnv) : Term → CoreM Term :=
@@ -233,12 +233,14 @@ def swap_args : List α → List α
   | [x, y] => [y, x]
   | _ => panic! "swap_args"
 
-def generate_op_def (op: String) (env: List (Name × Term)) (eqs: List Term)
+def generate_op_def (decl_op: Option String) (env: List (Name × Term)) (eqs: List Term)
     (justification: Option Ident) : TermElabM (List Command) := do
-  let (op_name, cl) ← (op_class.lookup op).getDM $ throwError "generate_def: no op"
-
   let eqs ← eqs.mapM (resolve_term env)
-  let defeqs := (← eqs.mapM (parse_eq ·)).map (·.2)  -- gather args into lists
+  let (ops, defeqs) := (← eqs.mapM (parse_eq ·)).unzip  -- gather args into lists
+  let op := ops.head!
+  if !decl_op.all (· == op) then throwError "op mismatch"
+  let (op_name, cl) ← lookup_op op
+
   let defeqs := if op == "∈" then map_fst swap_args defeqs else defeqs
   let arg1 ← match defeqs with
     | (arg :: _, _) :: _ => pure arg
@@ -259,7 +261,7 @@ def generate_op_def (op: String) (env: List (Name × Term)) (eqs: List Term)
   let def_name ← embed_name type dname
   let fname ← embed_name type op_name
 
-  let defeqs := if is_quotient then defeqs else map_snd (replace_infix op fname) defeqs
+  let defeqs := if is_quotient then defeqs else map_snd (replace_op op fname) defeqs
   let def_cmd ← def_command def_name args_types defeqs
 
   let lift_cmd ← if is_quotient then List.singleton <$> do
@@ -306,8 +308,7 @@ def of_direct_def : TSyntax `direct_def → TermElabM (List Command)
         | .some (.all, vars, t) => (vars, t)
         | _ => ([], p)
       let args := lets_vars ls ++ map_fst TSyntax.getId vars
-      let (op, _, _) ← parse_eq eq
-      generate_op_def op args [eq] (← just.mapM (of_justification ·))
+      generate_op_def none args [eq] (← just.mapM (of_justification ·))
   | `(direct_def| $n:num $[: $type:type]? = $e:expr .) => do
       let expr ← of_expr e >>= resolve_term []
       let type ← type.elim (infer_type e) (of_type ·)
@@ -319,7 +320,7 @@ def of_cases_def : TSyntax ``cases_def → TermElabM (List Command)
                     such that for all $ids_type:ids_types , $items:prop_item*) => do
       let args ← of_ids_types ids_type
       let eqs ← .map ThmDecl.thm <$> items.toList.mapM (of_prop_item [] ·)
-      generate_op_def (of_binary_op op) (map_fst TSyntax.getId args) eqs none
+      generate_op_def (some (of_binary_op op)) (map_fst TSyntax.getId args) eqs none
   | _ => throwError "unknown cases_def"
 
 def of_definition : TSyntax `definition → TermElabM (List Command)

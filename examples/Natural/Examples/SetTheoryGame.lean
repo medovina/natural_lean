@@ -38,6 +38,14 @@ Theorem.  Let A, B, C : Set(T).
 
   h. (A ∩ B) ∩ C = A ∩ (B ∩ C).
 
+-- complement world
+
+Theorem.  Let A, B : Set(T).
+
+  a. Suppose that x ∈ A and x ∉ B.  Then A ⊆ B is false.
+
+  b. Let x : T.  x ∈ Aᶜ if and only if x ∉ A.
+
 -- union world
 
 Theorem.  Let A, B, C : Set(T).

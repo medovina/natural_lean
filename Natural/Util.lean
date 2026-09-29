@@ -120,13 +120,18 @@ def as_term (t: TSyntax α): Term := ⟨t.raw⟩
 
 def id_append (id: Ident) (name: Name) := mkIdent (id.getId ++ name)
 
-def parse_infix_opt : Syntax → Option (Syntax × String × Syntax)
-  | .node _ _ #[x, .atom _ op, y] => .some (x, op, y)
+def parse_op_opt : Syntax → Option (String × List Syntax)
+  | .node _ _ a => match a with
+    | #[x, .atom _ op, y] => .some (op, [x, y])   -- infix
+    | #[.atom _ op, x]     -- prefix
+    | #[x, .atom _ op] =>  -- postfix
+        .some (op, [x])
+    | _ => .none
   | _ => .none
 
-def parse_infix (t: Term): CoreM (Term × String × Term) :=
-  match parse_infix_opt t.raw with
-    | .some (x, op, y) => pure (⟨x⟩, op, ⟨y⟩)
+def parse_op (t: Term): CoreM (String × List Term) :=
+  match parse_op_opt t.raw with
+    | .some (op, args) => pure (op, args.map (⟨·⟩))
     | .none => throwError "infix expression expected"
 
 def build_infix (t: Term) (op: String) (u: Term) : Term :=
@@ -135,20 +140,22 @@ def build_infix (t: Term) (op: String) (u: Term) : Term :=
     | _, _ => SourceInfo.none
   ⟨Syntax.node info (.mkSimple s!"term_{op}_") #[t, mkAtom op, u]⟩
 
-partial def syntax_replace_infix (op: String) (name: Ident) :=
+partial def syntax_replace_op (op: String) (name: Ident) :=
   let rec repl (t: Syntax): Syntax :=
     let recurse (t: Syntax): Syntax := match t with
       | .node i k args => .node i k (args.map repl)
       | t => t
-    match parse_infix_opt t with
-      | .some (x, op', y) =>
-          if op == op' then (mkApp name #[⟨repl x⟩, ⟨repl y⟩]).raw
+    match parse_op_opt t with
+      | .some (op', args) =>
+          if op == op' then
+            let args := args.toArray.map (⟨·⟩)
+            (mkApp name args).raw
           else recurse t
       | _ => recurse t
   repl
 
-def replace_infix (op: String) (name: Ident) (t: Term) : Term :=
-  ⟨syntax_replace_infix op name t.raw⟩
+def replace_op (op: String) (name: Ident) (t: Term) : Term :=
+  ⟨syntax_replace_op op name t.raw⟩
 
 def binders (xs: List (Ident × Term)) : CoreM (Array (TSyntax ``bracketedBinder)) :=
   xs.toArray.mapM (fun | (x, t) => `(bracketedBinder| ($x : $t)))
@@ -273,3 +280,5 @@ end Natural
 -- from Mathlib
 theorem Or.elim3 {c d : Prop} (h : a ∨ b ∨ c) (ha : a → d) (hb : b → d) (hc : c → d) : d :=
   Or.elim h ha fun h₂ ↦ Or.elim h₂ hb hc
+
+abbrev LocalEnv := List (Name × Term)    -- maps name to type
