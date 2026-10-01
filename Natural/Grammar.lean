@@ -59,9 +59,6 @@ sdef multi_specifier
   | _at_most
   | _exactly
 
--- forward declaration
-declare_syntax_cat prop
-
 -- expr
 
 sdef super_expr
@@ -122,19 +119,21 @@ syntax have_contradiction := _is_have &"a" "contradiction"
 
 syntax is_tf := &"is" (&"true" <|> &"false")
 
-sdef_extend prop
+syntax for_all_ids := _for_all ids_types ","
+
+sdef prop
   | atomic(expr is_tf)
   | atomic(rel_prop) is_tf ?
   |:35 prop:36 "and" prop:35
   |:30 atomic(_either ? prop:31 "or") prop:30
   |:25 prop:26 "implies" prop:25
+  | for_all_ids prop
   |:23 prop:23 _for_all ids_types
   |:23 prop:23 _for &"some" ids_types
   |:20 prop:21 _iff prop:21
   |:18 prop:19 atomic("," "and") prop:18
   |:16 atomic(_either ? prop:17 "," "or") prop:16
   | _if prop atomic("," ? "then") prop
-  | _for_all ids_types "," prop
   | _there _exists some_or_no ? ids_types "such" "that" prop
   | multi_or
   | have_contradiction
@@ -323,13 +322,13 @@ syntax init_steps := init_sentence*
 syntax _operator := "binary" ? ("operation" <|> "operator")
 
 declare_syntax_cat direct_def
-syntax (priority := 1) (let_step ".")* prop "." justification ? : direct_def
+syntax (priority := 1)
+  (let_step ".")* for_all_ids ? prop "." justification ? : direct_def
 syntax (priority := 2) num (":" type)? "=" expr "." : direct_def
 
 syntax cases_def :=
   "The" _operator binary_op "on" ident
-  "is" "defined" "recursively" "such" "that" _for_all ids_types ","
-  (label "." top_sentence)+
+  "is" "defined" "recursively" "such" "that" for_all_ids (label "." prop ".")+
 
 sdef definition
   | type_def

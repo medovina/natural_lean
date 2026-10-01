@@ -125,13 +125,6 @@ def of_init_steps (env: LocalEnv): TSyntax ``init_steps → CoreM (List ProofSte
       iss.toList.flatMapM of_init_sentence >>= with_implicit_let env
   | _ => throwError "unknown init_steps"
 
-def parse_eq : Term → CoreM (String × List Term × Term)
-  | `($l = $r)
-  | `($l ↔ $r) => do
-      let (op, args) ← parse_op l
-      pure (map_op op, args, r)
-  | _ => throwError "equation expected"
-
 partial def pattern_type (args: LocalEnv) : Term → CoreM Term :=
   let rec f : Term → CoreM Term
     | `($x:ident) =>
@@ -230,6 +223,13 @@ def def_inst_commands (op_name: Name) (type: Term) (fname: Ident) (cl: Name)
 
   pure $ [impl_cmd] ++ g.toList
 
+def parse_eq : Term → CoreM (String × List Term × Term)
+  | `($l = $r)
+  | `($l ↔ $r) => do
+      let (op, args) ← parse_op l
+      pure (map_op op, args, r)
+  | _ => throwError "equation expected"
+
 def generate_op_def (decl_op: Option String) (env: LocalEnv) (eqs: List Term)
     (justification: Option Ident) : TermElabM (List Command) := do
   let eqs ← eqs.mapM (resolve_term env)
@@ -275,14 +275,12 @@ def infer_type : TSyntax `expr → CoreM Term
   | _ => throwError "must specify constant type"
 
 def of_direct_def : TSyntax `direct_def → TermElabM (List Command)
-  | `(direct_def| $[$ls:let_step .]*  $p:prop . $just:justification ?) => do
+  | `(direct_def| $[$ls:let_step .]* $ids:for_all_ids ? $p:prop . $just:justification ?) => do
       let ls ← ls.toList.mapM (of_let_step ·)
+      let vars ← ids.toList.flatMapM (of_for_all_ids ·)
       let p ← of_prop p
-      let (vars, eq) := match match_binder p with
-        | .some (.all, vars, t) => (vars, t)
-        | _ => ([], p)
       let args := lets_vars ls ++ map_fst TSyntax.getId vars
-      generate_op_def none args [eq] (← just.mapM (of_justification ·))
+      generate_op_def none args [p] (← just.mapM (of_justification ·))
   | `(direct_def| $n:num $[: $type:type]? = $e:expr .) => do
       let expr ← of_expr e >>= resolve_term []
       let type ← type.elim (infer_type e) (of_type ·)
@@ -291,10 +289,10 @@ def of_direct_def : TSyntax `direct_def → TermElabM (List Command)
 
 def of_cases_def : TSyntax ``cases_def → TermElabM (List Command)
   | `(cases_def| The $_:_operator $op:binary_op on $_type:ident is defined recursively
-                    such that $_:_for_all $ids_type:ids_types ,
-                    $[$_:label . $sts:top_sentence]*) => do
-      let args ← of_ids_types ids_type
-      let eqs := (← sts.toList.mapM (of_top_sentence ·)).map (·.1)
+                    such that $ids:for_all_ids
+                    $[$_:label . $eqs:prop .]*) => do
+      let args ← of_for_all_ids ids
+      let eqs ← eqs.toList.mapM (of_prop ·)
       generate_op_def (some (of_binary_op op)) (map_fst TSyntax.getId args) eqs none
   | _ => throwError "unknown cases_def"
 

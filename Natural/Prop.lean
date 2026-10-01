@@ -177,78 +177,82 @@ def try_elab [Monad m] [MonadExcept Exception m] {α: Type u}
           else throw ex
         | _ => throw ex
 
-mutual
-  partial def of_expr (expr: TSyntax `expr): CoreM Term := withRef expr do
-    match parse_op_opt expr with
-      | .some (kind, op, ts) =>
-          pure $ apply_op kind (map_op op) (← ts.mapM (fun e => of_expr ⟨e⟩))
-      | _ => match expr with
-        | `(expr| $n:num) => pure n
-        | `(expr| $i:ident) => pure i
-        | `(expr| $e:expr $s:super_expr) => `(_super $(← of_expr e) $(← of_super_expr s))
-        | `(expr| $e:expr$f:expr)
-        | `(expr| $e:expr ( $f:expr )) => `(_app_or_mul $(← of_expr e) $(← of_expr f))
-        | `(expr| ( $e:expr )) => of_expr e
-        | `(expr| ( $e:expr , $f:expr)) => `( ($(← of_expr e), $(← of_expr f)) )
-        | `(expr| $i:ident [ $e:expr ]) => `($(id_append i `mk_quot) $(← of_expr e))
-        | _ =>
-          let fns : List NaturalElab :=
-            (naturalElabAttribute.getEntries (← getEnv) expr.raw.getKind).map (·.value)
-          let (stx, bound, type) ← (← try_elab fns expr).getDM (throwError "unknown expr")
-          `(bind $bound:ident*, $type:term, $stx:term)
+partial def of_expr (expr: TSyntax `expr): CoreM Term := withRef expr do
+  match parse_op_opt expr with
+    | .some (kind, op, ts) =>
+        pure $ apply_op kind (map_op op) (← ts.mapM (fun e => of_expr ⟨e⟩))
+    | _ => match expr with
+      | `(expr| $n:num) => pure n
+      | `(expr| $i:ident) => pure i
+      | `(expr| $e:expr $s:super_expr) => `(_super $(← of_expr e) $(← of_super_expr s))
+      | `(expr| $e:expr$f:expr)
+      | `(expr| $e:expr ( $f:expr )) => `(_app_or_mul $(← of_expr e) $(← of_expr f))
+      | `(expr| ( $e:expr )) => of_expr e
+      | `(expr| ( $e:expr , $f:expr)) => `( ($(← of_expr e), $(← of_expr f)) )
+      | `(expr| $i:ident [ $e:expr ]) => `($(id_append i `mk_quot) $(← of_expr e))
+      | _ =>
+        let fns : List NaturalElab :=
+          (naturalElabAttribute.getEntries (← getEnv) expr.raw.getKind).map (·.value)
+        let (stx, bound, type) ← (← try_elab fns expr).getDM (throwError "unknown expr")
+        `(bind $bound:ident*, $type:term, $stx:term)
 
-  partial def of_rel_prop (prop: TSyntax `rel_prop): CoreM Term := withRef prop do
-    let rec build : List Term → List String → List Term
-      | _, [] => []
-      | t :: u :: ts, op :: ops =>
-          build_infix t op u :: build (u :: ts) ops
-      | _, _ => panic! "of_rel_prop"
-    match prop with
-      | `(rel_prop| $a:expr $[$ops:rel_op $bs:expr]*) => do
-            let ts ← (a :: bs.toList).mapM of_expr
-            let ops := ops.toList.map of_binary_op
-            multi_and (build ts ops)
-      | _ => throwError "unknown rel_prop"
+def of_rel_prop (prop: TSyntax `rel_prop): CoreM Term := withRef prop do
+  let rec build : List Term → List String → List Term
+    | _, [] => []
+    | t :: u :: ts, op :: ops =>
+        build_infix t op u :: build (u :: ts) ops
+    | _, _ => panic! "of_rel_prop"
+  match prop with
+    | `(rel_prop| $a:expr $[$ops:rel_op $bs:expr]*) => do
+          let ts ← (a :: bs.toList).mapM of_expr
+          let ops := ops.toList.map of_binary_op
+          multi_and (build ts ops)
+    | _ => throwError "unknown rel_prop"
 
-  partial def of_multi_or (prop: TSyntax `multi_or): CoreM Term := withRef prop do
-    match prop with
-      | `(multi_or| $s:multi_specifier one of $es,* is true) => do
-            of_multi_specifier s (← es.getElems.toList.mapM of_rel_prop) >>= multi_and
-      | _ => throwError "unknown multi_or"
+def of_multi_or (prop: TSyntax `multi_or): CoreM Term := withRef prop do
+  match prop with
+    | `(multi_or| $s:multi_specifier one of $es,* is true) => do
+          of_multi_specifier s (← es.getElems.toList.mapM of_rel_prop) >>= multi_and
+    | _ => throwError "unknown multi_or"
 
-  partial def of_some_or_no : TSyntax ``some_or_no → CoreM Bool
-    | `(some_or_no| some) => pure true
-    | `(some_or_no| no) => pure false
-    | _ => throwError "unknown some_or_no"
+def of_some_or_no : TSyntax ``some_or_no → CoreM Bool
+  | `(some_or_no| some) => pure true
+  | `(some_or_no| no) => pure false
+  | _ => throwError "unknown some_or_no"
 
-  partial def of_prop (prop: TSyntax `prop): CoreM Term := withRef prop do
-    match prop with
-      | `(prop| $e:expr $b:is_tf) => apply_tf (← of_is_tf b) (← of_expr e)
-      | `(prop| $e:rel_prop $b:is_tf ?) =>
-            apply_tf ((← b.mapM of_is_tf).getD true) (← of_rel_prop e)
-      | `(prop| $p:prop and $q:prop) => do `($(← of_prop p) ∧ $(← of_prop q))
-      | `(prop| $_:_either ? $p:prop or $q:prop) => do `($(← of_prop p) ∨ $(← of_prop q))
-      | `(prop| $p:prop implies $q:prop)
-      | `(prop| $_:_if $p:prop $[,]? then $q:prop) => do `($(← of_prop p) → $(← of_prop q))
-      | `(prop| $p:prop $_:_iff $q:prop) => do `($(← of_prop p) ↔ $(← of_prop q))
-      | `(prop| $_:_for_all $ids_type:ids_types , $p:prop)
-      | `(prop| $p:prop $_:_for_all $ids_type:ids_types) => do
-            let xs ← of_ids_types ids_type
-            `(∀ $(← binders xs)*, $(← of_prop p))
-      | `(prop| $_:_there $_:_exists $s:some_or_no ? $ids_type:ids_types such that $p:prop) => do
-            let xs ← of_ids_types ids_type
-            let b ← s.elim (pure true) of_some_or_no
-            let t ← `(∃ $(← ex_binders xs)*, $(← of_prop p))
-            apply_tf b t
-      | `(prop| $p:prop $_:_for some $ids_type:ids_types) => do
-            let xs ← of_ids_types ids_type
-            `(∃ $(← ex_binders xs)*, $(← of_prop p))
-      | `(prop| $p:prop , and $q:prop) => do `($(← of_prop p) ∧ $(← of_prop q))
-      | `(prop| $_:_either ? $p:prop , or $q:prop) => do `($(← of_prop p) ∨ $(← of_prop q))
-      | `(prop| $m:multi_or) => of_multi_or m
-      | `(prop| $_:have_contradiction) => pure mk_false
-      | stx => throwError s!"unknown prop: {stx}"
-end
+def of_for_all_ids : TSyntax ``for_all_ids → CoreM (List (Ident × Term))
+  | `(for_all_ids| $_:_for_all $ids_type:ids_types ,) => of_ids_types ids_type
+  | _ => throwError "unknown for_all_ids"
+
+partial def of_prop (prop: TSyntax `prop): CoreM Term := withRef prop do
+  match prop with
+    | `(prop| $e:expr $b:is_tf) => apply_tf (← of_is_tf b) (← of_expr e)
+    | `(prop| $e:rel_prop $b:is_tf ?) =>
+          apply_tf ((← b.mapM of_is_tf).getD true) (← of_rel_prop e)
+    | `(prop| $p:prop and $q:prop) => do `($(← of_prop p) ∧ $(← of_prop q))
+    | `(prop| $_:_either ? $p:prop or $q:prop) => do `($(← of_prop p) ∨ $(← of_prop q))
+    | `(prop| $p:prop implies $q:prop)
+    | `(prop| $_:_if $p:prop $[,]? then $q:prop) => do `($(← of_prop p) → $(← of_prop q))
+    | `(prop| $p:prop $_:_iff $q:prop) => do `($(← of_prop p) ↔ $(← of_prop q))
+    | `(prop| $ids_types:for_all_ids $p:prop) =>
+          let xs ← of_for_all_ids ids_types
+          `(∀ $(← binders xs)*, $(← of_prop p))
+    | `(prop| $p:prop $_:_for_all $ids_type:ids_types) => do
+          let xs ← of_ids_types ids_type
+          `(∀ $(← binders xs)*, $(← of_prop p))
+    | `(prop| $_:_there $_:_exists $s:some_or_no ? $ids_type:ids_types such that $p:prop) => do
+          let xs ← of_ids_types ids_type
+          let b ← s.elim (pure true) of_some_or_no
+          let t ← `(∃ $(← ex_binders xs)*, $(← of_prop p))
+          apply_tf b t
+    | `(prop| $p:prop $_:_for some $ids_type:ids_types) => do
+          let xs ← of_ids_types ids_type
+          `(∃ $(← ex_binders xs)*, $(← of_prop p))
+    | `(prop| $p:prop , and $q:prop) => do `($(← of_prop p) ∧ $(← of_prop q))
+    | `(prop| $_:_either ? $p:prop , or $q:prop) => do `($(← of_prop p) ∨ $(← of_prop q))
+    | `(prop| $m:multi_or) => of_multi_or m
+    | `(prop| $_:have_contradiction) => pure mk_false
+    | stx => throwError s!"unknown prop: {stx}"
 
 def is_declared (n: Name): MetaM Bool := do
   pure $ (← getLCtx).usesUserName n ||
