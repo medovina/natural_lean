@@ -333,7 +333,7 @@ syntax (priority := 2) num (":" type)? "=" expr "." : direct_def
 
 syntax cases_def :=
   "The" _operator binary_op "on" ident
-  "is" "defined" "recursively" "such" "that" "for" "all" ids_types ","
+  "is" "defined" "recursively" "such" "that" _for_all ids_types ","
   prop_item+
 
 sdef definition

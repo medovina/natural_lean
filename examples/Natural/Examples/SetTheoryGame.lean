@@ -18,6 +18,24 @@ Theorem.  Let A, B, C : Set(T).
 
   f. Suppose that A ⊆ B and B ⊆ C.  Then A ⊆ C.
 
+-- complement world
+
+Theorem.  Let A, B : Set(T).
+
+  a. Suppose that x ∈ A and x ∉ B.  Then A ⊆ B is false.
+
+  b. Let x : T.  x ∈ Aᶜ if and only if x ∉ A.
+
+  c. Suppose that A ⊆ B.  Then Bᶜ ⊆ Aᶜ.  [Set.compl_subset_compl_if]
+
+  d. (Aᶜ)ᶜ = A.
+
+  e. A ⊆ B if and only if Bᶜ ⊆ Aᶜ.
+
+Proof.
+
+  e. Suppose that A ⊆ B.  Then Bᶜ ⊆ Aᶜ by Set.compl_subset_compl_if.  Conversely, suppose that Bᶜ ⊆ Aᶜ.  Let x : T, and suppose that x ∈ A.  Then x ∉ Aᶜ, so x ∉ Bᶜ, so x ∈ B.
+
 -- intersection world
 
 Theorem.  Let A, B, C : Set(T).
@@ -38,14 +56,6 @@ Theorem.  Let A, B, C : Set(T).
 
   h. (A ∩ B) ∩ C = A ∩ (B ∩ C).
 
--- complement world
-
-Theorem.  Let A, B : Set(T).
-
-  a. Suppose that x ∈ A and x ∉ B.  Then A ⊆ B is false.
-
-  b. Let x : T.  x ∈ Aᶜ if and only if x ∉ A.
-
 -- union world
 
 Theorem.  Let A, B, C : Set(T).
@@ -61,3 +71,21 @@ Theorem.  Let A, B, C : Set(T).
   e. A ∪ B = B ∪ A.
 
   f. (A ∪ B) ∪ C = A ∪ (B ∪ C).
+
+-- combination world
+
+Theorem.  Let A, B, C : Set(T).
+
+  a. (A ∪ B)ᶜ = Aᶜ ∩ Bᶜ.
+
+  b. (A ∩ B)ᶜ = Aᶜ ∪ Bᶜ.
+
+  c. A ∩ (B ∪ C) = (A ∩ B) ∪ (A ∩ C).
+
+  d. A ∪ (B ∩ C) = (A ∪ B) ∩ (A ∪ C).
+
+  e. Suppose that A ∪ C ⊆ B ∪ C and A ∩ C ⊆ B ∩ C. Then A ⊆ B.
+
+Proof.
+
+  e. Suppose that A ∪ C ⊆ B ∪ C and A ∩ C ⊆ B ∩ C. Suppose that x ∈ A.  If x ∈ C then x ∈ A ∩ C, so x ∈ B ∩ C, so x ∈ B.  Otherwise x ∉ C.  Then x ∈ A ∪ C, so x ∈ B ∪ C, so x ∈ B.  In either case x ∈ B.

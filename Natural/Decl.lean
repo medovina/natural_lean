@@ -317,7 +317,7 @@ def of_direct_def : TSyntax `direct_def → TermElabM (List Command)
 
 def of_cases_def : TSyntax ``cases_def → TermElabM (List Command)
   | `(cases_def| The $_:_operator $op:binary_op on $_type:ident is defined recursively
-                    such that for all $ids_type:ids_types , $items:prop_item*) => do
+                    such that $_:_for_all $ids_type:ids_types , $items:prop_item*) => do
       let args ← of_ids_types ids_type
       let eqs ← .map ThmDecl.thm <$> items.toList.mapM (of_prop_item [] ·)
       generate_op_def (some (of_binary_op op)) (map_fst TSyntax.getId args) eqs none

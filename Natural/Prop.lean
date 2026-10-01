@@ -308,14 +308,11 @@ partial def resolve (s: Syntax) : TermElabM Term := withRef s do
           then do pure (← `($t * $u))
           else do pure (← `($t $u))
     | `(_super $t:term $u:term) => do
-         let t ← resolve t
          let fns : List NaturalResolve :=
             (naturalResolveAttribute.getEntries (← getEnv) `Natural.super).map (·.value)
-         -- We pass the resolver the unresolved term u, because it could be a
-         -- be a superscript letter representing an operation (e.g. "ᶜ").
          match ← try_elab fns (← `(_super $t $u)) with
           | .some t => pure t
-          | .none => `($t ^ $(← resolve u))
+          | .none => `($(← resolve t) ^ $(← resolve u))
     | _ => match match_binder s with
       | .some (bt, vars, t) => do
           let names := map_fst TSyntax.getId vars
