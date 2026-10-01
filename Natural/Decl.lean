@@ -201,7 +201,36 @@ def swap_args : List α → List α
   | [x, y] => [y, x]
   | _ => panic! "swap_args"
 
-def generate_op_def (decl_op: Option String) (env: List (Name × Term)) (eqs: List Term)
+def def_inst_commands (op_name: Name) (type: Term) (fname: Ident) (cl: Name)
+      : CoreM (List Command) := do
+  let instName ← embed_name type (Name.mkSimple ("inst" ++ cl.toString))
+
+  let t := (← global_type cl).get!
+  let poly := t.getNumHeadForalls > 1  -- true if type class is polymorphic
+  let type_class ← if poly then
+      subst_base (mkIdent cl) type  -- use type argument(s) matching the target type
+    else pure $ mkIdent cl
+
+  let grind_attribute := !poly  -- only add for monomorphic type
+  let attr ← if grind_attribute then .some <$> `(attributes| @[method_specs])
+                                else pure none
+
+  -- Declare that the function we defined implements the operator (op).
+  let impl_cmd ← `(
+    $attr:attributes ?
+    instance $instName:ident : $type_class $(⟨type⟩) where
+      $(mkIdent op_name):ident := $fname
+  )
+
+  -- Optionally add an attribute for grind.
+  let g ← if grind_attribute then
+    let spec := instName.getId ++ Name.mkSimple (op_name.toString ++ "_spec")
+    some <$> `(attribute [grind =] $(mkIdent spec))
+  else pure none
+
+  pure $ [impl_cmd] ++ g.toList
+
+def generate_op_def (decl_op: Option String) (env: LocalEnv) (eqs: List Term)
     (justification: Option Ident) : TermElabM (List Command) := do
   let eqs ← eqs.mapM (resolve_term env)
   let (ops, defeqs) := (← eqs.mapM (parse_eq ·)).unzip  -- gather args into lists
@@ -237,32 +266,9 @@ def generate_op_def (decl_op: Option String) (env: List (Name × Term)) (eqs: Li
     `(def $fname (a: $type) (b: $type) : $type := Quotient.lift₂ $def_name $by_thms a b)
   else pure []
 
-  let instName ← embed_name type (Name.mkSimple ("inst" ++ cl.toString))
+  let inst_commands ← def_inst_commands op_name type fname cl
 
-  let t := (← global_type cl).get!
-  let poly := t.getNumHeadForalls > 1  -- true if type class is polymorphic
-  let type_class ← if poly then
-      subst_base (mkIdent cl) type  -- use type argument(s) matching the target type
-    else pure $ mkIdent cl
-
-  let grind_attribute := !poly  -- only add for monomorphic type
-  let attr ← if grind_attribute then .some <$> `(attributes| @[method_specs])
-                                else pure none
-
-  -- Declare that the function we defined implements the operator (op).
-  let impl_cmd ← `(
-    $attr:attributes ?
-    instance $instName:ident : $type_class $(⟨type⟩) where
-      $(mkIdent op_name):ident := $fname
-  )
-
-  -- Optionally add an attribute for grind.
-  let g ← if grind_attribute then
-    let spec := instName.getId ++ Name.mkSimple (op_name.toString ++ "_spec")
-    some <$> `(attribute [grind =] $(mkIdent spec))
-  else pure none
-
-  pure ([def_cmd] ++ lift_cmd ++ [impl_cmd] ++ g.toList)
+  pure ([def_cmd] ++ lift_cmd ++ inst_commands)
 
 def infer_type : TSyntax `expr → CoreM Term
   | `(expr| $t:ident [ $_:expr ]) => pure t

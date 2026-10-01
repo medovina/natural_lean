@@ -33,7 +33,7 @@ initialize registerBuiltinAttribute {
       | _ => throwError "natural_name: unexpected"
 }
 
-def lookup_natural_attr := lookup_assoc name_extension
+def lookup_natural_attr : String → CoreM Name := lookup_assoc name_extension
 
 -- natural_op attribute
 
@@ -55,7 +55,7 @@ initialize registerBuiltinAttribute {
       | _ => throwError "natural_name: unexpected"
 }
 
-def lookup_op_attr := lookup_assoc op_extension
+def lookup_op_attr : String → CoreM (Name × Name) := lookup_assoc op_extension
 
 -- other attributes
 
