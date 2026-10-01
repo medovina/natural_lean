@@ -9,29 +9,11 @@ open Lean.Syntax
 
 namespace Natural
 
+-- definitions
+
 def of_label: TSyntax ``label → CoreM Name
   | `(label| $i:ident) => pure i.getId
   | _ => throwError "unknown label"
-
-def label_range (i j: Name) : CoreM (List Name) :=
-  match i.toString.toList, j.toString.toList with
-    | [c], [d] => pure $ (c ...= d).toList.map (Name.mkSimple ∘ Char.toString)
-    | _, _ => throwError "label must be a single letter"
-
-def of_proof_item: TSyntax ``proof_item → CoreM (List (Name × _Proof))
-  | `(proof_item| $i:label $[- $j:label]? . $p:proof) => do
-      let (i, j) ← pairM (of_label i) (j.mapM of_label)
-      let p ← of_proof p
-      match j with
-        | .some j => .map (·, p) <$> label_range i j
-        | .none => pure [(i, p)]
-  | _ => throwError "unknown proof_item"
-
-def of_proof_items: TSyntax ``proof_items → CoreM (List (Name × _Proof))
-  | `(proof_items| $ps:proof_item*) => ps.toList.flatMapM of_proof_item
-  | _ => throwError "unknown proof_items"
-
--- definitions
 
 def of_id_sig : TSyntax ``id_sig → CoreM (Ident × Option Ident)
   | `(id_sig| $i:ident) => pure (i, none)
@@ -142,20 +124,6 @@ def of_init_steps (env: LocalEnv): TSyntax ``init_steps → CoreM (List ProofSte
   | `(init_steps| $iss:init_sentence*) =>
       iss.toList.flatMapM of_init_sentence >>= with_implicit_let env
   | _ => throwError "unknown init_steps"
-
-abbrev Label := Name
-
-structure ThmDecl where
-  label: Option Label
-  thm: Term
-  name: Option Ident
-  attr: Option Ident
-
-def of_prop_item (env: LocalEnv) : TSyntax ``prop_item → CoreM ThmDecl
-  | `(prop_item| $i:label . $iss:init_steps $s:top_sentence) => withRef s do
-      let (thm, name, attr) ← of_top_sentence s
-      pure ⟨← of_label i, ← apply_init_steps (← of_init_steps env iss) thm, name, attr⟩
-  | _ => throwError "unknown prop_item"
 
 def parse_eq : Term → CoreM (String × List Term × Term)
   | `($l = $r)
@@ -317,9 +285,10 @@ def of_direct_def : TSyntax `direct_def → TermElabM (List Command)
 
 def of_cases_def : TSyntax ``cases_def → TermElabM (List Command)
   | `(cases_def| The $_:_operator $op:binary_op on $_type:ident is defined recursively
-                    such that $_:_for_all $ids_type:ids_types , $items:prop_item*) => do
+                    such that $_:_for_all $ids_type:ids_types ,
+                    $[$_:label . $sts:top_sentence]*) => do
       let args ← of_ids_types ids_type
-      let eqs ← .map ThmDecl.thm <$> items.toList.mapM (of_prop_item [] ·)
+      let eqs := (← sts.toList.mapM (of_top_sentence ·)).map (·.1)
       generate_op_def (some (of_binary_op op)) (map_fst TSyntax.getId args) eqs none
   | _ => throwError "unknown cases_def"
 
@@ -330,6 +299,38 @@ def of_definition : TSyntax `definition → TermElabM (List Command)
   | _ => throwError "unknown definition"
 
 -- theorems
+
+abbrev Label := Name
+
+structure ThmDecl where
+  label: Option Label
+  thm: Term
+  name: Option Ident
+  attr: Option Ident
+
+def of_prop_item (env: LocalEnv) : TSyntax ``prop_item → CoreM ThmDecl
+  | `(prop_item| $i:label . $iss:init_steps $s:top_sentence) => withRef s do
+      let (thm, name, attr) ← of_top_sentence s
+      pure ⟨← of_label i, ← apply_init_steps (← of_init_steps env iss) thm, name, attr⟩
+  | _ => throwError "unknown prop_item"
+
+def label_range (i j: Name) : CoreM (List Name) :=
+  match i.toString.toList, j.toString.toList with
+    | [c], [d] => pure $ (c ...= d).toList.map (Name.mkSimple ∘ Char.toString)
+    | _, _ => throwError "label must be a single letter"
+
+def of_proof_item: TSyntax ``proof_item → CoreM (List (Name × _Proof))
+  | `(proof_item| $i:label $[- $j:label]? . $p:proof) => do
+      let (i, j) ← pairM (of_label i) (j.mapM of_label)
+      let p ← of_proof p
+      match j with
+        | .some j => .map (·, p) <$> label_range i j
+        | .none => pure [(i, p)]
+  | _ => throwError "unknown proof_item"
+
+def of_proof_items: TSyntax ``proof_items → CoreM (List (Name × _Proof))
+  | `(proof_items| $ps:proof_item*) => ps.toList.flatMapM of_proof_item
+  | _ => throwError "unknown proof_items"
 
 def match_proofs : List ThmDecl → List (Label × _Proof) → CoreM (List (ThmDecl × Option _Proof))
   | [], [] => pure []

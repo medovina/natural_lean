@@ -286,13 +286,9 @@ sdef proof
   | case_unit+
   | "By" reason "."
 
-syntax label := ident
-
-syntax proof_item := label ("-" label)? "." proof
-
-syntax proof_items := proof_item+
-
 -- definitions
+
+syntax label := ident
 
 syntax id_sig := ident atomic("(" var ")")?
 
@@ -323,8 +319,6 @@ syntax init_sentence := sepBy1(init_step, "/", "," ? "and") "."
 
 syntax init_steps := init_sentence*
 
-syntax prop_item := label "." init_steps top_sentence
-
 syntax _operator := "binary" ? ("operation" <|> "operator")
 
 declare_syntax_cat direct_def
@@ -334,7 +328,7 @@ syntax (priority := 2) num (":" type)? "=" expr "." : direct_def
 syntax cases_def :=
   "The" _operator binary_op "on" ident
   "is" "defined" "recursively" "such" "that" _for_all ids_types ","
-  prop_item+
+  (label "." top_sentence)+
 
 sdef definition
   | type_def
@@ -343,7 +337,13 @@ sdef definition
 
 -- theorems
 
+syntax prop_item := label "." init_steps top_sentence
+
 syntax _proof_dot := "Proof" "."
+
+syntax proof_item := label ("-" label)? "." proof
+
+syntax proof_items := proof_item+
 
 sdef props_proofs
   | top_sentence (_proof_dot proof)?
@@ -354,6 +354,8 @@ sdef theorem_body
   | "The" _operator binary_op "is" _a ? natural_type "on" type "." post_name
 
 syntax _theorem := thm_name ? str ? "." theorem_body
+
+-- declarations
 
 sdef top_decl
   | "Definition" "." definition
