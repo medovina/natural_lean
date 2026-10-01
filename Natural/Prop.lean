@@ -139,11 +139,8 @@ def op_class := [
 
 def lookup_op (op: String) : CoreM (Name × Name) :=
   (op_class.lookup op).getDM $ do
-    let cl ← lookup_op_attr op
-    let fields := Lean.getStructureFieldsFlattened (← getEnv) cl false
-    match fields[0]? with
-      | .some f => pure (f, cl)
-      | .none => throwError "lookup_op: no field"
+    let (cl, f) ← lookup_op_attr op
+    pure (f, cl)
 
 def super_char (s: Syntax) : Char := (s.getArg 0).getAtomVal.front
 
@@ -182,26 +179,23 @@ def try_elab [Monad m] [MonadExcept Exception m] {α: Type u}
 
 mutual
   partial def of_expr (expr: TSyntax `expr): CoreM Term := withRef expr do
-    match expr with
-      | `(expr| $n:num) => pure n
-      | `(expr| $i:ident) => pure i
-      | `(expr| $e:expr $s:super_expr) => `(_super $(← of_expr e) $(← of_super_expr s))
-      | `(expr| $e:expr ^ $f:expr) => `($(← of_expr e) ^ $(← of_expr f))
-      | `(expr| $e:expr$f:expr)
-      | `(expr| $e:expr · $f:expr)
-      | `(expr| $e:expr × $f:expr) => `($(← of_expr e) * $(← of_expr f))
-      | `(expr| $e:expr ∩ $f:expr) => `($(← of_expr e) ∩ $(← of_expr f))
-      | `(expr| $e:expr + $f:expr) => `($(← of_expr e) + $(← of_expr f))
-      | `(expr| $e:expr ∪ $f:expr) => `($(← of_expr e) ∪ $(← of_expr f))
-      | `(expr| $e:expr ( $f:expr )) => `(_app_or_mul $(← of_expr e) $(← of_expr f))
-      | `(expr| ( $e:expr )) => of_expr e
-      | `(expr| ( $e:expr , $f:expr)) => `( ($(← of_expr e), $(← of_expr f)) )
-      | `(expr| $i:ident [ $e:expr ]) => `($(id_append i `mk_quot) $(← of_expr e))
-      | _ =>
-        let fns : List NaturalElab :=
-          (naturalElabAttribute.getEntries (← getEnv) expr.raw.getKind).map (·.value)
-        let (stx, bound, type) ← (← try_elab fns expr).getDM (throwError "unknown expr")
-        `(bind $bound:ident*, $type:term, $stx:term)
+    match parse_op_opt expr with
+      | .some (kind, op, ts) =>
+          pure $ apply_op kind (map_op op) (← ts.mapM (fun e => of_expr ⟨e⟩))
+      | _ => match expr with
+        | `(expr| $n:num) => pure n
+        | `(expr| $i:ident) => pure i
+        | `(expr| $e:expr $s:super_expr) => `(_super $(← of_expr e) $(← of_super_expr s))
+        | `(expr| $e:expr$f:expr)
+        | `(expr| $e:expr ( $f:expr )) => `(_app_or_mul $(← of_expr e) $(← of_expr f))
+        | `(expr| ( $e:expr )) => of_expr e
+        | `(expr| ( $e:expr , $f:expr)) => `( ($(← of_expr e), $(← of_expr f)) )
+        | `(expr| $i:ident [ $e:expr ]) => `($(id_append i `mk_quot) $(← of_expr e))
+        | _ =>
+          let fns : List NaturalElab :=
+            (naturalElabAttribute.getEntries (← getEnv) expr.raw.getKind).map (·.value)
+          let (stx, bound, type) ← (← try_elab fns expr).getDM (throwError "unknown expr")
+          `(bind $bound:ident*, $type:term, $stx:term)
 
   partial def of_rel_prop (prop: TSyntax `rel_prop): CoreM Term := withRef prop do
     let rec build : List Term → List String → List Term

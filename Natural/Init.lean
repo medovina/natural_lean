@@ -6,54 +6,56 @@ open Lean.Elab
 
 namespace Natural
 
--- natural_name, natural_op attributes
+abbrev AssocExtension α := SimpleScopedEnvExtension (String × α) (List (String × α))
+
+def lookup_assoc (ext: AssocExtension α) (name: String): CoreM α := do
+  let env ← getEnv
+  let map := ext.getState env
+  (map.lookup name).getDM (throwError s!"unknown: {name}")
+
+-- natural_name attribute
 
 syntax (name := natural_name) "natural_name " str : attr
-syntax (name := natural_op) "natural_op " str : attr
 
-inductive ExtTag where
-  | name
-  | op
-deriving Inhabited, BEq
-
-instance: ToString ExtTag where
-  toString
-    | .name => "natural name"
-    | .op => "op"
-
-initialize naturalExt : SimpleScopedEnvExtension
-      (ExtTag × String × Name) (List ((ExtTag × String) × Name)) ←
+initialize name_extension : AssocExtension Name ←
   registerSimpleScopedEnvExtension {
     initial := []
-    addEntry | state, (tag, s, name) => ((tag, s), name) :: state
+    addEntry | state, (key, val) => (key, val) :: state
   }
 
 initialize registerBuiltinAttribute {
   name := `natural_name
   descr := "Natural name"
-  add (decl_name: Name) (stx: Syntax) (kind: AttributeKind) :=
+  add := fun (decl_name: Name) (stx: Syntax) (kind: AttributeKind) =>
     match stx with
       | `(natural_name| natural_name $name:str) =>
-          naturalExt.add (.name, name.getString, decl_name) kind
+          name_extension.add (name.getString, decl_name) kind
       | _ => throwError "natural_name: unexpected"
 }
 
+def lookup_natural_attr := lookup_assoc name_extension
+
+-- natural_op attribute
+
+syntax (name := natural_op) "natural_op " str ident : attr
+
+initialize op_extension : AssocExtension (Name × Name) ←
+  registerSimpleScopedEnvExtension {
+    initial := []
+    addEntry | state, (key, val) => (key, val) :: state
+  }
+
 initialize registerBuiltinAttribute {
   name := `natural_op
-  descr := "operation"
-  add (decl_name: Name) (stx: Syntax) (kind: AttributeKind) :=
+  descr := "Natural operation"
+  add := fun (decl_name: Name) (stx: Syntax) (kind: AttributeKind) =>
     match stx with
-      | `(natural_op| natural_op $name:str) =>
-          naturalExt.add (.op, name.getString, decl_name) kind
-      | _ => throwError "natural_op: unexpected"
+      | `(natural_op| natural_op $name:str $id:ident) =>
+          op_extension.add (name.getString, (decl_name, id.getId)) kind
+      | _ => throwError "natural_name: unexpected"
 }
 
-def lookup_tag (tag: ExtTag) (name: String): CoreM Name := do
-  let map := naturalExt.getState (← getEnv)
-  (map.lookup (tag, name)).getDM (throwError s!"unknown {tag}: {name}")
-
-def lookup_natural_attr := lookup_tag .name
-def lookup_op_attr := lookup_tag .op
+def lookup_op_attr := lookup_assoc op_extension
 
 -- other attributes
 

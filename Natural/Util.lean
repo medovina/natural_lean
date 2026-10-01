@@ -120,25 +120,38 @@ def as_term (t: TSyntax α): Term := ⟨t.raw⟩
 
 def id_append (id: Ident) (name: Name) := mkIdent (id.getId ++ name)
 
-def parse_op_opt : Syntax → Option (String × List Syntax)
+inductive OpKind
+  | infix
+  | prefix
+  | postfix
+
+def parse_op_opt : Syntax → Option (OpKind × String × List Syntax)
   | .node _ _ a => match a with
-    | #[x, .atom _ op, y] => .some (op, [x, y])   -- infix
-    | #[.atom _ op, x]     -- prefix
-    | #[x, .atom _ op] =>  -- postfix
-        .some (op, [x])
+    | #[x, .atom _ op, y] => .some (.infix, op, [x, y])
+    | #[.atom _ op, x] => .some (.prefix, op, [x])
+    | #[x, .atom _ op] => .some (.postfix, op, [x])
     | _ => .none
   | _ => .none
 
 def parse_op (t: Term): CoreM (String × List Term) :=
   match parse_op_opt t.raw with
-    | .some (op, args) => pure (op, args.map (⟨·⟩))
+    | .some (_kind, op, args) => pure (op, args.map (⟨·⟩))
     | .none => throwError "infix expression expected"
 
+def apply_op : OpKind → String → List Term → Term
+  | .infix, op, [t, u] =>
+    let info := match t.raw.getPos?, u.raw.getTailPos? with
+      | .some startPos, .some endPos => SourceInfo.synthetic startPos endPos
+      | _, _ => SourceInfo.none
+    ⟨Syntax.node info (.mkSimple s!"term_{op}_") #[t, mkAtom op, u]⟩
+  | .prefix, op, [t] =>
+    ⟨Syntax.node .none (.mkSimple s!"term{op}_") #[mkAtom op, t]⟩
+  | .postfix, op, [t] =>
+    ⟨Syntax.node .none (.mkSimple s!"term_{op}") #[t, mkAtom op]⟩
+  | _, _, _ => panic! "apply_op"
+
 def build_infix (t: Term) (op: String) (u: Term) : Term :=
-  let info := match t.raw.getPos?, u.raw.getTailPos? with
-    | .some startPos, .some endPos => SourceInfo.synthetic startPos endPos
-    | _, _ => SourceInfo.none
-  ⟨Syntax.node info (.mkSimple s!"term_{op}_") #[t, mkAtom op, u]⟩
+  apply_op .infix op [t, u]
 
 partial def syntax_replace_op (op: String) (name: Ident) :=
   let rec repl (t: Syntax): Syntax :=
@@ -146,7 +159,7 @@ partial def syntax_replace_op (op: String) (name: Ident) :=
       | .node i k args => .node i k (args.map repl)
       | t => t
     match parse_op_opt t with
-      | .some (op', args) =>
+      | .some (_kind, op', args) =>
           if op == op' then
             let args := args.toArray.map (⟨·⟩)
             (mkApp name args).raw

@@ -4,7 +4,7 @@ open Lean.Core
 open Lean.Parser.Term
 open Lean.Syntax
 
--- In this file we define sets, as well as notations for set comprehensions and the complement of a set.  (Currently it's not possible to define notations in Natural Lean, so most of this code is native Lean.)
+-- In this file we define sets, as well as notations for set comprehensions and the complement of a set.  (Currently it's not possible to define these notations in Natural Lean, so most of this code is native Lean.)
 
 namespace Natural
 
@@ -43,7 +43,7 @@ def set_comp_elab : NaturalElab
 
 -- Define notation for a set complement, plus an associated type class.
 
-@[natural_op "ᶜ"]
+@[natural_op "ᶜ" compl]
 class Compl (α : Type u) where
   compl : α → α
 
