@@ -88,4 +88,4 @@ Theorem.  Let A, B, C : Set(T).
 
 Proof.
 
-  e. Suppose that A ∪ C ⊆ B ∪ C and A ∩ C ⊆ B ∩ C. Suppose that x ∈ A.  If x ∈ C then x ∈ A ∩ C, so x ∈ B ∩ C, so x ∈ B.  Otherwise x ∉ C.  Then x ∈ A ∪ C, so x ∈ B ∪ C, so x ∈ B.  In either case x ∈ B.
+  e. Suppose that x ∈ A.  If x ∈ C then x ∈ A ∩ C, so x ∈ B ∩ C, so x ∈ B.  Otherwise x ∉ C.  Then x ∈ A ∪ C, so x ∈ B ∪ C, so x ∈ B.  In either case x ∈ B.

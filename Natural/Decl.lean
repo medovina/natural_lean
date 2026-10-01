@@ -304,14 +304,16 @@ abbrev Label := Name
 
 structure ThmDecl where
   label: Option Label
+  init_steps: List ProofStep
   thm: Term
   name: Option Ident
   attr: Option Ident
 
 def of_prop_item (env: LocalEnv) : TSyntax ``prop_item → CoreM ThmDecl
   | `(prop_item| $i:label . $iss:init_steps $s:top_sentence) => withRef s do
+      let iss ← of_init_steps env iss
       let (thm, name, attr) ← of_top_sentence s
-      pure ⟨← of_label i, ← apply_init_steps (← of_init_steps env iss) thm, name, attr⟩
+      pure ⟨← of_label i, iss, ← apply_init_steps iss thm, name, attr⟩
   | _ => throwError "unknown prop_item"
 
 def label_range (i j: Name) : CoreM (List Name) :=
@@ -345,14 +347,14 @@ def translate_proofs (init_steps: List ProofStep) (thms_proofs: List (ThmDecl ×
   thms_proofs.mapM (fun (decl, proof) => withRef decl.thm do
     let thm ← resolve_term (lets_vars init_steps) decl.thm
     pure ({decl with thm := ← generalize init_steps thm},
-          ← proof.mapM (translate_proof init_steps thm)))
+          ← proof.mapM (translate_proof (init_steps ++ decl.init_steps) thm)))
 
 def of_props_proofs (init_steps: List ProofStep) (ps: TSyntax `props_proofs) :
         TermElabM (List (ThmDecl × Option Term)) :=
   match ps with
     | `(props_proofs| $s:top_sentence $[ $_:_proof_dot $proof:proof ]?) => do
         let (thm, opt_name, opt_attr) ← of_top_sentence s
-        let decl := ThmDecl.mk none thm opt_name opt_attr
+        let decl := ThmDecl.mk none [] thm opt_name opt_attr
         translate_proofs init_steps [(decl, ← proof.mapM (of_proof ·))]
     | `(props_proofs| $ps:prop_item* $[ $_:_proof_dot $pis:proof_items ]?) => do
         let env := lets_vars init_steps
@@ -379,7 +381,7 @@ def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
     | `(theorem_body| $iss:init_steps $ps:props_proofs) => do
         let thms_proofs ← of_props_proofs (← of_init_steps [] iss) ps
         let (commands, names) := List.unzip $ ← thms_proofs.mapM
-          (fun (⟨label, thm, thm_name, attr⟩, proof) => withRef thm do
+          (fun (⟨label, _init_steps, thm, thm_name, attr⟩, proof) => withRef thm do
             let proof := proof.getD (← proof_by by_default)
             let name := thm_name <|> name.map (fun name =>
               label.elim name (mkIdent $ name.getId ++ ·))
