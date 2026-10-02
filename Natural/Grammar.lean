@@ -286,6 +286,11 @@ sdef proof
   | case_unit+
   | "By" reason "."
 
+-- notation
+
+syntax notation_decl :=
+  "Notation" "." str "is" _a op_kind "operator" "." "[" ident "]"
+
 -- definitions
 
 syntax label := ident
@@ -357,8 +362,10 @@ syntax _theorem := thm_name ? str ? "." theorem_body
 
 -- declarations
 
-sdef top_decl
+sdef thm_or_def
   | "Definition" "." definition
   | _thm _theorem
 
-syntax top := top_decl ("Corollary" _theorem)*
+sdef top
+  | notation_decl
+  | thm_or_def ("Corollary" _theorem)*

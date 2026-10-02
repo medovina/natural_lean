@@ -439,9 +439,9 @@ partial def translate (top: Bool) (parent_ex: List (Name × Term)) (prev: Term) 
               pure $ (← `(letDecl| : $p:term := $b), p)
         | .assert_chain ts ops tactics => do
             let mk_step op t tactic := do
-              let eq := build_infix (← `(_)) op t
+              let eq ← build_infix (← `(_)) op t
               `(calcStep| $eq := $tactic)
-            let eq1 := build_infix ts[0]! ops[0]! ts[1]!
+            let eq1 ← build_infix ts[0]! ops[0]! ts[1]!
             let steps ← zipWith3M mk_step (ops.drop 1) (ts.drop 2) (tactics.drop 1)
             pure (← `(letDecl| : _ := calc $eq1 := $(tactics[0]!)
                                       $(steps.toArray)*),

@@ -137,10 +137,32 @@ def op_class := [
   ("∈", `mem, ``Membership), ("⊆", `Subset, `HasSubset),
   ("∣", `dvd, `Dvd) ]
 
-def lookup_op (op: String) : CoreM (Name × Name) :=
-  (op_class.lookup op).getDM $ do
-    let (cl, f) ← lookup_op_attr op
-    pure (f, cl)
+structure OpInfo where
+  name: String         -- e.g. "+"
+  kind: OpKind
+  cls: Option Name     -- type class (if any) associated with op, e.g. `Add
+  type: Option Name    -- type (if any) associated with op, e.g. `Set for op "⋃"
+  fname: Name          -- function name, e.g. `add
+  ns: Name         -- namespace in which op's syntax is defined
+
+def lookup_op_attr (op: String) : CoreM (Option OpInfo) := do
+  match ← lookup_assoc op_extension op with
+    | .some (typ, ns, fname, kind) =>
+        pure $ .some ⟨op, kind, .none, .some typ, fname, ns⟩
+    | .none => pure $ .none
+
+def lookup_op (op: String) : CoreM (Option OpInfo) :=
+  match op_class.lookup op with
+    | .some (fname, cl) =>
+        pure $ .some ⟨op, .infix, .some cl, .none, fname, .anonymous⟩
+    | .none => lookup_op_attr op
+
+def build_op (kind: OpKind) (op: String) (args: List Term): CoreM Term := do
+  let ns := ((← lookup_op_attr op).map (·.ns)).getD .anonymous
+  pure $ apply_op ns kind op args
+
+def build_infix (t: Term) (op: String) (u: Term) : CoreM Term :=
+  build_op .infix op [t, u]
 
 def super_char (s: Syntax) : Char := (s.getArg 0).getAtomVal.front
 
@@ -156,6 +178,11 @@ partial def of_super_expr : TSyntax `super_expr → CoreM Term
   | `(super_expr| $e:super_expr ⁺ $f:super_expr) => do
       `($(← of_super_expr e) + $(← of_super_expr f))
   | _ => throwError "unknown super_expr"
+
+def super_id : TSyntax `super_expr → Option Ident
+  | `(super_expr| $c:super_letter) =>
+        some $ mkIdent (Name.mkSimple (super_char c).toString)
+  | _ => none
 
 def apply_tf (b: Bool) (t: Term): CoreM Term :=
   if b then pure t else `(¬ $t)
@@ -180,11 +207,16 @@ def try_elab [Monad m] [MonadExcept Exception m] {α: Type u}
 partial def of_expr (expr: TSyntax `expr): CoreM Term := withRef expr do
   match parse_op_opt expr with
     | .some (kind, op, ts) =>
-        pure $ apply_op kind (map_op op) (← ts.mapM (fun e => of_expr ⟨e⟩))
+        build_op kind (map_op op) (← ts.mapM (fun e => of_expr ⟨e⟩))
     | _ => match expr with
       | `(expr| $n:num) => pure n
       | `(expr| $i:ident) => pure i
-      | `(expr| $e:expr $s:super_expr) => `(_super $(← of_expr e) $(← of_super_expr s))
+      | `(expr| $e:expr $s:super_expr) =>
+           let (e, se) ← pairM (of_expr e) (of_super_expr s)
+           match super_id s with
+            | .some id =>  -- could be either exponentiation or postfix op, e.g. Sᶜ
+                `(_super $e $se $id)  -- resolve ambiguity later
+            | .none => `($e ^ $se)
       | `(expr| $e:expr$f:expr)
       | `(expr| $e:expr ( $f:expr )) => `(_app_or_mul $(← of_expr e) $(← of_expr f))
       | `(expr| ( $e:expr )) => of_expr e
@@ -197,16 +229,16 @@ partial def of_expr (expr: TSyntax `expr): CoreM Term := withRef expr do
         `(bind $bound:ident*, $type:term, $stx:term)
 
 def of_rel_prop (prop: TSyntax `rel_prop): CoreM Term := withRef prop do
-  let rec build : List Term → List String → List Term
-    | _, [] => []
+  let rec build : List Term → List String → CoreM (List Term)
+    | _, [] => pure []
     | t :: u :: ts, op :: ops =>
-        build_infix t op u :: build (u :: ts) ops
+        .cons <$> build_infix t op u <*> build (u :: ts) ops
     | _, _ => panic! "of_rel_prop"
   match prop with
     | `(rel_prop| $a:expr $[$ops:rel_op $bs:expr]*) => do
           let ts ← (a :: bs.toList).mapM of_expr
           let ops := ops.toList.map of_binary_op
-          multi_and (build ts ops)
+          multi_and (← build ts ops)
     | _ => throwError "unknown rel_prop"
 
 def of_multi_or (prop: TSyntax `multi_or): CoreM Term := withRef prop do
@@ -267,18 +299,33 @@ def global_type (n: Name): CoreM (Option Expr) := do
           | .none => throwError s!"lookup: can't find {name}"
     | _ => pure none
 
-def has_supported_type (t: Term) (cl: Name): TermElabM Bool := do
-  let e ← elabTerm t none
-  let type ← inferType e
+def type_matches_name (type: Expr) (n: Name) :=
+  (type.getAppFnArgs).1 == n
+
+def is_type_in_class (type: Expr) (cl: Name): MetaM Bool := do
   let inst ← mkAppM cl #[type]
   match (← trySynthInstance inst) with
-    | .some _ => pure true
+    | LOption.some _ => pure true
     | _ => pure false
+
+def elab_to_type (t: Term): TermElabM Expr := do
+  let e ← elabTerm t none
+  let type ← inferType e
+  instantiateMVars type
+
+def has_type_in_class (t: Term) (cl: Name): TermElabM Bool := do
+  is_type_in_class (← elab_to_type t) cl
 
 def is_numeric (t: Term): TermElabM Bool :=
   match t with
     | `($_:num) => pure true
-    | _ => has_supported_type t `Mul
+    | _ => has_type_in_class t `Mul
+
+def matches_op (kind: OpKind) (t: Term) (info: OpInfo): TermElabM Bool :=
+  (kind == info.kind && ·) <$> do
+  let type ← elab_to_type t
+  pure $ (← info.cls.anyM (fun cl => is_type_in_class type cl)) ||
+         info.type.any (fun t => type_matches_name type t)
 
 -- Bind a name to a type, allowing implicit parameters in the type, then run f.
 def withLocal (name: Name) (type: Term) (f: TermElabM α) : TermElabM α :=
@@ -302,15 +349,13 @@ partial def resolve (s: Syntax) : TermElabM Term := withRef s do
             else s!"{n} is neither defined nor an implicit product")
     | `(_app_or_mul $t:term $u:term) => do
         let (t, u) ← mapM_pair resolve (t, u)
-        if ← is_numeric t
-          then do pure (← `($t * $u))
-          else do pure (← `($t $u))
-    | `(_super $t:term $u:term) => do
-         let fns : List NaturalResolve :=
-            (naturalResolveAttribute.getEntries (← getEnv) `Natural.super).map (·.value)
-         match ← try_elab fns (← `(_super $t $u)) with
-          | .some t => pure t
-          | .none => `($(← resolve t) ^ $(← resolve u))
+        if ← is_numeric t then `($t * $u) else `($t $u)
+    | `(_super $t:term $u:term $id:ident) =>
+         let t ← resolve t
+         let id := id.getId.toString (escape := false)
+         if ← (← lookup_op id).anyM (matches_op .postfix t)
+           then build_op .postfix id [t]
+           else `($t ^ $(← resolve u))
     | _ => match match_binder s with
       | .some (bt, vars, t) => do
           let names := map_fst TSyntax.getId vars
@@ -332,3 +377,14 @@ partial def resolve_term (le: LocalEnv) (t: Term) : TermElabM Term := match le w
   | (name, type) :: rest => withLocal name type (resolve_term rest t)
 
 end
+
+partial def resolve_left (s: Syntax): CoreM Term := withRef s do
+  match s with
+    | `(_app_or_mul $t:term $u:term) => do
+       let (t, u) ← mapM_pair resolve_left (t, u)
+       `($t $u)
+    | _ => match s with
+      | .node info kind args => do
+          let args ← args.mapM resolve_left
+          pure ⟨.node info kind args⟩
+      | _ => pure ⟨s⟩

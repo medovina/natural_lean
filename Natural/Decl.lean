@@ -9,6 +9,17 @@ open Lean.Syntax
 
 namespace Natural
 
+-- notation
+
+def of_notation_decl: TSyntax ``notation_decl → CoreM Command
+  | `(notation_decl| Notation . $op:str is $_:_a $kind:op_kind operator . [ $i:ident ]) => do
+      match i.getId.components with
+        | [ type, fn ] => do
+            let ns ← getCurrNamespace
+            `(attribute [natural_op $op $(mkIdent ns) $(mkIdent fn) $kind] $(mkIdent type))
+        | _ => throwError "notation: expected type.name"
+  | _ => throwError "unknown notation_decl"
+
 -- definitions
 
 def of_label: TSyntax ``label → CoreM Name
@@ -43,8 +54,8 @@ def command_set (commands: List Command) : CoreM Command := do
   pure $ .mk (mkNullNode commands.toArray)
 
 def op_fun (op: TSyntax α) (type: Term) : CoreM Term := do
-  let apply_op := build_infix (← `(x)) (of_binary_op op) (← `(y))
-  `(fun x y : $type => $apply_op)
+  let op_expr ← build_infix (← `(x)) (of_binary_op op) (← `(y))
+  `(fun x y : $type => $op_expr)
 
 def of_inductive_def (name: Ident): TSyntax ``inductive_def → CoreM (List Command)
   | `(inductive_def| inductively with constructors $cs:constructor and* .) => do
@@ -128,7 +139,7 @@ def of_init_steps (env: LocalEnv): TSyntax ``init_steps → CoreM (List ProofSte
 partial def pattern_type (args: LocalEnv) : Term → CoreM Term :=
   let rec f : Term → CoreM Term
     | `($x:ident) =>
-        (args.lookup x.getId).getDM (throwError "undefined variable in pattern")
+        (args.lookup x.getId).getDM (throwError s!"undefined variable '{x.getId}' in pattern")
     | `(($t, $u)) => do `($(← f t) × $(← f u))
     | _ => throwError "unrecognized pattern in definition"
   f
@@ -173,22 +184,23 @@ def rm_mkquot (t: Term): CoreM Term := match is_mkquot t with
 def DefEq := List Term × Term
 
 def def_pat_command (name: Ident) (arg_types: List Term) (eqs: List DefEq)
-    : CoreM Command := do
+                    (attr: Option (TSyntax `Lean.Parser.Term.attributes)) : CoreM Command := do
   let alt | (args, r) => do
     let args ← args.zipWithM (fun arg type => `( ($arg : $type) )) arg_types
     `(matchAltExpr| | $(args.toArray),* => $r)
   let alts ← eqs.mapM alt
-  let d ← `(def $name $(alts.toArray):matchAlt*)
+  let d ← `($attr:attributes ? def $name $(alts.toArray):matchAlt*)
   if eqs.length > 1 then `(set_option linter.unusedVariables false in $d:command) else pure d
 
-def def_command (name: Ident) (arg_types: List Term) (eqs: List DefEq): CoreM Command :=
+def def_command (name: Ident) (arg_types: List Term) (eqs: List DefEq)
+                (attr: Option (TSyntax `Lean.Parser.Term.attributes)) : CoreM Command :=
   match eqs with
     | [(args, r)] => do
         if args.all (fun t => t.raw.isIdent) then
           let args ← binders ((args.map as_ident!).zip arg_types)
-          `(def $name $args* := $r)
-        else def_pat_command name arg_types eqs
-    | _ => def_pat_command name arg_types eqs
+          `($attr:attributes ? def $name $args* := $r)
+        else def_pat_command name arg_types eqs attr
+    | _ => def_pat_command name arg_types eqs attr
 
 def swap_args : List α → List α
   | [x, y] => [y, x]
@@ -223,52 +235,72 @@ def def_inst_commands (op_name: Name) (type: Term) (fname: Ident) (cl: Name)
 
   pure $ [impl_cmd] ++ g.toList
 
-def parse_eq : Term → CoreM (String × List Term × Term)
+def parse_def_eq (env: LocalEnv) : Term → TermElabM (String × List Term × Term)
   | `($l = $r)
   | `($l ↔ $r) => do
-      let (op, args) ← parse_op l
-      pure (map_op op, args, r)
+      let l ← resolve_left l
+      let (op, args) ← match l with
+        | `(_super $e $s $id:ident) =>  -- either exponentiation or a postfix op
+            let id := id.getId.toString (escape := false)
+            if (← lookup_op id).any (fun info => info.kind == .postfix)
+              then pure (id, [e]) else pure ("^", [e, s])
+        | _ => parse_op l
+      pure (map_op op, args, ← resolve_term env r)
   | _ => throwError "equation expected"
+
+def declare_op (info: OpInfo): CoreM (Option Command) :=
+  info.type.mapM (fun type =>
+      let name := Lean.Syntax.mkStrLit info.name
+      let fn := mkIdent (type ++ info.fname)
+      match info.kind with
+        | .infix => `(infix:1024 $name:str => $fn)
+        | .prefix => `(prefix:1024 $name:str => $fn)
+        | .postfix => `(postfix:1024 $name:str => $fn)
+  )
 
 def generate_op_def (decl_op: Option String) (env: LocalEnv) (eqs: List Term)
     (justification: Option Ident) : TermElabM (List Command) := do
-  let eqs ← eqs.mapM (resolve_term env)
-  let (ops, defeqs) := (← eqs.mapM (parse_eq ·)).unzip  -- gather args into lists
+  let (ops, defeqs) := (← eqs.mapM (parse_def_eq env ·)).unzip  -- gather args into lists
   let op := ops.head!
   if !decl_op.all (· == op) then throwError "op mismatch"
-  let (op_name, cl) ← lookup_op op
+  let op_info ← (← lookup_op op).getDM (throwError "unknown op")
 
   let defeqs := if op == "∈" then map_fst swap_args defeqs else defeqs
   let arg1 ← match defeqs with
     | (arg :: _, _) :: _ => pure arg
     | _ => throwError "generate_op_def: no arg"
 
-  let (is_quotient, type, dname, defeqs) ← match is_mkquot arg1 with
+  let (is_quotient, arg_type, dname, defeqs) ← match is_mkquot arg1 with
     | .some (qtype, _) =>
         let defeqs ← mapM_fst (List.mapM (rm_mkquot ·)) defeqs  -- remove projections
-        pure (true, as_term qtype, op_name ++ `aux, defeqs)
+        pure (true, as_term qtype, op_info.fname ++ `aux, defeqs)
     | .none => do
-        pure (false, ← pattern_type env arg1, op_name, defeqs)
+        pure (false, ← pattern_type env arg1, op_info.fname, defeqs)
 
   let args_types ← match defeqs with
     | [(ts, _)] => ts.mapM (pattern_type env ·)
-    | (ts, _) :: _ => pure $ ts.map (fun _ => type)
+    | (ts, _) :: _ => pure $ ts.map (fun _ => arg_type)
     | _ => throwError "generate_op_def: no arg"
 
-  let def_name ← embed_name type dname
-  let fname ← embed_name type op_name
+  let def_name ← embed_name arg_type dname
+  let top_name ← embed_name arg_type op_info.fname
 
-  let defeqs := if is_quotient then defeqs else map_snd (replace_op op fname) defeqs
-  let def_cmd ← def_command def_name args_types defeqs
+  let defeqs := if is_quotient then defeqs else map_snd (replace_op op top_name) defeqs
+  let attr ← if op_info.type.isSome
+    then .some <$> `(attributes| @[grind]) else pure none
+  let def_cmd ← def_command def_name args_types defeqs attr
 
   let lift_cmd ← if is_quotient then List.singleton <$> do
     let by_thms ← proof_by_multi (mkIdent ``Quotient.sound :: justification.toList)
-    `(def $fname (a: $type) (b: $type) : $type := Quotient.lift₂ $def_name $by_thms a b)
+    `(def $top_name (a: $arg_type) (b: $arg_type) : $arg_type :=
+        Quotient.lift₂ $def_name $by_thms a b)
   else pure []
 
-  let inst_commands ← def_inst_commands op_name type fname cl
+  let op_def_command ← declare_op op_info
+  let inst_commands ←
+    op_info.cls.toList.flatMapM (def_inst_commands op_info.fname arg_type top_name ·)
 
-  pure ([def_cmd] ++ lift_cmd ++ inst_commands)
+  pure ([def_cmd] ++ lift_cmd ++ op_def_command.toList ++ inst_commands)
 
 def infer_type : TSyntax `expr → CoreM Term
   | `(expr| $t:ident [ $_:expr ]) => pure t
@@ -417,17 +449,19 @@ def of_theorem (corollary_of: List Ident)
         of_theorem_body name corollary_of b
     | _ => throwError "unknown theorem"
 
-def of_top_decl : TSyntax `top_decl → TermElabM (List Command × List Ident × Bool)
-  | `(top_decl| Definition . $d) => (·, [], false) <$> of_definition d
-  | `(top_decl| $_:_thm $t:_theorem) => do
+def of_thm_or_def : TSyntax `thm_or_def → TermElabM (List Command × List Ident × Bool)
+  | `(thm_or_def| Definition . $d) => (·, [], false) <$> of_definition d
+  | `(thm_or_def| $_:_thm $t:_theorem) => do
     let (cmds, names) ← of_theorem [] t
     pure (cmds, names, true)
-  | _ => throwError "unknown top_decl"
+  | _ => throwError "unknown thm_or_def"
 
 elab t:top : command => do
   let cs : Command ← liftTermElabM $ (command_set ·) =<< match t with
-    | `(top| $d:top_decl $[Corollary $ts:_theorem]*) => do
-        let (commands, names, is_thm) ← of_top_decl d
+    | `(top| $n:notation_decl) => do
+        pure $ [← of_notation_decl n]
+    | `(top| $d:thm_or_def $[Corollary $ts:_theorem]*) => do
+        let (commands, names, is_thm) ← of_thm_or_def d
         let corrs ← List.map (·.1) <$> ts.toList.mapM (fun c => withRef c.raw do
           if is_thm && names == []
             then throwError "unnamed theorem may not have a corollary"

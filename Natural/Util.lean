@@ -11,6 +11,11 @@ open Elab.Command
 infix:50 "≮" => fun x y => ¬(x < y)
 infix:50 "≯" => fun x y => ¬(x > y)
 
+-- options
+
+def Option.anyM [Monad m] (f: α → m Bool) (x: Option α) : m Bool :=
+  x.toList.anyM f
+
 namespace Natural
 
 -- pairs
@@ -124,6 +129,21 @@ inductive OpKind
   | infix
   | prefix
   | postfix
+deriving BEq, Inhabited
+
+instance: ToString OpKind where
+  toString
+    | .infix => "infix"
+    | .prefix => "prefix"
+    | .postfix => "postfix"
+
+syntax op_kind := "infix" <|> "prefix" <|> "postfix"
+
+def of_op_kind : TSyntax ``op_kind → OpKind
+  | `(op_kind| infix) => .infix
+  | `(op_kind| prefix) => .prefix
+  | `(op_kind| postfix) => .postfix
+  | _ => panic! "unknown op_kind"
 
 def parse_op_opt : Syntax → Option (OpKind × String × List Syntax)
   | .node _ _ a => match a with
@@ -138,20 +158,17 @@ def parse_op (t: Term): CoreM (String × List Term) :=
     | .some (_kind, op, args) => pure (op, args.map (⟨·⟩))
     | .none => throwError "infix expression expected"
 
-def apply_op : OpKind → String → List Term → Term
+def apply_op (ns: Name) : OpKind → String → List Term → Term
   | .infix, op, [t, u] =>
     let info := match t.raw.getPos?, u.raw.getTailPos? with
       | .some startPos, .some endPos => SourceInfo.synthetic startPos endPos
       | _, _ => SourceInfo.none
-    ⟨Syntax.node info (.mkSimple s!"term_{op}_") #[t, mkAtom op, u]⟩
+    ⟨Syntax.node info (ns ++ .mkSimple s!"term_{op}_") #[t, mkAtom op, u]⟩
   | .prefix, op, [t] =>
-    ⟨Syntax.node .none (.mkSimple s!"term{op}_") #[mkAtom op, t]⟩
+    ⟨Syntax.node .none (ns ++ .mkSimple s!"term{op}_") #[mkAtom op, t]⟩
   | .postfix, op, [t] =>
-    ⟨Syntax.node .none (.mkSimple s!"term_{op}") #[t, mkAtom op]⟩
+    ⟨Syntax.node .none (ns ++ .mkSimple s!"term_{op}") #[t, mkAtom op]⟩
   | _, _, _ => panic! "apply_op"
-
-def build_infix (t: Term) (op: String) (u: Term) : Term :=
-  apply_op .infix op [t, u]
 
 partial def syntax_replace_op (op: String) (name: Ident) :=
   let rec repl (t: Syntax): Syntax :=

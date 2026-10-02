@@ -18,4 +18,6 @@ Theorem.  Let A, B : Set(T).  Let x : T.
 
   b. x ∈ A ∩ B if and only if x ∈ A and x ∈ B.  [Set.mem_inter: @simp]
 
+Notation.  "ᶜ" is a postfix operator.  [Set.compl]
+
 Definition.  Let A : Set(T).  Aᶜ = { x : T | x ∉ A }.
