@@ -11,12 +11,22 @@ namespace Natural
 
 -- notation
 
-def of_notation_decl: TSyntax ``notation_decl → CoreM Command
+def of_notation_decl: TSyntax ``notation_decl → CoreM (List Command)
   | `(notation_decl| Notation . $op:str is $_:_a $kind:op_kind operator . [ $i:ident ]) => do
       match i.getId.components with
         | [ type, fn ] => do
+            let k := of_op_kind kind
+            let s ← if k == .postfix && is_super_letter op.getString
+              then pure []  -- looks like exponentation, so no need for syntax rule
+              else .singleton <$> match of_op_kind kind with
+                | .infix => `(syntax expr $op:str expr : expr)
+                | .prefix => `(syntax $op:str expr : expr)
+                | .postfix => `(syntax expr $op:str : expr)
+
             let ns ← getCurrNamespace
-            `(attribute [natural_op $op $(mkIdent ns) $(mkIdent fn) $kind] $(mkIdent type))
+            let a ← `(attribute [natural_op $op $(mkIdent ns) $(mkIdent fn) $kind]
+                                $(mkIdent type))
+            pure (s ++ [a])
         | _ => throwError "notation: expected type.name"
   | _ => throwError "unknown notation_decl"
 
@@ -458,8 +468,7 @@ def of_thm_or_def : TSyntax `thm_or_def → TermElabM (List Command × List Iden
 
 elab t:top : command => do
   let cs : Command ← liftTermElabM $ (command_set ·) =<< match t with
-    | `(top| $n:notation_decl) => do
-        pure $ [← of_notation_decl n]
+    | `(top| $n:notation_decl) => of_notation_decl n
     | `(top| $d:thm_or_def $[Corollary $ts:_theorem]*) => do
         let (commands, names, is_thm) ← of_thm_or_def d
         let corrs ← List.map (·.1) <$> ts.toList.mapM (fun c => withRef c.raw do

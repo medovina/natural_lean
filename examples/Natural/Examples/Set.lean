@@ -21,3 +21,13 @@ Theorem.  Let A, B : Set(T).  Let x : T.
 Notation.  "ᶜ" is a postfix operator.  [Set.compl]
 
 Definition.  Let A : Set(T).  Aᶜ = { x : T | x ∉ A }.
+
+-- families of sets
+
+Notation.  "⋃" is a prefix operator.  [Set.sUnion]
+
+Definition.  Let 𝒜 : Set(Set(T)).  ⋃ 𝒜 = { x : T | there is some A : Set(T) such that A ∈ 𝒜 and x ∈ A }.
+
+Notation.  "⋂" is a prefix operator.  [Set.sInter]
+
+Definition.  Let 𝒜 : Set(Set(T)).  ⋂ 𝒜 = { x : T | for all A : Set(T), A ∈ 𝒜 implies x ∈ A }.

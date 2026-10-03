@@ -86,6 +86,11 @@ def super_letters :=
    ('ˢ', 's'), ('ᵗ', 't'), ('ᵘ', 'u'), ('ᵛ', 'v'), ('ʷ', 'w'), ('ˣ', 'x'),
    ('ʸ', 'y'), ('ᶻ', 'z')]
 
+def is_super_letter (s: String) :=
+  match s.toList with
+    | [c] => (super_letters.lookup c).isSome
+    | _ => false
+
 -- English
 
 def singular (s: String) : String :=

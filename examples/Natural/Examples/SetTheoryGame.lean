@@ -89,3 +89,11 @@ Theorem.  Let A, B, C : Set(T).
 Proof.
 
   e. Suppose that x ∈ A.  If x ∈ C then x ∈ A ∩ C, so x ∈ B ∩ C, so x ∈ B.  Otherwise x ∉ C.  Then x ∈ A ∪ C, so x ∈ B ∪ C, so x ∈ B.  In either case x ∈ B.
+
+-- family intersection world
+
+Theorem.  Let F, G : Set(Set(T)).
+
+  a. Suppose that A ∈ F.  Then ⋂ F ⊆ A.
+
+  b. If F ⊆ G then ⋂ G ⊆ ⋂ F.
