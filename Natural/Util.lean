@@ -201,35 +201,67 @@ def ex_binders (xs: List (Ident × Term)) : CoreM (Array (TSyntax ``bracketedExp
 inductive BinderType
   | all
   | exists
+deriving BEq
 
-def of_bracketed_binder : TSyntax ``bracketedBinder → Ident × Term
-  | `(bracketedBinder| ($x:ident : $t)) => (x, t)
+abbrev BinderOp := String
+
+abbrev BinderEnv := List (Name × BinderOp × Term)
+
+def of_bracketed_binder : TSyntax ``bracketedBinder → Ident × BinderOp × Term
+  | `(bracketedBinder| ($x:ident : $t)) => (x, ":", t)
   | _ => panic! "of_bracketed_binder"
 
-def of_bracketed_ex_binder : TSyntax ``bracketedExplicitBinders → Ident × Term
-  | `(bracketedExplicitBinders| ($x:ident : $t)) => (x, t)
+def of_bracketed_ex_binder : TSyntax ``bracketedExplicitBinders → Ident × BinderOp × Term
+  | `(bracketedExplicitBinders| ($x:ident : $t)) => (x, ":", t)
   | _ => panic! "of_ex_bracketed_binder"
 
-def match_binder (s: Syntax) : Option (BinderType × List (Ident × Term) × Term) := match s with
-  | `(∀ $xs:ident* : $type, $t) =>
-      .some (.all, xs.toList.map (·, type), t)
-  | `(∀ $xs:bracketedBinder*, $t) =>
-      .some (.all, xs.toList.map of_bracketed_binder, t)
-  | `(∃ $[$xs:ident]* : $type, $t) =>
-      .some (.exists, xs.toList.map (·, type), t)
-  | `(∃ $xs:bracketedExplicitBinders*, $t) =>
-      .some (.exists, xs.toList.map of_bracketed_ex_binder, t)
-  | _ => .none
+def match_binder (s: Syntax) : Option (BinderType × List (Ident × BinderOp × Term) × Term) :=
+  match s with
+    | `(∀ $xs:ident* : $type, $t) =>
+        .some (.all, xs.toList.map (·, ":", type), t)
+    | `(∀ $xs:bracketedBinder*, $t) =>
+        .some (.all, xs.toList.map of_bracketed_binder, t)
+    | `(∀ $x:ident ∈ $s, $t) => .some (.all, [(x, "∈", s)], t)
+    | `(∃ $[$xs:ident]* : $type, $t) =>
+        .some (.exists, xs.toList.map (·, ":", type), t)
+    | `(∃ $xs:bracketedExplicitBinders*, $t) =>
+        .some (.exists, xs.toList.map of_bracketed_ex_binder, t)
+    | `(∃ $x:ident ∈ $s, $t) => .some (.exists, [(x, "∈", s)], t)
+    | _ => .none
 
-def mk_binder (bt: BinderType) (xs: List (Ident × Term)) (t: Term) : CoreM Term :=
+partial def match_binders (s: Syntax): Option (BinderType × List (Ident × BinderOp × Term) × Term) :=
+  let m := match_binder s
+  match m with
+    | .none => none
+    | .some (b, vars, t) =>
+        match match_binders t with
+          | .none => m
+          | .some (b', vars', t') =>
+              if b == b' then .some (b, vars ++ vars', t')
+              else m
+
+def mk_for_all (vars: List (Ident × BinderOp × Term)) (t: Term) : CoreM Term :=
+  vars.foldrM (fun
+    | (x, ":", t), a => `(∀ $x : $t, $a)
+    | (x, "∈", t), a => `(∀ $x:ident ∈ $t, $a)
+    | _, _ => throwError "mk_for_all: unknown op") t
+
+def mk_exists (vars: List (Ident × BinderOp × Term)) (t: Term) : CoreM Term :=
+  vars.foldrM (fun
+    | (x, ":", t), a => `(∃ $x:ident : $t, $a)
+    | (x, "∈", t), a => `(∃ $x:ident ∈ $t, $a)
+    | _, _ => throwError "mk_for_all: unknown op") t
+
+def mk_binder (bt: BinderType) (xs: List (Ident × BinderOp × Term)) (t: Term)
+    : CoreM Term :=
   match bt with
-    | .all => do `(∀ $(← binders xs)*, $t)
-    | .exists => do `(∃ $(← ex_binders xs)*, $t)
+    | .all => mk_for_all xs t
+    | .exists => mk_exists xs t
 
-def for_all (xs: List (Name × Term)) (t: Term) : CoreM Term :=
-  if xs == [] then pure t else mk_binder .all (map_fst mkIdent xs) t
+def for_all (xs: BinderEnv) (t: Term) : CoreM Term :=
+  if xs == [] then pure t else mk_for_all (map_fst mkIdent xs) t
 
-def bound_vars (t: Term): List (Name × Term) := match match_binder t with
+def bound_vars (t: Term): BinderEnv := match match_binders t with
   | .some (_, vars, _) => map_fst (·.getId) vars
   | .none => []
 

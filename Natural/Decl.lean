@@ -141,7 +141,7 @@ def of_init_sentence : TSyntax ``init_sentence → CoreM (List ProofStep)
       iss.getElems.toList.mapM of_init_step
   | _ => throwError "unknown init_sentence"
 
-def of_init_steps (env: LocalEnv): TSyntax ``init_steps → CoreM (List ProofStep)
+def of_init_steps (env: BinderEnv): TSyntax ``init_steps → CoreM (List ProofStep)
   | `(init_steps| $iss:init_sentence*) =>
       iss.toList.flatMapM of_init_sentence >>= with_implicit_let env
   | _ => throwError "unknown init_steps"
@@ -268,8 +268,9 @@ def declare_op (info: OpInfo): CoreM (Option Command) :=
         | .postfix => `(postfix:1024 $name:str => $fn)
   )
 
-def generate_op_def (decl_op: Option String) (env: LocalEnv) (eqs: List Term)
+def generate_op_def (decl_op: Option String) (env: BinderEnv) (eqs: List Term)
     (justification: Option Ident) : TermElabM (List Command) := do
+  let env ← env.mapM (check_no_binder_op ·)
   let (ops, defeqs) := (← eqs.mapM (parse_def_eq env ·)).unzip  -- gather args into lists
   let op := ops.head!
   if !decl_op.all (· == op) then throwError "op mismatch"
@@ -355,7 +356,7 @@ structure ThmDecl where
   name: Option Ident
   attr: Option Ident
 
-def of_prop_item (env: LocalEnv) : TSyntax ``prop_item → CoreM ThmDecl
+def of_prop_item (env: BinderEnv) : TSyntax ``prop_item → CoreM ThmDecl
   | `(prop_item| $i:label . $iss:init_steps $s:top_sentence) => withRef s do
       let iss ← of_init_steps env iss
       let (thm, name, attr) ← of_top_sentence s
@@ -391,7 +392,7 @@ def match_proofs : List ThmDecl → List (Label × _Proof) → CoreM (List (ThmD
 def translate_proofs (init_steps: List ProofStep) (thms_proofs: List (ThmDecl × Option _Proof))
     : TermElabM (List (ThmDecl × Option Term)) :=
   thms_proofs.mapM (fun (decl, proof) => withRef decl.thm do
-    let thm ← resolve_term (lets_vars init_steps) decl.thm
+    let thm ← resolve_term1 (lets_vars init_steps) decl.thm
     pure ({decl with thm := ← generalize init_steps thm},
           ← proof.mapM (translate_proof (init_steps ++ decl.init_steps) thm)))
 

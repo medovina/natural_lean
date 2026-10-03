@@ -44,7 +44,9 @@ def non_var : Parser := filter_ident (fun s => s.length > 1) "expected non_var"
 
 syntax natural_type := non_var non_var ?   -- e.g. "natural numbers"
 
-syntax ids_type := atomic(ident,+ ":") type
+syntax binder_op := ":" <|> "∈"
+
+syntax ids_type := atomic(ident,+ binder_op) type
 
 sdef ids_types
   | sepBy1(ids_type, "and")

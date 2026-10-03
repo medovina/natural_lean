@@ -93,12 +93,16 @@ def of_natural_type (ntype: TSyntax ``natural_type) : CoreM Term :=
         mkIdentFromRef (← lookup_natural_attr s) (canonical := true)
     | _ => throwError "unknown natural_type"
 
-def of_ids_type : TSyntax ``ids_type → CoreM (List Ident × Term)
-  | `(ids_type| $xs:ident,* : $t:type) => do
-    pure (xs.getElems.toList, ← of_type t)
+def syntax_atom (t: TSyntax α): String := match t.raw with
+  | .node _ _ #[.node _ _ #[a]] => a.getAtomVal
+  | _ => panic! "syntax_atom"
+
+def of_ids_type : TSyntax ``ids_type → CoreM (List Ident × BinderOp × Term)
+  | `(ids_type| $xs:ident,* $op:binder_op $t:type) => do
+    pure (xs.getElems.toList, syntax_atom op, ← of_type t)
   | _ => throwError "unknown ids_type"
 
-def of_ids_types : TSyntax `ids_types → CoreM (List (Ident × Term))
+def of_ids_types : TSyntax `ids_types → CoreM (List (Ident × BinderOp × Term))
   | `(ids_types| $[$ids:ids_type] and*) => do
       ids.toList.flatMapM (fun i => do
         let (xs, type) ← of_ids_type i
@@ -106,7 +110,7 @@ def of_ids_types : TSyntax `ids_types → CoreM (List (Ident × Term))
   | `(ids_types| $t:natural_type $ids:id_list) => do
       let type ← of_natural_type t
       let xs ← of_id_list ids
-      pure $ xs.map (·, type)
+      pure $ xs.map (·, ":", type)
   | _ => throwError "unknown ids_types"
 
 def of_multi_specifier : TSyntax `multi_specifier → List Term → CoreM (List Term)
@@ -114,10 +118,6 @@ def of_multi_specifier : TSyntax `multi_specifier → List Term → CoreM (List 
   | `(multi_specifier| $_:_at_most) => at_most
   | `(multi_specifier| $_:_exactly) => precisely_one
   | _ => fun _ => throwError "unknown multi_specifier"
-
-def syntax_atom (t: TSyntax α): String := match t.raw with
-  | .node _ _ #[.node _ _ #[a]] => a.getAtomVal
-  | _ => panic! "syntax_atom"
 
 def mk_false : Term := mkIdent ``False
 
@@ -252,9 +252,13 @@ def of_some_or_no : TSyntax ``some_or_no → CoreM Bool
   | `(some_or_no| no) => pure false
   | _ => throwError "unknown some_or_no"
 
-def of_for_all_ids : TSyntax ``for_all_ids → CoreM (List (Ident × Term))
+def of_for_all_ids : TSyntax ``for_all_ids → CoreM (List (Ident × BinderOp × Term))
   | `(for_all_ids| $_:_for_all $ids_type:ids_types ,) => of_ids_types ids_type
   | _ => throwError "unknown for_all_ids"
+
+def check_no_binder_op : α × BinderOp × Term → CoreM (α × Term)
+  | (id, ":", t) => pure (id, t)
+  | _ => throwError "unexpected binder op"
 
 partial def of_prop (prop: TSyntax `prop): CoreM Term := withRef prop do
   match prop with
@@ -267,19 +271,15 @@ partial def of_prop (prop: TSyntax `prop): CoreM Term := withRef prop do
     | `(prop| $_:_if $p:prop $[,]? then $q:prop) => do `($(← of_prop p) → $(← of_prop q))
     | `(prop| $p:prop $_:_iff $q:prop) => do `($(← of_prop p) ↔ $(← of_prop q))
     | `(prop| $ids_types:for_all_ids $p:prop) =>
-          let xs ← of_for_all_ids ids_types
-          `(∀ $(← binders xs)*, $(← of_prop p))
+          mk_for_all (← of_for_all_ids ids_types) (← of_prop p)
     | `(prop| $p:prop $_:_for_all $ids_type:ids_types) => do
-          let xs ← of_ids_types ids_type
-          `(∀ $(← binders xs)*, $(← of_prop p))
+          mk_for_all (← of_ids_types ids_type) (← of_prop p)
     | `(prop| $_:_there $_:_exists $s:some_or_no ? $ids_type:ids_types such that $p:prop) => do
-          let xs ← of_ids_types ids_type
+          let t ← mk_exists (← of_ids_types ids_type) (← of_prop p)
           let b ← s.elim (pure true) of_some_or_no
-          let t ← `(∃ $(← ex_binders xs)*, $(← of_prop p))
           apply_tf b t
     | `(prop| $p:prop $_:_for some $ids_type:ids_types) => do
-          let xs ← of_ids_types ids_type
-          `(∃ $(← ex_binders xs)*, $(← of_prop p))
+          mk_exists (← of_ids_types ids_type) (← of_prop p)
     | `(prop| $p:prop , and $q:prop) => do `($(← of_prop p) ∧ $(← of_prop q))
     | `(prop| $_:_either ? $p:prop , or $q:prop) => do `($(← of_prop p) ∨ $(← of_prop q))
     | `(prop| $m:multi_or) => of_multi_or m
@@ -328,7 +328,7 @@ def matches_op (kind: OpKind) (t: Term) (info: OpInfo): TermElabM Bool :=
          info.type.any (fun t => type_matches_name type t)
 
 -- Bind a name to a type, allowing implicit parameters in the type, then run f.
-def withLocal (name: Name) (type: Term) (f: TermElabM α) : TermElabM α :=
+def with_local (name: Name) (type: Term) (f: TermElabM α) : TermElabM α :=
   withAutoBoundImplicit $ do withLocalDecl name .default (← elabType type) (fun _var =>
     withoutAutoBoundImplicit f)
 
@@ -359,7 +359,7 @@ partial def resolve (s: Syntax) : TermElabM Term := withRef s do
     | _ => match match_binder s with
       | .some (bt, vars, t) => do
           let names := map_fst TSyntax.getId vars
-          pure $ (← mk_binder bt vars (← resolve_term names t))
+          pure $ (← mk_binder bt vars (← resolve_term1 names t))
       | .none => match s with
         | `(bind $xs:ident*, $type, $t) =>
             let vars := xs.toList.map (·.getId, type)
@@ -372,9 +372,19 @@ partial def resolve (s: Syntax) : TermElabM Term := withRef s do
               pure ⟨.node info kind args⟩
           | _ => pure ⟨s⟩
 
-partial def resolve_term (le: LocalEnv) (t: Term) : TermElabM Term := match le with
+partial def resolve_term1 (le: BinderEnv) (t: Term)
+      : TermElabM Term := match le with
   | [] => resolve t.raw
-  | (name, type) :: rest => withLocal name type (resolve_term rest t)
+  | (name, ":", type) :: rest => with_local name type (resolve_term1 rest t)
+  | (name, "∈", s) :: rest => do
+      let type ← elab_to_type s
+      match type.getAppArgs with
+        | #[u] => withLocalDecl name .default u (fun _var => resolve_term1 rest t)
+        | _ => throwError "expected container type"
+  | _ => throwError "resolve_term1: unknown binder op"
+
+partial def resolve_term (le: LocalEnv) (t: Term) : TermElabM Term :=
+  resolve_term1 (le.map (fun (x, type) => (x, ":", type))) t
 
 end
 

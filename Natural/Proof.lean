@@ -71,7 +71,7 @@ def of_eq_expr_by1 (t: TSyntax `eq_expr_by): CoreM (String × Term × Term) := m
 def of_eq_expr_by (t: TSyntax `eq_expr_by): CoreM (String × Term × Term) :=
   withRef t (of_eq_expr_by1 t)
 
-def ex_vars (t: Term) : List (Ident × Term) := match match_binder t with
+def ex_vars (t: Term) : List (Ident × BinderOp × Term) := match match_binders t with
   | .some (.exists, xs, _) => xs
   | _ => []
 
@@ -81,7 +81,7 @@ inductive ProofStep where
   | let (ids: List Name) (type: Term)
   | let_def (id: Name) (e: Term)
   | assume (p: Term)
-  | is_some (p: Term) (reason: Option Reason)
+  | is_some (ids: List (Name × BinderOp × Term)) (p: Term) (reason: Option Reason)
   | if_otherwise (p: Term) (if_true: List ProofStep) (if_false: List ProofStep) (concl: Term)
   | biconditional (p: Term) (forward: List ProofStep) (q: Term) (reverse: List ProofStep)
   | case (cases: List (Term × List ProofStep)) (concl: Term)
@@ -97,7 +97,7 @@ partial def step_mapM [Monad m] (f: Term → m Term) (step: ProofStep) : m Proof
     | .let .. => pure step
     | .let_def id t => pure $ .let_def id (← f t)
     | .assume p => pure $ .assume (← f p)
-    | .is_some p r => pure $ .is_some (← f p) r
+    | .is_some ids p r => pure $ .is_some ids (← f p) r
     | .if_otherwise p ts fs concl =>
         pure $ .if_otherwise (← f p) (← map_steps ts) (← map_steps fs) (← f concl)
     | .biconditional p forward q reverse =>
@@ -107,11 +107,11 @@ partial def step_mapM [Monad m] (f: Term → m Term) (step: ProofStep) : m Proof
                      (← f concl)
     | .group steps => pure $ .group (← map_steps steps)
 
-def step_decl_vars_types : ProofStep → List (Name × Term)
-  | .let ids type => ids.map (·, type)
-  | .let_def id _ => [(id, mkIdent `Unit)]  -- just a guess
+def step_decl_vars_types : ProofStep → BinderEnv
+  | .let ids type => ids.map (·, ":", type)
+  | .let_def id _ => [(id, ":", mkIdent `Unit)]  -- just a guess
   | .assume p => map_fst TSyntax.getId (ex_vars p)
-  | .is_some p _reason => map_fst TSyntax.getId (ex_vars p)
+  | .is_some ids .. => ids
   | _ => []
 
 def step_decl_vars (step: ProofStep): List Name := (step_decl_vars_types step).map (·.1)
@@ -131,7 +131,7 @@ partial def step_free_vars : ProofStep → List Name
   | .let _ _ => []
   | .let_def _ e => free_vars e
   | .assume p => free_vars p
-  | .is_some p _ => free_vars p
+  | .is_some ids p _ => (free_vars p).removeAll (ids.map (·.1))
   | .if_otherwise p t f q
   | .biconditional p t q f => ([p, q].flatMap free_vars ++ [t, f].flatMap all_free_vars).eraseDups
   | .case cases concl =>
@@ -160,7 +160,7 @@ def show_step : ProofStep → CoreM Format
   | .let ids type => do pure f!"let {ids} : {← fmt_term type}"
   | .let_def id t => do pure f!"let_def {id} = {← fmt_term t}"
   | .assume t => do pure f!"assume {← fmt_term t}"
-  | .is_some t _ => do pure f!"is_some {← fmt_term t}"
+  | .is_some ids p .. => do pure f!"is_some {ids} : {← fmt_term p}"
   | .if_otherwise _ _ _ concl => do pure f!"if_otherwise (conclusion: {← fmt_term concl})"
   | .biconditional .. => pure "biconditional"
   | .case _ concl => do pure f!"case (conclusion: {← fmt_term concl})"
@@ -201,8 +201,8 @@ def of_which_is_contradiction (stx: TSyntax ``which_is_contradiction) : CoreM (L
           pure (because ++ [← of_which_is_contra c])
     | _ => throwError "unknown which_is_contradiction"
 
-def mk_step (t: Term) (r: Option Reason): ProofStep := match match_binder t with
-  | .some (.exists, _vars, _p) => .is_some t r
+def mk_step (t: Term) (r: Option Reason): ProofStep := match match_binders t with
+  | .some (.exists, vars, p) => .is_some (map_fst TSyntax.getId vars) p r
   | _ => .assert t r
 
 def of_follows : TSyntax ``_follows → CoreM (Option Reason)
@@ -249,9 +249,9 @@ def of_let_or_assume: TSyntax `let_or_assume → CoreM ProofStep
           | `(expr| $_q:ident [ $_:expr ]) => do
               let tac : TSyntax `tactic ←
                 `(tactic| (cases $id:ident using Quotient.ind; grind))
-              let vars ← of_ids_types vars
-              let p ← `(∃ $(← ex_binders vars)*, $id = $(← of_expr e))
-              (pure $ ProofStep.is_some p (.some (.tactic tac)))
+              let vars ← map_fst TSyntax.getId <$> of_ids_types vars
+              (pure $ ProofStep.is_some vars (← `($id = $(← of_expr e)))
+                        (.some (.tactic tac)))
           | _ => withRef e do throwError "expected quotient projection"
   | _ => throwError "unknown let_or_assume"
 
@@ -382,12 +382,12 @@ partial def infer_blocks (steps: List ProofStep): List Block :=
   assert! (rest.isEmpty)
   blocks
 
-partial def resolve_block (le: LocalEnv) : Block → TermElabM Block
+partial def resolve_block (le: BinderEnv) : Block → TermElabM Block
   | ⟨step, children⟩ => do
       let ivars := match step with
         | .is_some .. => step_decl_vars_types step
         | _ => []
-      pure ⟨← step_mapM (resolve_term (ivars ++ le)) step,
+      pure ⟨← step_mapM (resolve_term1 (ivars ++ le)) step,
             ← children.mapM (resolve_block (step_decl_vars_types step ++ le))⟩
 
 def proof_by_multi (names: List Ident) : CoreM Term :=
@@ -409,20 +409,20 @@ def ex_pattern : List Ident → CoreM Term
 
 def this_term : CoreM Term := `(this)
 
-partial def translate (top: Bool) (parent_ex: List (Name × Term)) (prev: Term) (concl: Option Term)
+partial def translate (top: Bool) (parent_ex: BinderEnv) (prev: Term) (concl: Option Term)
       : List Block → CoreM (Term × Term)
   | [] => match concl with
       | .some c => do pure (← `(show $c by default), c)
       | _ => do
         if top then pure (← `(by default), prev) else
           if overlap (parent_ex.map (·.1)) (free_vars prev) then
-            let ids := map_fst Lean.mkIdent parent_ex
-            let ex ← `(∃ $(← ex_binders ids)*, $prev)
+            let vars := map_fst Lean.mkIdent parent_ex
+            let ex ← mk_exists vars prev
             pure (← `(show $ex by default), ex)
           else pure (← this_term, prev)
   | ⟨step, children⟩ :: rest => do
       let ex_decl := match step with
-        | .is_some .. => step_decl_vars_types step
+        | .is_some ids .. => ids
         | _ => []
       let unit ← `(())
       let (c, child_concl) ←
@@ -459,10 +459,11 @@ partial def translate (top: Bool) (parent_ex: List (Name × Term)) (prev: Term) 
             let pat ← ex_pattern vars
             pure (← `(letDecl| : _ := fun ($pat:term : $p) => $c),
                   ← `($p → _))
-        | .is_some p reason => withRef p do
-            let vars ← if children.isEmpty then this_term
-              else ex_pattern ((ex_vars p).map (·.1))
-            let t ← `(have $vars:term : $p := $(← tactic reason); $c)
+        | .is_some ids p reason => do
+            let b ← tactic reason
+            let ids := map_fst mkIdent ids
+            let vars ← if children.isEmpty then this_term else ex_pattern (ids.map (·.1))
+            let t ← `(have $vars:term : $(← mk_exists ids p) := $b; $c)
             let decl ← `(letDecl| : _ := $t:term)
             pure (decl, child_concl)
         | .if_otherwise _ _ _ q => do
@@ -497,7 +498,7 @@ inductive _Proof where
   | steps (l: List ProofStep)
   | proof_by (r: Option Reason)
 
-def lets_vars (lets: List ProofStep) : LocalEnv := lets.flatMap step_decl_vars_types
+def lets_vars (lets: List ProofStep) : BinderEnv := lets.flatMap step_decl_vars_types
 
 def apply_init_step (step: ProofStep) (thm: Term): CoreM Term := match step with
   | .let .. => for_all (step_decl_vars_types step) thm
@@ -519,22 +520,23 @@ def trim_steps (thm: Term) (steps: List ProofStep): List ProofStep :=
 def generalize (init_steps: List ProofStep) (t: Term) : CoreM Term :=
   apply_init_steps (trim_steps t init_steps) t
 
-def is_implicit_let (env: LocalEnv) : Term → Option Ident
+def is_implicit_let (env: BinderEnv) : Term → Option Ident
   | `($x:ident ∈ $_) =>
       if (env.lookup x.getId).isSome then none else some x
   | _ => none
 
-def elim_implicit_let (env: LocalEnv) : List Term → CoreM (List ProofStep)
+def elim_implicit_let (env: BinderEnv) : List Term → CoreM (List ProofStep)
   | [] => pure []
   | u :: rest => do
       let (us, env) ← match is_implicit_let env u with
         | .some x => do
           let anon_type ← `(_)
-          pure $ ([ProofStep.let [x.getId] anon_type, .assume u], ((x.getId, anon_type) :: env))
+          pure $ ([ProofStep.let [x.getId] anon_type, .assume u],
+                  ((x.getId, ":", anon_type) :: env))
         | none => pure ([.assume u], env)
       pure $ us ++ (← elim_implicit_let env rest)
 
-def with_implicit_let (env: LocalEnv) (steps: List ProofStep) : CoreM (List ProofStep) :=
+def with_implicit_let (env: BinderEnv) (steps: List ProofStep) : CoreM (List ProofStep) :=
   match steps with
     | [] => pure []
     | step :: rest => do
@@ -563,8 +565,8 @@ def translate_proof (init_steps: List ProofStep) (thm: Term): _Proof → TermEla
       let .some val := info.value? | throwError "no value"
       unless val.isAppOf ``Quotient do throwError "not a quotient type"
       let gthm ← generalize init_steps thm
-      let qvars := (bound_vars gthm).filterMap (fun (x, type) => do
-        if Syntax.getId type == q then some (mkIdent x) else none)
+      let qvars := (bound_vars gthm).filterMap (fun (x, op, type) => do
+        if op == ":" && Syntax.getId type == q then some (mkIdent x) else none)
       if qvars == [] then throwError "no arguments of given type"
       let ind ← qvars.mapM (fun x => `(tactic| cases $x:ident using Quotient.ind))
       `(by
