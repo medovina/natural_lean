@@ -56,13 +56,6 @@ def aux_ctor_def (typ:Ident) (t: Term): CoreM Command :=
     | `($i:ident) => `(abbrev $i := $(dot i))
     | _ => throwError "aux_ctor_def: unknown"
 
-def command_set (commands: List Command) : CoreM Command := do
-  let ctrace cmd := do
-    trace[natural] cmd
-    pure ()
-  commands.forM ctrace
-  pure $ .mk (mkNullNode commands.toArray)
-
 def op_fun (op: TSyntax α) (type: Term) : CoreM Term := do
   let op_expr ← build_infix (← `(x)) (of_binary_op op) (← `(y))
   `(fun x y : $type => $op_expr)
@@ -316,6 +309,14 @@ def infer_type : TSyntax `expr → CoreM Term
   | `(expr| $t:ident [ $_:expr ]) => pure t
   | _ => throwError "must specify constant type"
 
+def elab_commands (commands: List Command) : CommandElabM Unit := do
+  let ctrace cmd := do
+    trace[natural] cmd
+    pure ()
+  commands.forM ctrace
+  let command : Command := Lean.TSyntax.mk (mkNullNode commands.toArray)
+  elabCommand command
+
 def of_def_eq : TSyntax `def_eq → CoreM (String × DefEq)
   | `(def_eq| $l:expr = $r:expr) => do
       let (l, r) ← mapM_pair of_expr (l, r)
@@ -332,29 +333,35 @@ def of_def_eq : TSyntax `def_eq → CoreM (String × DefEq)
       pure (i.getId.toString, [← of_expr e], ← of_prop r)
   | _ => throwError "unknown def_eq"
 
-def of_def1 : TSyntax ``def1 → CoreM (BinderIdEnv × String × DefEq)
+def of_def1 : TSyntax ``def1 → CoreM (BinderIdEnv × TSyntax `def_eq)
   | `(def1| $ids:for_all_ids ? $eq:def_eq .) => do
-      pure $ (← ids.toList.flatMapM (of_for_all_ids ·), ← of_def_eq eq)
+      pure $ (← ids.toList.flatMapM (of_for_all_ids ·), eq)
   | _ => throwError "unknown def1"
 
-def of_defs : TSyntax `defs → CoreM (List (BinderIdEnv × String × DefEq) × Option Ident)
+def of_defs : TSyntax `defs → CoreM (List (BinderIdEnv × TSyntax `def_eq) × Option Ident)
   | `(defs| $d:def1 $j:justification ?) => do
         pure $ ([← of_def1 d], ← j.mapM of_justification)
   | `(defs| $[$_:label . $ds:def1]*) => do
         pure (← ds.toList.mapM of_def1, none)
   | _ => throwError "unknown defs"
 
-def of_direct_def : TSyntax `direct_def → TermElabM (List Command)
+def elab_direct_def : TSyntax `direct_def → CommandElabM Unit
   | `(direct_def| $[$ls:let_step .]* $defs:defs) => do
-      let ls ← ls.toList.mapM (of_let_step ·)
-      let (defs, just) ← of_defs defs
-      defs.flatMapM (fun (vars, name, eq) =>
+      let (ls, defs, just) ← liftCoreM $ do
+        pure (← ls.toList.mapM (of_let_step ·), ← of_defs defs)
+
+      -- We must elaborate each definition in a group before parsing the next one.
+      defs.forM (fun (vars, defeq) => do
+        let (name, eq) ← liftCoreM $ of_def_eq defeq
         let args := lets_vars ls ++ map_fst TSyntax.getId vars
-        generate_def none args [(name, eq)] just)
+        elab_commands (← liftTermElabM $ generate_def none args [(name, eq)] just)
+      )
   | `(direct_def| $n:num $[: $type:type]? = $e:expr .) => do
-      let expr ← of_expr e >>= resolve_term []
-      let type ← type.elim (infer_type e) (of_type ·)
-      pure [← nat_instance type n expr]
+      let command ← liftTermElabM do
+        let expr ← of_expr e >>= resolve_term []
+        let type ← type.elim (infer_type e) (of_type ·)
+        pure $ ← nat_instance type n expr
+      elab_commands [command]
   | _ => throwError "unknown direct_def"
 
 def of_cases_def : TSyntax ``cases_def → TermElabM (List Command)
@@ -366,10 +373,12 @@ def of_cases_def : TSyntax ``cases_def → TermElabM (List Command)
       generate_def (some (of_binary_op op)) (map_fst TSyntax.getId args) eqs none
   | _ => throwError "unknown cases_def"
 
-def of_definition : TSyntax `definition → TermElabM (List Command)
-  | `(definition| $d:type_def) => of_type_def d
-  | `(definition| $d:direct_def) => of_direct_def d
-  | `(definition| $e:cases_def) => of_cases_def e
+def elab_definition : TSyntax `definition → CommandElabM Unit
+  | `(definition| $d:type_def) => do
+      elab_commands (← liftCoreM $ of_type_def d)
+  | `(definition| $d:direct_def) => elab_direct_def d
+  | `(definition| $e:cases_def) => do
+      elab_commands (← liftTermElabM $ of_cases_def e)
   | _ => throwError "unknown definition"
 
 -- theorems
@@ -480,29 +489,32 @@ def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
         pure ([command], [])
     | _ => throwError "unknown theorem"
 
-def of_theorem (corollary_of: List Ident)
-            : TSyntax ``_theorem → TermElabM (List Command × List Ident)
+def elab_theorem (corollary_of: List Ident)
+            : TSyntax ``_theorem → CommandElabM (List Ident)
     | `(_theorem| $name:thm_name ? $_:str ? . $b:theorem_body) => do
-        let name ← name.mapM (of_thm_name ·)
-        of_theorem_body name corollary_of b
+        let (commands, names) ← liftTermElabM $ do
+          let name ← name.mapM (of_thm_name ·)
+          of_theorem_body name corollary_of b
+        elab_commands commands
+        pure names
     | _ => throwError "unknown theorem"
 
-def of_thm_or_def : TSyntax `thm_or_def → TermElabM (List Command × List Ident × Bool)
-  | `(thm_or_def| Definition . $d) => (·, [], false) <$> of_definition d
+def elab_thm_or_def : TSyntax `thm_or_def → CommandElabM (List Ident × Bool)
+  | `(thm_or_def| Definition . $d) => do
+      elab_definition d
+      pure ([], false)
   | `(thm_or_def| $_:_thm $t:_theorem) => do
-    let (cmds, names) ← of_theorem [] t
-    pure (cmds, names, true)
+      (·, true) <$> elab_theorem [] t
   | _ => throwError "unknown thm_or_def"
 
 elab t:top : command => do
-  let cs : Command ← liftTermElabM $ (command_set ·) =<< match t with
-    | `(top| $n:notation_decl) => of_notation_decl n
+  match t with
+    | `(top| $n:notation_decl) =>
+        elab_commands (← liftCoreM $ of_notation_decl n)
     | `(top| $d:thm_or_def $[Corollary $ts:_theorem]*) => do
-        let (commands, names, is_thm) ← of_thm_or_def d
-        let corrs ← List.map (·.1) <$> ts.toList.mapM (fun c => withRef c.raw do
+        let (names, is_thm) ← elab_thm_or_def d
+        ts.forM (fun c => withRef c.raw do
           if is_thm && names == []
             then throwError "unnamed theorem may not have a corollary"
-            else of_theorem names c)
-        pure $ commands ++ corrs.flatten
+            else discard $ elab_theorem names c)
     | _ => throwError "unknown top"
-  elabCommand cs
