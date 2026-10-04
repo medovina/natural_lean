@@ -16,6 +16,7 @@ def aesop_config : Aesop.Options :=
 
 macro "default" : tactic =>
   `(tactic| first | trivial | grind | aesop (config := aesop_config) |
+            (intros; solve_by_elim) |
             fail "default tactic could not prove goal")
 
 macro "default_apply" ts:ident+ : tactic => do
@@ -26,6 +27,7 @@ macro "default_apply" ts:ident+ : tactic => do
       | (apply_rules [$[$ts:ident],*] ; done)
       | grind [$[$ts:ident],*]
       | aesop (config := aesop_config) (add $aesop_rules,*)
+      | solve_by_elim [$[$ts:ident],*]
       | fail "default_apply could not prove goal")
 
 -- proof steps

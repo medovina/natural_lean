@@ -109,3 +109,21 @@ Theorem.  Let F, G : Set(Set(T)).  Let A, B : Set(T).
   e. A ⊆ ⋂ F if and only if A ⊆ B for all B ∈ F.
 
   f. Suppose that A ∪ s ∈ G for all s ∈ F.  Then ⋂ G ⊆ A ∪ (⋂ F).
+
+-- family union world
+
+Theorem.  Let F, G : Set(Set(T)).  Let A, B : Set(T).
+
+  a. There is some S : Set(T) such that S ⊆ A.
+
+  b. If A ∈ F then A ⊆ ⋃ F.
+
+  c. If F ⊆ G then ⋃ F ⊆ ⋃ G.
+
+  d. A ∪ B = ⋃ {A, B}.
+
+  e. ⋃ (F ∪ G) = (⋃ F) ∪ (⋃ G).
+
+  f. ⋃ F ⊆ A if and only if x ⊆ A for all x ∈ F.
+
+  g. A ∩ (⋃ F) = ⋃ { s : Set(T) | s = A ∩ u for some u ∈ F }.
