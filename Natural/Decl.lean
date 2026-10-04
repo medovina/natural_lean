@@ -245,19 +245,6 @@ def def_inst_commands (op_name: Name) (type: Term) (fname: Ident) (cl: Name)
 
   pure $ [impl_cmd] ++ g.toList
 
-def parse_def_eq (env: LocalEnv) : Term → TermElabM (String × List Term × Term)
-  | `($l = $r)
-  | `($l ↔ $r) => do
-      let l ← resolve_left l
-      let (op, args) ← match l with
-        | `(_super $e $s $id:ident) =>  -- either exponentiation or a postfix op
-            let id := id.getId.toString (escape := false)
-            if (← lookup_op id).any (fun info => info.kind == .postfix)
-              then pure (id, [e]) else pure ("^", [e, s])
-        | _ => parse_op l
-      pure (map_op op, args, ← resolve_term env r)
-  | _ => throwError "equation expected"
-
 def declare_op (info: OpInfo): CoreM (Option Command) :=
   info.type.mapM (fun type =>
       let name := Lean.Syntax.mkStrLit info.name
@@ -268,10 +255,12 @@ def declare_op (info: OpInfo): CoreM (Option Command) :=
         | .postfix => `(postfix:1024 $name:str => $fn)
   )
 
-def generate_op_def (decl_op: Option String) (env: BinderEnv) (eqs: List Term)
+def generate_op_def (decl_op: Option String) (env: BinderEnv) (eqs: List (String × DefEq))
     (justification: Option Ident) : TermElabM (List Command) := do
   let env ← env.mapM (check_no_binder_op ·)
-  let (ops, defeqs) := (← eqs.mapM (parse_def_eq env ·)).unzip  -- gather args into lists
+  let eqs ← eqs.mapM (fun (op, args, r) => do
+    pure $ (op, ← args.mapM (resolve_left ·.raw), ← resolve_term env r))
+  let (ops, defeqs) := eqs.unzip
   let op := ops.head!
   if !decl_op.all (· == op) then throwError "op mismatch"
   let op_info ← (← lookup_op op).getDM (throwError "unknown op")
@@ -317,13 +306,27 @@ def infer_type : TSyntax `expr → CoreM Term
   | `(expr| $t:ident [ $_:expr ]) => pure t
   | _ => throwError "must specify constant type"
 
+def of_def_eq : TSyntax `def_eq → CoreM (String × DefEq)
+  | `(def_eq| $l:expr = $r:expr) => do
+      let (l, r) ← mapM_pair of_expr (l, r)
+      let (op, args) ← match l with
+        | `(_super $e $s $id:ident) =>  -- either exponentiation or a postfix op
+            let id := id.getId.toString (escape := false)
+            if (← lookup_op id).any (fun info => info.kind == .postfix)
+              then pure (id, [e]) else pure ("^", [e, s])
+        | _ => parse_op l
+      pure (map_op op, args, ⟨r.raw⟩)
+  | `(def_eq| $e:expr $op:rel_op $f:expr $_:_iff $r:prop) => do
+      pure (of_binary_op op, [← of_expr e, ← of_expr f], ← of_prop r)
+  | _ => throwError "unknown def_eq"
+
 def of_direct_def : TSyntax `direct_def → TermElabM (List Command)
-  | `(direct_def| $[$ls:let_step .]* $ids:for_all_ids ? $p:prop . $just:justification ?) => do
+  | `(direct_def| $[$ls:let_step .]* $ids:for_all_ids ? $eq:def_eq . $just:justification ?) => do
       let ls ← ls.toList.mapM (of_let_step ·)
       let vars ← ids.toList.flatMapM (of_for_all_ids ·)
-      let p ← of_prop p
+      let eq ← of_def_eq eq
       let args := lets_vars ls ++ map_fst TSyntax.getId vars
-      generate_op_def none args [p] (← just.mapM (of_justification ·))
+      generate_op_def none args [eq] (← just.mapM (of_justification ·))
   | `(direct_def| $n:num $[: $type:type]? = $e:expr .) => do
       let expr ← of_expr e >>= resolve_term []
       let type ← type.elim (infer_type e) (of_type ·)
@@ -331,11 +334,11 @@ def of_direct_def : TSyntax `direct_def → TermElabM (List Command)
   | _ => throwError "unknown direct_def"
 
 def of_cases_def : TSyntax ``cases_def → TermElabM (List Command)
-  | `(cases_def| The $_:_operator $op:binary_op on $_type:ident is defined recursively
-                    such that $ids:for_all_ids
-                    $[$_:label . $eqs:prop .]*) => do
+  | `(cases_def|
+        The $_:_operator $op:binary_op on $_type:ident is defined recursively
+        such that $ids:for_all_ids $[$_:label . $eqs:def_eq .]*) => do
       let args ← of_for_all_ids ids
-      let eqs ← eqs.toList.mapM (of_prop ·)
+      let eqs ← eqs.toList.mapM (of_def_eq ·)
       generate_op_def (some (of_binary_op op)) (map_fst TSyntax.getId args) eqs none
   | _ => throwError "unknown cases_def"
 

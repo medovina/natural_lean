@@ -329,14 +329,20 @@ syntax init_steps := init_sentence*
 
 syntax _operator := "binary" ? ("operation" <|> "operator")
 
+syntax eq_or_iff := "=" <|> _iff
+
+sdef def_eq
+  | expr "=" expr
+  | expr (! "=") rel_op expr _iff prop
+
 declare_syntax_cat direct_def
 syntax (priority := 1)
-  (let_step ".")* for_all_ids ? prop "." justification ? : direct_def
+  (let_step ".")* for_all_ids ? def_eq "." justification ? : direct_def
 syntax (priority := 2) num (":" type)? "=" expr "." : direct_def
 
 syntax cases_def :=
   "The" _operator binary_op "on" ident
-  "is" "defined" "recursively" "such" "that" for_all_ids (label "." prop ".")+
+  "is" "defined" "recursively" "such" "that" for_all_ids (label "." def_eq ".")+
 
 sdef definition
   | type_def
