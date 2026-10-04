@@ -334,6 +334,7 @@ syntax eq_or_iff := "=" <|> _iff
 sdef def_eq
   | expr "=" expr
   | expr (! "=") rel_op expr _iff prop
+  | expr "is" ident _iff prop
 
 declare_syntax_cat direct_def
 syntax (priority := 1)

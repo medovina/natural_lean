@@ -162,6 +162,7 @@ partial def flat_name : Term → CoreM String
 partial def embed_name (type: Term) (name: Name) : CoreM Ident := match type with
   | `($i:ident) => pure $ id_append i name
   | `($t $_u) => embed_name t name
+  | `($_ → $_) => pure $ mkIdent (`Function ++ name)
   | _ => do pure $ mkIdent $ Name.mkSimple ((← flat_name type) ++ "_" ++ name.toString)
 
 partial def subst_base (t: Term) : Term → CoreM Term
@@ -255,38 +256,43 @@ def declare_op (info: OpInfo): CoreM (Option Command) :=
         | .postfix => `(postfix:1024 $name:str => $fn)
   )
 
-def generate_op_def (decl_op: Option String) (env: BinderEnv) (eqs: List (String × DefEq))
+def is_op (s: String) := !s.front.isAlpha
+
+def generate_def (decl_fn: Option String) (env: BinderEnv) (eqs: List (String × DefEq))
     (justification: Option Ident) : TermElabM (List Command) := do
   let env ← env.mapM (check_no_binder_op ·)
-  let eqs ← eqs.mapM (fun (op, args, r) => do
-    pure $ (op, ← args.mapM (resolve_left ·.raw), ← resolve_term env r))
-  let (ops, defeqs) := eqs.unzip
-  let op := ops.head!
-  if !decl_op.all (· == op) then throwError "op mismatch"
-  let op_info ← (← lookup_op op).getDM (throwError "unknown op")
+  let eqs ← eqs.mapM (fun (fn, args, r) => do
+    pure $ (fn, ← args.mapM (resolve_left ·.raw), ← resolve_term env r))
+  let (fns, defeqs) := eqs.unzip
+  let fn := fns.head!
+  if !decl_fn.all (· == fn) then throwError "declaration mismatch"
+  let op_info ← if is_op fn
+    then do pure $ some $ ← (← lookup_op fn).getDM (throwError "unknown op")
+    else pure none
+  let fname := op_info.elim (Name.mkSimple fn) (·.fname)
 
-  let defeqs := if op == "∈" then map_fst swap_args defeqs else defeqs
+  let defeqs := if fn == "∈" then map_fst swap_args defeqs else defeqs
   let arg1 ← match defeqs with
     | (arg :: _, _) :: _ => pure arg
-    | _ => throwError "generate_op_def: no arg"
+    | _ => throwError "generate_def: no arg"
 
   let (is_quotient, arg_type, dname, defeqs) ← match is_mkquot arg1 with
     | .some (qtype, _) =>
         let defeqs ← mapM_fst (List.mapM (rm_mkquot ·)) defeqs  -- remove projections
-        pure (true, as_term qtype, op_info.fname ++ `aux, defeqs)
+        pure (true, as_term qtype, fname ++ `aux, defeqs)
     | .none => do
-        pure (false, ← pattern_type env arg1, op_info.fname, defeqs)
+        pure (false, ← pattern_type env arg1, fname, defeqs)
 
   let args_types ← match defeqs with
     | [(ts, _)] => ts.mapM (pattern_type env ·)
     | (ts, _) :: _ => pure $ ts.map (fun _ => arg_type)
-    | _ => throwError "generate_op_def: no arg"
+    | _ => throwError "generate_def: no arg"
 
   let def_name ← embed_name arg_type dname
-  let top_name ← embed_name arg_type op_info.fname
+  let top_name ← embed_name arg_type fname
 
-  let defeqs := if is_quotient then defeqs else map_snd (replace_op op top_name) defeqs
-  let attr ← if op_info.type.isSome
+  let defeqs := if is_quotient then defeqs else map_snd (replace_op fn top_name) defeqs
+  let attr ← if op_info.all (fun i => i.type.isSome)
     then .some <$> `(attributes| @[grind]) else pure none
   let def_cmd ← def_command def_name args_types defeqs attr
 
@@ -296,11 +302,15 @@ def generate_op_def (decl_op: Option String) (env: BinderEnv) (eqs: List (String
         Quotient.lift₂ $def_name $by_thms a b)
   else pure []
 
-  let op_def_command ← declare_op op_info
+  let op_def_command ← op_info.bindM (declare_op ·)
   let inst_commands ←
-    op_info.cls.toList.flatMapM (def_inst_commands op_info.fname arg_type top_name ·)
+    (op_info.bind (·.cls)).toList.flatMapM
+      (def_inst_commands fname arg_type top_name ·)
 
-  pure ([def_cmd] ++ lift_cmd ++ op_def_command.toList ++ inst_commands)
+  let nat_decl ← if is_op fn then pure none
+    else some <$> `(attribute [natural_name $(mkStrLit fn)] $top_name)
+
+  pure ([def_cmd] ++ lift_cmd ++ op_def_command.toList ++ inst_commands ++ nat_decl.toList)
 
 def infer_type : TSyntax `expr → CoreM Term
   | `(expr| $t:ident [ $_:expr ]) => pure t
@@ -318,6 +328,8 @@ def of_def_eq : TSyntax `def_eq → CoreM (String × DefEq)
       pure (map_op op, args, ⟨r.raw⟩)
   | `(def_eq| $e:expr $op:rel_op $f:expr $_:_iff $r:prop) => do
       pure (of_binary_op op, [← of_expr e, ← of_expr f], ← of_prop r)
+  | `(def_eq| $e:expr is $i:ident $_:_iff $r:prop) => do
+      pure (i.getId.toString, [← of_expr e], ← of_prop r)
   | _ => throwError "unknown def_eq"
 
 def of_direct_def : TSyntax `direct_def → TermElabM (List Command)
@@ -326,7 +338,7 @@ def of_direct_def : TSyntax `direct_def → TermElabM (List Command)
       let vars ← ids.toList.flatMapM (of_for_all_ids ·)
       let eq ← of_def_eq eq
       let args := lets_vars ls ++ map_fst TSyntax.getId vars
-      generate_op_def none args [eq] (← just.mapM (of_justification ·))
+      generate_def none args [eq] (← just.mapM (of_justification ·))
   | `(direct_def| $n:num $[: $type:type]? = $e:expr .) => do
       let expr ← of_expr e >>= resolve_term []
       let type ← type.elim (infer_type e) (of_type ·)
@@ -339,7 +351,7 @@ def of_cases_def : TSyntax ``cases_def → TermElabM (List Command)
         such that $ids:for_all_ids $[$_:label . $eqs:def_eq .]*) => do
       let args ← of_for_all_ids ids
       let eqs ← eqs.toList.mapM (of_def_eq ·)
-      generate_op_def (some (of_binary_op op)) (map_fst TSyntax.getId args) eqs none
+      generate_def (some (of_binary_op op)) (map_fst TSyntax.getId args) eqs none
   | _ => throwError "unknown cases_def"
 
 def of_definition : TSyntax `definition → TermElabM (List Command)
