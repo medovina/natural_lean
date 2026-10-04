@@ -332,13 +332,25 @@ def of_def_eq : TSyntax `def_eq → CoreM (String × DefEq)
       pure (i.getId.toString, [← of_expr e], ← of_prop r)
   | _ => throwError "unknown def_eq"
 
+def of_def1 : TSyntax ``def1 → CoreM (BinderIdEnv × String × DefEq)
+  | `(def1| $ids:for_all_ids ? $eq:def_eq .) => do
+      pure $ (← ids.toList.flatMapM (of_for_all_ids ·), ← of_def_eq eq)
+  | _ => throwError "unknown def1"
+
+def of_defs : TSyntax `defs → CoreM (List (BinderIdEnv × String × DefEq) × Option Ident)
+  | `(defs| $d:def1 $j:justification ?) => do
+        pure $ ([← of_def1 d], ← j.mapM of_justification)
+  | `(defs| $[$_:label . $ds:def1]*) => do
+        pure (← ds.toList.mapM of_def1, none)
+  | _ => throwError "unknown defs"
+
 def of_direct_def : TSyntax `direct_def → TermElabM (List Command)
-  | `(direct_def| $[$ls:let_step .]* $ids:for_all_ids ? $eq:def_eq . $just:justification ?) => do
+  | `(direct_def| $[$ls:let_step .]* $defs:defs) => do
       let ls ← ls.toList.mapM (of_let_step ·)
-      let vars ← ids.toList.flatMapM (of_for_all_ids ·)
-      let eq ← of_def_eq eq
-      let args := lets_vars ls ++ map_fst TSyntax.getId vars
-      generate_def none args [eq] (← just.mapM (of_justification ·))
+      let (defs, just) ← of_defs defs
+      defs.flatMapM (fun (vars, name, eq) =>
+        let args := lets_vars ls ++ map_fst TSyntax.getId vars
+        generate_def none args [(name, eq)] just)
   | `(direct_def| $n:num $[: $type:type]? = $e:expr .) => do
       let expr ← of_expr e >>= resolve_term []
       let type ← type.elim (infer_type e) (of_type ·)

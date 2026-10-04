@@ -208,6 +208,7 @@ deriving BEq
 abbrev BinderOp := String
 
 abbrev BinderEnv := List (Name × BinderOp × Term)
+abbrev BinderIdEnv := List (Ident × BinderOp × Term)
 
 def of_bracketed_binder : TSyntax ``bracketedBinder → Ident × BinderOp × Term
   | `(bracketedBinder| ($x:ident : $t)) => (x, ":", t)

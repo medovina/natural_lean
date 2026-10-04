@@ -339,9 +339,14 @@ sdef def_eq
   | expr (! "=") rel_op expr _iff prop
   | expr "is" ident _iff prop
 
+syntax def1 := for_all_ids ? def_eq "."
+
+sdef defs
+  | def1 justification ?
+  | (label "." def1)+
+
 declare_syntax_cat direct_def
-syntax (priority := 1)
-  (let_step ".")* for_all_ids ? def_eq "." justification ? : direct_def
+syntax (priority := 1) (let_step ".")* defs : direct_def
 syntax (priority := 2) num (":" type)? "=" expr "." : direct_def
 
 syntax cases_def :=
