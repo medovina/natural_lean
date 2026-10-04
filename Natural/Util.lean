@@ -163,6 +163,8 @@ def parse_op (t: Term): CoreM (String × List Term) :=
     | .some (_kind, op, args) => pure (op, args.map (⟨·⟩))
     | .none => throwError "infix expression expected"
 
+def sourceInfo (t: Term) := t.raw.getInfo?.getD .none
+
 def apply_op (ns: Name) : OpKind → String → List Term → Term
   | .infix, op, [t, u] =>
     let info := match t.raw.getPos?, u.raw.getTailPos? with
@@ -170,9 +172,9 @@ def apply_op (ns: Name) : OpKind → String → List Term → Term
       | _, _ => SourceInfo.none
     ⟨Syntax.node info (ns ++ .mkSimple s!"term_{op}_") #[t, mkAtom op, u]⟩
   | .prefix, op, [t] =>
-    ⟨Syntax.node .none (ns ++ .mkSimple s!"term{op}_") #[mkAtom op, t]⟩
+    ⟨Syntax.node (sourceInfo t) (ns ++ .mkSimple s!"term{op}_") #[mkAtom op, t]⟩
   | .postfix, op, [t] =>
-    ⟨Syntax.node .none (ns ++ .mkSimple s!"term_{op}") #[t, mkAtom op]⟩
+    ⟨Syntax.node (sourceInfo t) (ns ++ .mkSimple s!"term_{op}") #[t, mkAtom op]⟩
   | _, _, _ => panic! "apply_op"
 
 partial def syntax_replace_op (op: String) (name: Ident) :=

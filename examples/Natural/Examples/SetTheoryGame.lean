@@ -1,5 +1,9 @@
 import Natural.Examples.Set
 
+/- This file proves theorems from the Set Theory Game:
+    https://adam.math.hhu.de/#/g/djvelleman/stg4
+-/
+
 namespace Natural
 
 -- subset world
@@ -99,3 +103,9 @@ Theorem.  Let F, G : Set(Set(T)).  Let A, B : Set(T).
   b. If F ⊆ G then ⋂ G ⊆ ⋂ F.
 
   c. A ∩ B = ⋂ {A, B}.
+
+  d. ⋂ (F ∪ G) = (⋂ F) ∩ (⋂ G).
+
+  e. A ⊆ ⋂ F if and only if A ⊆ B for all B ∈ F.
+
+  f. Suppose that A ∪ s ∈ G for all s ∈ F.  Then ⋂ G ⊆ A ∪ (⋂ F).

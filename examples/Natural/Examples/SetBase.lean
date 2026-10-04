@@ -18,7 +18,7 @@ Definition.  For any S : Set(T) and x : T, x ∈ S iff S(x) is true.
 theorem ext {a b : Set α} (h : ∀ (x : α), x ∈ a ↔ x ∈ b) : a = b :=
   funext (fun x => propext (h x))
 
--- Define set comprehension notation.  Currently this is not possible in Natural Lean, so we use native Lean commands here.
+-- Define set comprehension notation.
 
 @[implicit_reducible]
 def Set.ofPred {α : Type u} (p : α → Prop) : Set α := p
