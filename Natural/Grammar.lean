@@ -317,8 +317,11 @@ sdef type_spec
   | inductive_def
   | quotient_def
 
+syntax defined_term := ident
+
 syntax type_def :=
-  "The" &"type" id_sig ("(" "the" ident ident ? ")")? "is" "defined" type_spec
+  "The" &"type" id_sig ("(" "the" defined_term defined_term ? ")")?
+  "is" "defined" type_spec
 
 syntax attrib := "@" ident
 
@@ -337,7 +340,7 @@ syntax eq_or_iff := "=" <|> _iff
 sdef def_eq
   | expr "=" expr
   | expr (! "=") rel_op expr _iff prop
-  | expr "is" ident _iff prop
+  | expr "is" defined_term _iff prop
 
 syntax def1 := for_all_ids ? def_eq "."
 

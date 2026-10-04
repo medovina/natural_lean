@@ -100,13 +100,14 @@ where
     | _ => stx.getArgs.flatMap gather_kw
 
   gather (stx: Syntax) := match stx with
-  | `(thm_name| $i:ident)
-  | `(label| $i:ident) => mkTok .function i
-  | `(attrib| @ $_:ident) => gather_kw stx
-  | _ => match stx with
-    | .ident .. => mkTok .operator stx
-    | .atom _ val => mkTok (if keywords.elem val then .keyword else .operator) stx
-    | _ => stx.getArgs.flatMap gather
+    | `(attrib| @ $_:ident) => gather_kw stx
+    | `(defined_term| $i:ident) => mkTok .class i
+    | `(thm_name| $i:ident)
+    | `(label| $i:ident) => mkTok .function i
+    | _ => match stx with
+      | .ident .. => mkTok .operator stx
+      | .atom _ val => mkTok (if keywords.elem val then .keyword else .operator) stx
+      | _ => stx.getArgs.flatMap gather
 
 meta def mergeTokens (mine : Array SemanticTokenEntry) (leans : SemanticTokens) : Array Nat :=
   let toks := decodeLeanTokens leans.data

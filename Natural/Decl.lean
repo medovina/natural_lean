@@ -103,13 +103,19 @@ def of_type_spec (name: Ident) (sig: Option Ident): TSyntax `type_spec → CoreM
   | `(type_spec| $qd:quotient_def) => of_quotient_def name qd
   | _ => throwError "unknown type_spec"
 
+def of_defined_term : TSyntax ``defined_term → CoreM Ident
+  | `(defined_term| $i:ident) => pure i
+  | _ => throwError "unknown defined_term"
+
 def of_type_def : TSyntax ``type_def → CoreM (List Command)
-  | `(type_def| The type $id_sig:id_sig $[( the $n1:ident $n2:ident ?)]?
-                is defined $ts:type_spec) => do
+  | `(type_def|
+        The type $id_sig:id_sig $[( the $n1:defined_term $n2:defined_term ?)]?
+        is defined $ts:type_spec) => do
       let (name, sig) ← of_id_sig id_sig
       let commands ← of_type_spec name sig ts
-      let att ← n1.mapM (fun n1 =>
-        let t := idents_to_nat_type n1 (n2.get!)
+      let att ← n1.mapM (fun n1 => do
+        let t := idents_to_nat_type
+          (← of_defined_term n1) (← (n2.get!).mapM of_defined_term)
         `(attribute [natural_name $(mkStrLit t)] $name:ident)
       )
       pure $ commands ++ att.toList
@@ -329,8 +335,8 @@ def of_def_eq : TSyntax `def_eq → CoreM (String × DefEq)
       pure (map_op op, args, ⟨r.raw⟩)
   | `(def_eq| $e:expr $op:rel_op $f:expr $_:_iff $r:prop) => do
       pure (of_binary_op op, [← of_expr e, ← of_expr f], ← of_prop r)
-  | `(def_eq| $e:expr is $i:ident $_:_iff $r:prop) => do
-      pure (i.getId.toString, [← of_expr e], ← of_prop r)
+  | `(def_eq| $e:expr is $i:defined_term $_:_iff $r:prop) => do
+      pure ((← of_defined_term i).getId.toString, [← of_expr e], ← of_prop r)
   | _ => throwError "unknown def_eq"
 
 def of_def1 : TSyntax ``def1 → CoreM (BinderIdEnv × TSyntax `def_eq)
