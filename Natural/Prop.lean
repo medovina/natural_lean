@@ -81,16 +81,18 @@ def of_id_list : TSyntax ``id_list → CoreM (List Ident)
       pure $ [id] ++ ids.toList ++ id2.toList
   | _ => throwError "unknown id_list"
 
-def idents_to_nat_type (n1: Ident) (n2: Option Ident) := match n2 with
+def idents_to_nat_type (n1: Ident) (n2: Option Ident) : String := match n2 with
   | .some n2 => s!"{n1.getId.toString} {singular n2.getId.toString}"
   | .none => singular n1.getId.toString
+
+def lookup_natural (s: String) : CoreM Ident := do
+  mkIdentFromRef (← lookup_natural_attr s) (canonical := true)
 
 def of_natural_type (ntype: TSyntax ``natural_type) : CoreM Term :=
   withRef ntype do match ntype with
     | `(natural_type| $n1:ident $n2:ident ?) => do
         let s := idents_to_nat_type n1 n2
-        if s == "type" then `(Type) else
-        mkIdentFromRef (← lookup_natural_attr s) (canonical := true)
+        if s == "type" then `(Type) else lookup_natural s
     | _ => throwError "unknown natural_type"
 
 def syntax_atom (t: TSyntax α): String := match t.raw with
@@ -263,9 +265,14 @@ def check_no_binder_op : α × BinderOp × Term → CoreM (α × Term)
   | (id, ":", t) => pure (id, t)
   | _ => throwError "unexpected binder op"
 
+def of_adjective : TSyntax ``adjective → CoreM Ident
+  | `(adjective| $i:ident) => lookup_natural i.getId.toString
+  | _ => throwError "unexpected adjective"
+
 partial def of_prop (prop: TSyntax `prop): CoreM Term := withRef prop do
   match prop with
     | `(prop| $e:expr $b:is_tf) => apply_tf (← of_is_tf b) (← of_expr e)
+    | `(prop| $e:expr is $a:adjective) => `($(← of_adjective a) $(← of_expr e))
     | `(prop| $e:rel_prop $b:is_tf ?) =>
           apply_tf ((← b.mapM of_is_tf).getD true) (← of_rel_prop e)
     | `(prop| $p:prop and $q:prop) => do `($(← of_prop p) ∧ $(← of_prop q))

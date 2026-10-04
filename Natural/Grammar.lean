@@ -103,7 +103,7 @@ sdef _iff
 
 kdef _for = "for"
 
-syntax _for_all := _for ("all" <|> "any")
+syntax _for_all := _for ("all" <|> "any" <|> "every")
 
 kdef _there = "there"
 
@@ -124,8 +124,11 @@ syntax is_tf := &"is" (&"true" <|> &"false")
 
 syntax for_all_ids := _for_all ids_types ","
 
+syntax adjective := ident
+
 sdef prop
-  | atomic(expr is_tf)
+  | (priority := 1) atomic(expr &"is") adjective
+  | (priority := 2) atomic(expr is_tf)
   | atomic(rel_prop) is_tf ?
   |:35 prop:36 "and" prop:35
   |:30 atomic(_either ? prop:31 "or") prop:30

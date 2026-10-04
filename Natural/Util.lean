@@ -299,11 +299,12 @@ macro "kdef" name:ident "=" ks:sepBy1(str, "|") : command => do
   `(syntax $name := ($stx:stx))
 
 declare_syntax_cat sdef_decl
-syntax "|" (":" num)? stx+ : sdef_decl
+syntax "|" (":" num)? (atomic("(" "priority") ":=" num ")")? stx+ : sdef_decl
 
 def elab_decl (name: Ident) : TSyntax `sdef_decl → CommandElabM Unit
-  | `(sdef_decl| | $[: $prec:num]? $[$args:stx]*) => do
-      let command ← `(syntax $[: $prec:num]? $[$args:stx]* : $name)
+  | `(sdef_decl| | $[: $prec:num]? $[(priority := $prio)]? $[$args:stx]*) => do
+      let command ←
+        `(syntax $[: $prec:num]? $[(priority := $prio)]? $[$args:stx]* : $name)
       elabCommand command
   | _ => throwError "unknown sdef_decl"
 
