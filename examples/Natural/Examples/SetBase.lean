@@ -4,6 +4,8 @@ open Lean.Core
 open Lean.Parser.Term
 open Lean.Syntax
 
+-- Low-level definitions related to sets.  Most of these use native Lean syntax since they can't be expressed in Natural Lean at this time.
+
 namespace Natural
 
 -- sets: definition
@@ -38,3 +40,21 @@ def set_comp_elab : NaturalElab
       let type ← of_type type
       (·, #[x], type) <$> `({ $x:ident : $type | $(← of_prop p)})
   | _ => Lean.Elab.throwUnsupportedSyntax
+
+-- Singleton and Insert instances, needed for syntax {a, b, c} to work
+
+def Set.singleton (a : α) : Set α := {b : α | b = a}
+
+instance: Singleton α (Set α) := ⟨Set.singleton⟩
+
+@[simp, grind =]
+theorem mem_singleton_iff {a b : α} : a ∈ ({b} : Set α) ↔ a = b :=
+  Iff.rfl
+
+def Set.insert (a : α) (s : Set α) : Set α := {b : α | b = a ∨ b ∈ s}
+
+instance: Insert α (Set α) := ⟨Set.insert⟩
+
+@[simp, grind =]
+theorem mem_insert_iff {x a : α} {s : Set α} : x ∈ insert a s ↔ x = a ∨ x ∈ s :=
+  Iff.rfl

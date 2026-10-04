@@ -221,6 +221,9 @@ partial def of_expr (expr: TSyntax `expr): CoreM Term := withRef expr do
       | `(expr| $e:expr ( $f:expr )) => `(_app_or_mul $(← of_expr e) $(← of_expr f))
       | `(expr| ( $e:expr )) => of_expr e
       | `(expr| ( $e:expr , $f:expr)) => `( ($(← of_expr e), $(← of_expr f)) )
+      | `(expr| { $es:expr,* }) => do
+          let es ← es.getElems.mapM of_expr
+          `({ $es:term,* })
       | `(expr| $i:ident [ $e:expr ]) => `($(id_append i `mk_quot) $(← of_expr e))
       | _ =>
         let fns : List NaturalElab :=

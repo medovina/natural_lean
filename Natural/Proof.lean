@@ -435,8 +435,8 @@ partial def translate (top: Bool) (parent_ex: BinderEnv) (prev: Term) (concl: Op
         | _ => panic! "no assume"
       let (decl, prop) ← match step with
         | .assert p reason => withRef p do
-              let b ← tactic reason
-              pure $ (← `(letDecl| : $p:term := $b), p)
+            let b ← tactic reason
+            pure $ (← `(letDecl| : $p:term := $b), p)
         | .assert_chain ts ops tactics => do
             let mk_step op t tactic := do
               let eq ← build_infix (← `(_)) op t

@@ -81,6 +81,7 @@ syntax:65 expr:65 "+" expr:66 : expr
 syntax:65 expr:65 "∪" expr:66 : expr
 syntax (priority := 2) expr "(" expr ")" : expr
 syntax "(" expr ("," expr)? ")" : expr
+syntax "{" expr,* "}" : expr  -- set of values
 syntax ident "[" expr "]" : expr  -- quotient type projection
 
 -- prop

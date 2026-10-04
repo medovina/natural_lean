@@ -92,8 +92,10 @@ Proof.
 
 -- family intersection world
 
-Theorem.  Let F, G : Set(Set(T)).
+Theorem.  Let F, G : Set(Set(T)).  Let A, B : Set(T).
 
   a. Suppose that A ∈ F.  Then ⋂ F ⊆ A.
 
   b. If F ⊆ G then ⋂ G ⊆ ⋂ F.
+
+  c. A ∩ B = ⋂ {A, B}.
