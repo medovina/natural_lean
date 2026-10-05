@@ -10,6 +10,7 @@ open Elab.Command
 
 infix:50 "≮" => fun x y => ¬(x < y)
 infix:50 "≯" => fun x y => ¬(x > y)
+infix:50 "≉" => fun x y => ¬(x ≈ y)
 
 -- options
 
@@ -224,7 +225,7 @@ def of_bracketed_ex_binder : TSyntax ``bracketedExplicitBinders → Ident × Bin
   | `(bracketedExplicitBinders| ($x:ident : $t)) => (x, ":", t)
   | _ => panic! "of_ex_bracketed_binder"
 
-def match_binder (s: Syntax) : Option (BinderType × List (Ident × BinderOp × Term) × Term) :=
+def match_binder (s: Syntax) : Option (BinderType × IdVars × Term) :=
   match s with
     | `(∀ $xs:ident* : $type, $t) =>
         .some (.all, xs.toList.map (·, ":", type), t)
@@ -238,7 +239,7 @@ def match_binder (s: Syntax) : Option (BinderType × List (Ident × BinderOp × 
     | `(∃ $x:ident ∈ $s, $t) => .some (.exists, [(x, "∈", s)], t)
     | _ => .none
 
-partial def match_binders (s: Syntax): Option (BinderType × List (Ident × BinderOp × Term) × Term) :=
+partial def match_binders (s: Syntax): Option (BinderType × IdVars × Term) :=
   let m := match_binder s
   match m with
     | .none => none
@@ -249,19 +250,19 @@ partial def match_binders (s: Syntax): Option (BinderType × List (Ident × Bind
               if b == b' then .some (b, vars ++ vars', t')
               else m
 
-def mk_for_all (vars: List (Ident × BinderOp × Term)) (t: Term) : CoreM Term :=
+def mk_for_all (vars: IdVars) (t: Term) : CoreM Term :=
   vars.foldrM (fun
     | (x, ":", t), a => `(∀ $x : $t, $a)
     | (x, "∈", t), a => `(∀ $x:ident ∈ $t, $a)
     | _, _ => throwError "mk_for_all: unknown op") t
 
-def mk_exists (vars: List (Ident × BinderOp × Term)) (t: Term) : CoreM Term :=
+def mk_exists (vars: IdVars) (t: Term) : CoreM Term :=
   vars.foldrM (fun
     | (x, ":", t), a => `(∃ $x:ident : $t, $a)
     | (x, "∈", t), a => `(∃ $x:ident ∈ $t, $a)
     | _, _ => throwError "mk_for_all: unknown op") t
 
-def mk_binder (bt: BinderType) (xs: List (Ident × BinderOp × Term)) (t: Term)
+def mk_binder (bt: BinderType) (xs: IdVars) (t: Term)
     : CoreM Term :=
   match bt with
     | .all => mk_for_all xs t
@@ -287,7 +288,7 @@ macro "kdef" name:ident "=" ks:sepBy1(str, "|") : command => do
 
   let mk_stx (s: String) : MacroM (TSyntax `stx) :=
     let i := mkStrLit s
-    if s.length == 1 || non_keywords.elem s
+    if s.front.isAlpha && (s.length == 1 || non_keywords.elem s)
       then `(stx| &$i:str) else `(stx| $i:str)
 
   let seq (ws: List String) : MacroM (TSyntax `stx) := do

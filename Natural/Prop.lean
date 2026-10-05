@@ -135,7 +135,9 @@ def of_multi_specifier : TSyntax `multi_specifier → List Term → CoreM (List 
 def mk_false : Term := mkIdent ``False
 
 def op_map := [
-  ("·", "*"), ("×", "*"), ("~", "≈"),
+  ("·", "*"), ("×", "*"),
+  ("~", "≈"), ("∼", "≈"),  -- map both "~" (tilde) and "∼" (tilde operator) to ≈
+  ("≁", "≉"),
   ("|", "∣")  -- map vertical bar to division symbol
   ]
 

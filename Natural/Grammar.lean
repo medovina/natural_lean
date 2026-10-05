@@ -94,10 +94,11 @@ syntax ident "[" expr "]" : expr  -- quotient type projection
 
 kdef rel_op =
   "=" | "≠" | "<" | "≮" | "≤" | ">" | "≯" | "≥" |
-  "~" | "∈" | "∉" | "⊆" |
+  "≁" | "∈" | "∉" | "⊆" |
+  "~" | "∼" | -- tilde, tilde operator: we accept either
   "|" | "∣"   -- vertical bar, division symbol: we accept either
 
-kdef binary_op = "+" | "·" | "×" | "^" | "<" | "≤" | "~"
+kdef binary_op = "+" | "·" | "×" | "^" | "<" | "≤" | "~" | "∼"
 
 sdef rel_prop
   | expr (rel_op expr)+
@@ -182,7 +183,8 @@ kdef _so = "but" | "hence" | "so" | "that is" | "then" | "therefore" | "thus"
 
 kdef have1 =
   "clearly" | "it must be that" |
-  "we deduce that" | "we have shown that" | "we have" | "we know that" | "we must have"
+  "we deduce that" | "we have shown that" | "we have" |
+  "we know that" | "we must have" | "we see that"
 
 kdef _it = "it"
 
@@ -259,9 +261,11 @@ syntax will_show prop : assert_step
 sdef clause_intro
   | ("First" <|> "Now" <|> "Second") ","?
 
+syntax assertions := sepBy1(assert_step, "/", "," and_or_so)
+
 sdef proof_sentence1
   | sepBy1(let_or_assume, "/", "," ? "and")
-  | sepBy1(assert_step, "/", "," and_or_so)
+  | assertions
 
 sdef proof_sentence
   | clause_intro ? proof_sentence1 "."
@@ -273,7 +277,8 @@ sdef otherwise_intro
   | proof_if_prop "."
 
 syntax otherwise_unit :=
-  atomic(otherwise_intro _otherwise) proof_unit+ _any_case prop "."
+  atomic(otherwise_intro _otherwise) proof_unit+
+  _any_case prop ("," and_or_so assertions)? "."
 
 syntax biconditional_unit :=
   atomic(_assume prop "." proof_unit+ "Conversely") ","?

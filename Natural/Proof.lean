@@ -54,7 +54,7 @@ def tactic : Option Reason → CoreM Term
     | .apply ns => `(by default_apply $(ns.toArray)*)
     | .tactic t => `(by { $t })
     | .induction => `(by intro x ; induction x <;> default)
-    | .by_definition_of _ => throwError "can't follow definition"
+    | .by_definition_of _ => `(by default)  -- ignore definition for now
 
 def of_reason: TSyntax `reason → CoreM (Option Reason)
   | `(reason| [ $t:tactic ]) => pure (Reason.tactic t)
@@ -130,10 +130,12 @@ mutual
 partial def step_free_vars : ProofStep → List Name
   | .assert p _ => free_vars p
   | .assert_chain ts _ _ => ts.flatMap free_vars
-  | .let _ _ => []
+  | .let _ids type => free_vars type
   | .let_def _ e => free_vars e
   | .assume p => free_vars p
-  | .is_some ids p _ => (free_vars p).removeAll (ids.map (·.1))
+  | .is_some vars p _ =>
+      let types := vars.map (fun (_, _, type) => type)
+      ((p :: types).flatMap free_vars).removeAll (vars.map (·.1))
   | .if_otherwise p t f q
   | .biconditional p t q f => ([p, q].flatMap free_vars ++ [t, f].flatMap all_free_vars).eraseDups
   | .case cases concl =>
@@ -268,11 +270,14 @@ def of_assert_step: TSyntax `assert_step → CoreM (List ProofStep)
   | `(assert_step| $_:and_or_so ? $p:proof_prop) => of_proof_prop p
   | _ => throwError "unknown assert_step"
 
+def of_assertions: TSyntax ``assertions → CoreM (List ProofStep)
+  | `(assertions| $s:assert_step /*) => s.getElems.toList.flatMapM of_assert_step
+  | _ => throwError "unknown assertions"
+
 def of_proof_sentence1: TSyntax `proof_sentence1 → CoreM (List ProofStep)
   | `(proof_sentence1| $ls:let_or_assume /*) =>
         ls.getElems.toList.mapM of_let_or_assume
-  | `(proof_sentence1| $s:assert_step /*) =>
-        s.getElems.toList.flatMapM of_assert_step
+  | `(proof_sentence1| $a:assertions) => of_assertions a
   | _ => throwError "unknown proof_sentence1"
 
 def of_proof_sentence: TSyntax `proof_sentence → CoreM (List ProofStep)
@@ -290,11 +295,14 @@ partial def of_otherwise_intro: TSyntax `otherwise_intro → CoreM (Term × List
     | _ => throwError "unknown otherwise_intro"
   | _ => throwError "unknown otherwise_intro"
 
-partial def of_otherwise_unit: TSyntax ``otherwise_unit → CoreM ProofStep
-  | `(otherwise_unit| $intro:otherwise_intro $_:_otherwise $fs:proof_unit*
-                     $_:_any_case $q:prop .) => do
+partial def of_otherwise_unit: TSyntax ``otherwise_unit → CoreM (List ProofStep)
+  | `(otherwise_unit|
+        $intro:otherwise_intro $_:_otherwise $fs:proof_unit*
+        $_:_any_case $q:prop $[, $_:and_or_so $a:assertions]? .) => do
       let (p, ts) ← of_otherwise_intro intro
-      pure $ ProofStep.if_otherwise p ts (← fs.toList.flatMapM of_proof_unit) (← of_prop q)
+      let fs ← fs.toList.flatMapM of_proof_unit
+      pure $ ProofStep.if_otherwise p ts fs (← of_prop q) ::
+                (← a.toList.flatMapM of_assertions)
   | _ => throwError "unknown otherwise_unit"
 
 partial def of_biconditional_unit: TSyntax ``biconditional_unit → CoreM ProofStep
@@ -305,7 +313,7 @@ partial def of_biconditional_unit: TSyntax ``biconditional_unit → CoreM ProofS
   | _ => throwError "unknown biconditional_unit"
 
 partial def of_proof_unit: TSyntax `proof_unit → CoreM (List ProofStep)
-  | `(proof_unit| $o:otherwise_unit) => List.singleton <$> of_otherwise_unit o
+  | `(proof_unit| $o:otherwise_unit) => of_otherwise_unit o
   | `(proof_unit| $b:biconditional_unit) => List.singleton <$> of_biconditional_unit b
   | `(proof_unit| $s:proof_sentence) => of_proof_sentence s
   | _ => throwError "unknown proof_unit"
