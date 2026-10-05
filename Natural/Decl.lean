@@ -273,7 +273,7 @@ def generate_def (decl_fn: Option String) (env: Vars) (eqs: List (String × DefE
   let op_info ← if is_op fn
     then do pure $ some $ ← (← lookup_op fn).getDM (throwError "unknown op")
     else pure none
-  let fname := op_info.elim (Name.mkSimple fn) (·.fname)
+  let fname := op_info.elim (Name.mkSimple (function_name fn)) (·.fname)
 
   let defeqs := if fn == "∈" then map_fst swap_args defeqs else defeqs
   let arg1 ← match defeqs with

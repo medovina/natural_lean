@@ -101,10 +101,6 @@ def syntax_atom (t: TSyntax α): String := match t.raw with
   | .node _ _ #[.node _ _ #[a]] => a.getAtomVal
   | _ => panic! "syntax_atom"
 
-def of_adjective : TSyntax ``adjective → CoreM Ident
-  | `(adjective| $i:ident) => lookup_natural i.getId.toString
-  | _ => throwError "unexpected adjective"
-
 def of_ids_type : TSyntax ``ids_type → CoreM (List Ident × BinderOp × Term)
   | `(ids_type| $xs:ident,* $op:binder_op $t:type) => do
     pure (xs.getElems.toList, syntax_atom op, ← of_type t)
@@ -266,6 +262,11 @@ def of_ids_types : TSyntax `ids_types → CoreM IdVars
       pure $ xs.map (·, ":", type)
   | _ => throwError "unknown ids_types"
 
+def of_adjective : TSyntax ``adjective → CoreM Ident
+  | `(adjective| $n:compound_name) => do
+      lookup_natural (← of_compound_name n)
+  | _ => throwError "unexpected adjective"
+
 def of_var_phrase : TSyntax `var_phrase → CoreM (IdVars × Option Term)
   | `(var_phrase| $i:ids_types) => of_ids_types i <&> (·, none)
   | `(var_phrase| $a:adjective function $f:ident : $type:type) => do
@@ -273,18 +274,20 @@ def of_var_phrase : TSyntax `var_phrase → CoreM (IdVars × Option Term)
             some $ ← `($(← of_adjective a) $f))
   | _ => throwError "unknown var_phrase"
 
-def of_relation : TSyntax ``relation → CoreM String
-  | `(relation| $n:compound_name) => of_compound_name n
+def of_relation : TSyntax ``relation → CoreM Ident
+  | `(relation| $n:compound_name) => do
+      lookup_natural (← of_compound_name n)
   | _ => throwError "unknown relation"
+
+def function_name (s: String) : String := s.replace " " "_"
 
 def of_predicative : TSyntax `predicative → CoreM (Term → CoreM Term)
   | `(predicative| $a:adjective) => do
       let a ← of_adjective a
       pure fun e => `($a $e)
-  | `(predicative| $_:_a $r:relation of $f:expr) => do
+  | `(predicative| a $r:relation of $f:expr) => do
       let r ← of_relation r
       let f ← of_expr f
-      let r := mkIdent (Name.mkSimple r)
       pure fun e => `($r $e $f)
   | _ => throwError "unknown predicative"
 
@@ -420,7 +423,7 @@ partial def resolve_term1 (le: Vars) (t: Term)
       let type ← elab_to_type s
       match type.getAppArgs with
         | #[u] => withLocalDecl name .default u (fun _var => resolve_term1 rest t)
-        | _ => throwError "expected container type"
+        | _ => throwError s!"expected container type: {type}"
   | _ => throwError "resolve_term1: unknown binder op"
 
 partial def resolve_term (le: LocalEnv) (t: Term) : TermElabM Term :=

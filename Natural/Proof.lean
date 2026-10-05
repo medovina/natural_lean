@@ -38,7 +38,7 @@ def of_thm_name: TSyntax ``thm_name → CoreM Ident
 
 def of_reference: TSyntax `reference → CoreM (List Ident)
   | `(reference| $[$n:thm_name] and*) => n.toList.mapM of_thm_name
-  | `(reference| $_:assumption_that $_p:prop) => pure []
+  | `(reference| $_:assumption $[that $_p:prop]?) => pure []
   | _ => throwError s!"unknown reference"
 
 inductive Reason where
@@ -219,9 +219,11 @@ def of_have : TSyntax `_have → CoreM (Option Reason)
   | _ => throwError "unknown have"
 
 def of_proof_prop: TSyntax `proof_prop → CoreM (List ProofStep)
-  | `(proof_prop| $[$b:because_prop $[,]?]? $[$_:_by $r1:reason]? $[$h:_have]? $p:assert_prop
-          $[by $r2:reason]? $w:which_is_contradiction ?) => do
-        let because ← b.toList.mapM of_because_prop
+  | `(proof_prop|
+      $[$b:because_prop $[,]?]? $[$_:_by $r1:reason]? $[$h:_have]?
+      $p:assert_prop
+      $[by $r2:reason]? $b2:because_prop ? $w:which_is_contradiction ?) => do
+        let because ← (b.toList ++ b2.toList).mapM of_because_prop
         let step ← of_assert_prop p
         let s ← match step with
           | .assert t _ => do

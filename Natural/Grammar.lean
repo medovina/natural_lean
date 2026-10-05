@@ -48,8 +48,6 @@ syntax natural_type := compound_name   -- e.g. "natural numbers"
 
 syntax binder_op := ":" <|> "∈"
 
-syntax adjective := ident
-
 syntax ids_type := atomic(ident,+ binder_op) type
 
 kdef _at_least = "at least"
@@ -129,15 +127,17 @@ sdef ids_types
   | sepBy1(ids_type, "and")
   | natural_type id_list   -- e.g. "natural numbers x, y and z"
 
+syntax adjective := compound_name
+
 sdef var_phrase
   | ids_types
   | adjective "function" ident ":" type
 
 syntax relation := compound_name
 
-sdef predicative
-  | adjective
-  | _a relation "of" expr
+declare_syntax_cat predicative (behavior := symbol)
+syntax adjective : predicative
+syntax &"a" relation "of" expr : predicative
 
 syntax for_all_ids := _for_all ids_types ","
 
@@ -165,11 +165,11 @@ syntax _thm := "Lemma" <|> "Theorem"
 
 syntax thm_name := ident
 
-syntax assumption_that := ("our" <|> "the") "assumption" "that"
+syntax assumption := ("our" <|> "the") "assumption"
 
 sdef reference
   | sepBy1(thm_name, "and")
-  | assumption_that prop
+  | assumption ("that" prop)?
 
 sdef reason
   | "[" tactic "]"
@@ -187,10 +187,11 @@ declare_syntax_cat assert_prop
 syntax (priority := 1) prop : assert_prop
 syntax (priority := 2) atomic(begin_chain eq_expr_by+) : assert_prop
 
-kdef _so = "but" | "hence" | "so" | "that is" | "then" | "therefore" | "thus"
+kdef _so =
+  "but" | "hence" | "so" | "that is" | "then" | "therefore" | "thus"
 
 kdef have1 =
-  "clearly" | "it must be that" |
+  "clearly" | "it must be that" | "observe that" |
   "we deduce that" | "we have shown that" | "we have" |
   "we know that" | "we must have" | "we see that"
 
@@ -218,7 +219,7 @@ syntax which_is_contradiction := which_is_contra because_prop ?
 
 sdef proof_prop
   | (because_prop "," ?)? (_by reason)? _have ? assert_prop
-    ("by" reason)? which_is_contradiction ?
+    ("by" reason)? because_prop ? which_is_contradiction ?
 
 kdef _let = "let"
 
