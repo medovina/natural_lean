@@ -99,12 +99,16 @@ def syntax_atom (t: TSyntax α): String := match t.raw with
   | .node _ _ #[.node _ _ #[a]] => a.getAtomVal
   | _ => panic! "syntax_atom"
 
+def of_adjective : TSyntax ``adjective → CoreM Ident
+  | `(adjective| $i:ident) => lookup_natural i.getId.toString
+  | _ => throwError "unexpected adjective"
+
 def of_ids_type : TSyntax ``ids_type → CoreM (List Ident × BinderOp × Term)
   | `(ids_type| $xs:ident,* $op:binder_op $t:type) => do
     pure (xs.getElems.toList, syntax_atom op, ← of_type t)
   | _ => throwError "unknown ids_type"
 
-def of_ids_types : TSyntax `ids_types → CoreM (List (Ident × BinderOp × Term))
+def of_ids_types : TSyntax `ids_types → CoreM IdVars
   | `(ids_types| $[$ids:ids_type] and*) => do
       ids.toList.flatMapM (fun i => do
         let (xs, type) ← of_ids_type i
@@ -114,6 +118,13 @@ def of_ids_types : TSyntax `ids_types → CoreM (List (Ident × BinderOp × Term
       let xs ← of_id_list ids
       pure $ xs.map (·, ":", type)
   | _ => throwError "unknown ids_types"
+
+def of_var_phrase : TSyntax `var_phrase → CoreM (IdVars × Option Term)
+  | `(var_phrase| $i:ids_types) => of_ids_types i <&> (·, none)
+  | `(var_phrase| $a:adjective function $f:ident : $type:type) => do
+      pure ([(f, ":", ← of_type type)],
+            some $ ← `($(← of_adjective a) $f))
+  | _ => throwError "unknown var_phrase"
 
 def of_multi_specifier : TSyntax `multi_specifier → List Term → CoreM (List Term)
   | `(multi_specifier| $_:_at_least) => fun ts => List.singleton <$> multi_or ts
@@ -253,7 +264,8 @@ def of_multi_or (prop: TSyntax `multi_or): CoreM Term := withRef prop do
     | _ => throwError "unknown multi_or"
 
 def of_some_or_no : TSyntax ``some_or_no → CoreM Bool
-  | `(some_or_no| some) => pure true
+  | `(some_or_no| some)
+  | `(some_or_no| $_:_a) => pure true
   | `(some_or_no| no) => pure false
   | _ => throwError "unknown some_or_no"
 
@@ -264,10 +276,6 @@ def of_for_all_ids : TSyntax ``for_all_ids → CoreM (List (Ident × BinderOp ×
 def check_no_binder_op : α × BinderOp × Term → CoreM (α × Term)
   | (id, ":", t) => pure (id, t)
   | _ => throwError "unexpected binder op"
-
-def of_adjective : TSyntax ``adjective → CoreM Ident
-  | `(adjective| $i:ident) => lookup_natural i.getId.toString
-  | _ => throwError "unexpected adjective"
 
 partial def of_prop (prop: TSyntax `prop): CoreM Term := withRef prop do
   match prop with
@@ -284,8 +292,10 @@ partial def of_prop (prop: TSyntax `prop): CoreM Term := withRef prop do
           mk_for_all (← of_for_all_ids ids_types) (← of_prop p)
     | `(prop| $p:prop $_:_for_all $ids_type:ids_types) => do
           mk_for_all (← of_ids_types ids_type) (← of_prop p)
-    | `(prop| $_:_there $_:_exists $s:some_or_no ? $ids_type:ids_types such that $p:prop) => do
-          let t ← mk_exists (← of_ids_types ids_type) (← of_prop p)
+    | `(prop| $_:_there $_:_exists $s:some_or_no ? $vp:var_phrase
+              $[such that $p:prop]?) => do
+          let (vars, cond) ← of_var_phrase vp
+          let t ← mk_exists vars (← opt_and cond (← p.mapM of_prop))
           let b ← s.elim (pure true) of_some_or_no
           apply_tf b t
     | `(prop| $p:prop $_:_for some $ids_type:ids_types) => do
@@ -382,7 +392,7 @@ partial def resolve (s: Syntax) : TermElabM Term := withRef s do
               pure ⟨.node info kind args⟩
           | _ => pure ⟨s⟩
 
-partial def resolve_term1 (le: BinderEnv) (t: Term)
+partial def resolve_term1 (le: Vars) (t: Term)
       : TermElabM Term := match le with
   | [] => resolve t.raw
   | (name, ":", type) :: rest => with_local name type (resolve_term1 rest t)

@@ -140,7 +140,7 @@ def of_init_sentence : TSyntax ``init_sentence → CoreM (List ProofStep)
       iss.getElems.toList.mapM of_init_step
   | _ => throwError "unknown init_sentence"
 
-def of_init_steps (env: BinderEnv): TSyntax ``init_steps → CoreM (List ProofStep)
+def of_init_steps (env: Vars): TSyntax ``init_steps → CoreM (List ProofStep)
   | `(init_steps| $iss:init_sentence*) =>
       iss.toList.flatMapM of_init_sentence >>= with_implicit_let env
   | _ => throwError "unknown init_steps"
@@ -158,11 +158,17 @@ partial def flat_name : Term → CoreM String
   | `($t × $u) => do pure $ (← flat_name t) ++ "_" ++ (← flat_name u)
   | _ => throwError "flat_name: can't encode"
 
-partial def embed_name (type: Term) (name: Name) : CoreM Ident := match type with
-  | `($i:ident) => pure $ id_append i name
-  | `($t $_u) => embed_name t name
-  | `($_ → $_) => pure $ mkIdent (`Function ++ name)
-  | _ => do pure $ mkIdent $ Name.mkSimple ((← flat_name type) ++ "_" ++ name.toString)
+def type_name : Term → Option Name
+  | `($i:ident) => some i.getId
+  | `(Type) => some `Type
+  | `($_ → $_) => some `Function
+  | _ => none
+
+partial def embed_name (type: Term) (name: Name) : CoreM Ident :=
+  if let some t := type_name type then pure $ mkIdent (t ++ name)
+  else match type with
+    | `($t $_u) => embed_name t name
+    | _ => do pure $ mkIdent $ Name.mkSimple ((← flat_name type) ++ "_" ++ name.toString)
 
 partial def subst_base (t: Term) : Term → CoreM Term
   | `($u $v) => do `($(← subst_base t u) $v)
@@ -257,7 +263,7 @@ def declare_op (info: OpInfo): CoreM (Option Command) :=
 
 def is_op (s: String) := !s.front.isAlpha
 
-def generate_def (decl_fn: Option String) (env: BinderEnv) (eqs: List (String × DefEq))
+def generate_def (decl_fn: Option String) (env: Vars) (eqs: List (String × DefEq))
     (justification: Option Ident) : TermElabM (List Command) := do
   let env ← env.mapM (check_no_binder_op ·)
   let eqs ← eqs.mapM (fun (fn, args, r) => do
@@ -339,12 +345,12 @@ def of_def_eq : TSyntax `def_eq → CoreM (String × DefEq)
       pure ((← of_defined_term i).getId.toString, [← of_expr e], ← of_prop r)
   | _ => throwError "unknown def_eq"
 
-def of_def1 : TSyntax ``def1 → CoreM (BinderIdEnv × TSyntax `def_eq)
+def of_def1 : TSyntax ``def1 → CoreM (IdVars × TSyntax `def_eq)
   | `(def1| $ids:for_all_ids ? $eq:def_eq .) => do
       pure $ (← ids.toList.flatMapM (of_for_all_ids ·), eq)
   | _ => throwError "unknown def1"
 
-def of_defs : TSyntax `defs → CoreM (List (BinderIdEnv × TSyntax `def_eq) × Option Ident)
+def of_defs : TSyntax `defs → CoreM (List (IdVars × TSyntax `def_eq) × Option Ident)
   | `(defs| $d:def1 $j:justification ?) => do
         pure $ ([← of_def1 d], ← j.mapM of_justification)
   | `(defs| $[$_:label . $ds:def1]*) => do
@@ -398,7 +404,7 @@ structure ThmDecl where
   name: Option Ident
   attr: Option Ident
 
-def of_prop_item (env: BinderEnv) : TSyntax ``prop_item → CoreM ThmDecl
+def of_prop_item (env: Vars) : TSyntax ``prop_item → CoreM ThmDecl
   | `(prop_item| $i:label . $iss:init_steps $s:top_sentence) => withRef s do
       let iss ← of_init_steps env iss
       let (thm, name, attr) ← of_top_sentence s

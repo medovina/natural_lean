@@ -2,6 +2,7 @@ import Natural
 
 -- This file defines the integers ℤ as a quotient type based on Nat × Nat.  The integers defined here are independent of Lean's built-in Int type (which in fact is defined as an inductive type, not a quotient).
 
+set_option trace.natural true in
 Definition.  For all n, k, j, i : Nat, (n, j) ~ (k, i) if and only if n + i = k + j.
 
 Theorem.  Let h, i, j, k, m, n : Nat.

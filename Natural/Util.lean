@@ -130,6 +130,12 @@ def as_term (t: TSyntax α): Term := ⟨t.raw⟩
 
 def id_append (id: Ident) (name: Name) := mkIdent (id.getId ++ name)
 
+def opt_and : Option Term → Option Term → CoreM Term
+  | none, some p => pure p
+  | some p, none => pure p
+  | some p, some q => `($p ∧ $q)
+  | _, _ => throwError "opt_and: no term"
+
 inductive OpKind
   | infix
   | prefix
@@ -207,8 +213,8 @@ deriving BEq
 
 abbrev BinderOp := String
 
-abbrev BinderEnv := List (Name × BinderOp × Term)
-abbrev BinderIdEnv := List (Ident × BinderOp × Term)
+abbrev Vars := List (Name × BinderOp × Term)
+abbrev IdVars := List (Ident × BinderOp × Term)
 
 def of_bracketed_binder : TSyntax ``bracketedBinder → Ident × BinderOp × Term
   | `(bracketedBinder| ($x:ident : $t)) => (x, ":", t)
@@ -261,10 +267,10 @@ def mk_binder (bt: BinderType) (xs: List (Ident × BinderOp × Term)) (t: Term)
     | .all => mk_for_all xs t
     | .exists => mk_exists xs t
 
-def for_all (xs: BinderEnv) (t: Term) : CoreM Term :=
+def for_all (xs: Vars) (t: Term) : CoreM Term :=
   if xs == [] then pure t else mk_for_all (map_fst mkIdent xs) t
 
-def bound_vars (t: Term): BinderEnv := match match_binders t with
+def bound_vars (t: Term): Vars := match match_binders t with
   | .some (_, vars, _) => map_fst (·.getId) vars
   | .none => []
 

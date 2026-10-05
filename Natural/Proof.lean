@@ -109,7 +109,7 @@ partial def step_mapM [Monad m] (f: Term → m Term) (step: ProofStep) : m Proof
                      (← f concl)
     | .group steps => pure $ .group (← map_steps steps)
 
-def step_decl_vars_types : ProofStep → BinderEnv
+def step_decl_vars_types : ProofStep → Vars
   | .let ids type => ids.map (·, ":", type)
   | .let_def id _ => [(id, ":", mkIdent `Unit)]  -- just a guess
   | .assume p => map_fst TSyntax.getId (ex_vars p)
@@ -384,7 +384,7 @@ partial def infer_blocks (steps: List ProofStep): List Block :=
   assert! (rest.isEmpty)
   blocks
 
-partial def resolve_block (le: BinderEnv) : Block → TermElabM Block
+partial def resolve_block (le: Vars) : Block → TermElabM Block
   | ⟨step, children⟩ => do
       let ivars := match step with
         | .is_some .. => step_decl_vars_types step
@@ -411,7 +411,7 @@ def ex_pattern : List Ident → CoreM Term
 
 def this_term : CoreM Term := `(this)
 
-partial def translate (top: Bool) (parent_ex: BinderEnv) (prev: Term) (concl: Option Term)
+partial def translate (top: Bool) (parent_ex: Vars) (prev: Term) (concl: Option Term)
       : List Block → CoreM (Term × Term)
   | [] => match concl with
       | .some c => do pure (← `(show $c by default), c)
@@ -500,7 +500,7 @@ inductive _Proof where
   | steps (l: List ProofStep)
   | proof_by (r: Option Reason)
 
-def lets_vars (lets: List ProofStep) : BinderEnv := lets.flatMap step_decl_vars_types
+def lets_vars (lets: List ProofStep) : Vars := lets.flatMap step_decl_vars_types
 
 def apply_init_step (step: ProofStep) (thm: Term): CoreM Term := match step with
   | .let .. => for_all (step_decl_vars_types step) thm
@@ -522,12 +522,12 @@ def trim_steps (thm: Term) (steps: List ProofStep): List ProofStep :=
 def generalize (init_steps: List ProofStep) (t: Term) : CoreM Term :=
   apply_init_steps (trim_steps t init_steps) t
 
-def is_implicit_let (env: BinderEnv) : Term → Option Ident
+def is_implicit_let (env: Vars) : Term → Option Ident
   | `($x:ident ∈ $_) =>
       if (env.lookup x.getId).isSome then none else some x
   | _ => none
 
-def elim_implicit_let (env: BinderEnv) : List Term → CoreM (List ProofStep)
+def elim_implicit_let (env: Vars) : List Term → CoreM (List ProofStep)
   | [] => pure []
   | u :: rest => do
       let (us, env) ← match is_implicit_let env u with
@@ -538,7 +538,7 @@ def elim_implicit_let (env: BinderEnv) : List Term → CoreM (List ProofStep)
         | none => pure ([.assume u], env)
       pure $ us ++ (← elim_implicit_let env rest)
 
-def with_implicit_let (env: BinderEnv) (steps: List ProofStep) : CoreM (List ProofStep) :=
+def with_implicit_let (env: Vars) (steps: List ProofStep) : CoreM (List ProofStep) :=
   match steps with
     | [] => pure []
     | step :: rest => do

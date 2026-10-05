@@ -46,11 +46,17 @@ syntax natural_type := non_var non_var ?   -- e.g. "natural numbers"
 
 syntax binder_op := ":" <|> "∈"
 
+syntax adjective := ident
+
 syntax ids_type := atomic(ident,+ binder_op) type
 
 sdef ids_types
   | sepBy1(ids_type, "and")
   | natural_type id_list   -- e.g. "natural numbers x, y and z"
+
+sdef var_phrase
+  | ids_types
+  | adjective "function" ident ":" type
 
 kdef _at_least = "at least"
 kdef _at_most = "at most"
@@ -114,7 +120,9 @@ sdef multi_or
 
 kdef _either = "either"
 
-syntax some_or_no := &"some" <|> "no"
+syntax _a := &"a" <|> "an"
+
+syntax some_or_no := &"some" <|> _a <|> "no"
 
 kdef _is_have = "this is" | "we have"
 
@@ -123,8 +131,6 @@ syntax have_contradiction := _is_have &"a" "contradiction"
 syntax is_tf := &"is" (&"true" <|> &"false")
 
 syntax for_all_ids := _for_all ids_types ","
-
-syntax adjective := ident
 
 sdef prop
   | (priority := 1) atomic(expr &"is") adjective
@@ -140,7 +146,7 @@ sdef prop
   |:18 prop:19 atomic("," "and") prop:18
   |:16 atomic(_either ? prop:17 "," "or") prop:16
   | _if prop atomic("," ? "then") prop
-  | _there _exists some_or_no ? ids_types "such" "that" prop
+  | _there _exists some_or_no ? var_phrase ("such" "that" prop)?
   | multi_or
   | have_contradiction
 
@@ -216,8 +222,6 @@ sdef _assume
 sdef type_suffix
   | ":" type
   | "be" natural_type
-
-syntax _a := &"a" <|> "an"
 
 sdef let_step
   | atomic(_let ident,+ ":") type
