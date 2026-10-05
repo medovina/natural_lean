@@ -278,7 +278,8 @@ def bound_vars (t: Term): Vars := match match_binders t with
 -- syntax builders
 
 def non_keywords :=
-  ["because", "case", "cases", "now", "otherwise", "some", "this", "true", "type"]
+  ["because", "case", "cases", "least", "now",
+   "otherwise", "some", "this", "true", "type"]
 
 macro "kdef" name:ident "=" ks:sepBy1(str, "|") : command => do
   let rec mk_or : List (TSyntax `stx) → MacroM (TSyntax `stx)

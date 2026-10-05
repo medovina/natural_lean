@@ -1,6 +1,8 @@
 import Natural
 import Natural.Examples.Set
 
+namespace Natural
+
 -- This file defines the natural numbers inductively and develops their elementary theory including addition, ordering, and multiplication.  It is entirely independent of Lean's built-in Nat type.
 
 -- definition of natural numbers
@@ -251,6 +253,8 @@ Proof.
   b. Suppose that x < y.  If S(x) > y then x < y < S(x), which is a contradiction to ℕ.discrete.  So by ℕ.lt_trichotomy it must be that S(x) ≤ y.
 
   Conversely, suppose that S(x) ≤ y.  If x ≥ y then by ℕ.le_trans we deduce that S(x) ≤ x, which is a contradiction to ℕ.lt_succ and ℕ.lt_trichotomy.  So by ℕ.lt_trichotomy it must be that x < y.
+
+Definition.  Let A : Set(ℕ).  Let z : ℕ.  z is a least element of A iff z ∈ A and z ≤ u for all u ∈ A.
 
 -- multiplication: definition
 

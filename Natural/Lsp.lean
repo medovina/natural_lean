@@ -101,7 +101,7 @@ where
 
   gather (stx: Syntax) := match stx with
     | `(attrib| @ $_:ident) => gather_kw stx
-    | `(defined_term| $i:ident) => mkTok .property i
+    | `(defined_term| $c:compound_name) => mkTok .property c
     | `(thm_name| $i:ident)
     | `(label| $i:ident) => mkTok .function i
     | _ => match stx with

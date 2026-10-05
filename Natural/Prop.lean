@@ -81,17 +81,19 @@ def of_id_list : TSyntax ``id_list → CoreM (List Ident)
       pure $ [id] ++ ids.toList ++ id2.toList
   | _ => throwError "unknown id_list"
 
-def idents_to_nat_type (n1: Ident) (n2: Option Ident) : String := match n2 with
-  | .some n2 => s!"{n1.getId.toString} {singular n2.getId.toString}"
-  | .none => singular n1.getId.toString
+def of_compound_name : TSyntax ``compound_name → CoreM String
+  | `(compound_name| $n1:ident $n2:ident ?) => pure $ match n2 with
+    | .some n2 => s!"{n1.getId.toString} {singular n2.getId.toString}"
+    | .none => singular n1.getId.toString
+  | _ => throwError "unknown compound_name"
 
 def lookup_natural (s: String) : CoreM Ident := do
   mkIdentFromRef (← lookup_natural_attr s) (canonical := true)
 
 def of_natural_type (ntype: TSyntax ``natural_type) : CoreM Term :=
   withRef ntype do match ntype with
-    | `(natural_type| $n1:ident $n2:ident ?) => do
-        let s := idents_to_nat_type n1 n2
+    | `(natural_type| $n:compound_name) => do
+        let s ← of_compound_name n
         if s == "type" then `(Type) else lookup_natural s
     | _ => throwError "unknown natural_type"
 
@@ -107,24 +109,6 @@ def of_ids_type : TSyntax ``ids_type → CoreM (List Ident × BinderOp × Term)
   | `(ids_type| $xs:ident,* $op:binder_op $t:type) => do
     pure (xs.getElems.toList, syntax_atom op, ← of_type t)
   | _ => throwError "unknown ids_type"
-
-def of_ids_types : TSyntax `ids_types → CoreM IdVars
-  | `(ids_types| $[$ids:ids_type] and*) => do
-      ids.toList.flatMapM (fun i => do
-        let (xs, type) ← of_ids_type i
-        pure $ xs.map (·, type))
-  | `(ids_types| $t:natural_type $ids:id_list) => do
-      let type ← of_natural_type t
-      let xs ← of_id_list ids
-      pure $ xs.map (·, ":", type)
-  | _ => throwError "unknown ids_types"
-
-def of_var_phrase : TSyntax `var_phrase → CoreM (IdVars × Option Term)
-  | `(var_phrase| $i:ids_types) => of_ids_types i <&> (·, none)
-  | `(var_phrase| $a:adjective function $f:ident : $type:type) => do
-      pure ([(f, ":", ← of_type type)],
-            some $ ← `($(← of_adjective a) $f))
-  | _ => throwError "unknown var_phrase"
 
 def of_multi_specifier : TSyntax `multi_specifier → List Term → CoreM (List Term)
   | `(multi_specifier| $_:_at_least) => fun ts => List.singleton <$> multi_or ts
@@ -271,6 +255,39 @@ def of_some_or_no : TSyntax ``some_or_no → CoreM Bool
   | `(some_or_no| no) => pure false
   | _ => throwError "unknown some_or_no"
 
+def of_ids_types : TSyntax `ids_types → CoreM IdVars
+  | `(ids_types| $[$ids:ids_type] and*) => do
+      ids.toList.flatMapM (fun i => do
+        let (xs, type) ← of_ids_type i
+        pure $ xs.map (·, type))
+  | `(ids_types| $t:natural_type $ids:id_list) => do
+      let type ← of_natural_type t
+      let xs ← of_id_list ids
+      pure $ xs.map (·, ":", type)
+  | _ => throwError "unknown ids_types"
+
+def of_var_phrase : TSyntax `var_phrase → CoreM (IdVars × Option Term)
+  | `(var_phrase| $i:ids_types) => of_ids_types i <&> (·, none)
+  | `(var_phrase| $a:adjective function $f:ident : $type:type) => do
+      pure ([(f, ":", ← of_type type)],
+            some $ ← `($(← of_adjective a) $f))
+  | _ => throwError "unknown var_phrase"
+
+def of_relation : TSyntax ``relation → CoreM String
+  | `(relation| $n:compound_name) => of_compound_name n
+  | _ => throwError "unknown relation"
+
+def of_predicative : TSyntax `predicative → CoreM (Term → CoreM Term)
+  | `(predicative| $a:adjective) => do
+      let a ← of_adjective a
+      pure fun e => `($a $e)
+  | `(predicative| $_:_a $r:relation of $f:expr) => do
+      let r ← of_relation r
+      let f ← of_expr f
+      let r := mkIdent (Name.mkSimple r)
+      pure fun e => `($r $e $f)
+  | _ => throwError "unknown predicative"
+
 def of_for_all_ids : TSyntax ``for_all_ids → CoreM (List (Ident × BinderOp × Term))
   | `(for_all_ids| $_:_for_all $ids_type:ids_types ,) => of_ids_types ids_type
   | _ => throwError "unknown for_all_ids"
@@ -282,7 +299,8 @@ def check_no_binder_op : α × BinderOp × Term → CoreM (α × Term)
 partial def of_prop (prop: TSyntax `prop): CoreM Term := withRef prop do
   match prop with
     | `(prop| $e:expr $b:is_tf) => apply_tf (← of_is_tf b) (← of_expr e)
-    | `(prop| $e:expr is $a:adjective) => `($(← of_adjective a) $(← of_expr e))
+    | `(prop| $e:expr is $p:predicative) => do
+        (← of_predicative p) (← of_expr e)
     | `(prop| $e:rel_prop $b:is_tf ?) =>
           apply_tf ((← b.mapM of_is_tf).getD true) (← of_rel_prop e)
     | `(prop| $p:prop and $q:prop) => do `($(← of_prop p) ∧ $(← of_prop q))

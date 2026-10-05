@@ -15,7 +15,7 @@ Corollary.  The operator ~ is an equivalence relation on Nat × Nat.  [ℤ.is_eq
 
 -- definition of ℤ as a quotient type
 
-Definition.  The type ℤ is defined as the quotient Nat × Nat / ~.
+Definition.  The type ℤ (the integers) is defined as the quotient Nat × Nat / ~.
 
 Justification.  By ℤ.is_equiv.
 

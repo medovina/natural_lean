@@ -2,7 +2,12 @@ import Natural.Examples.SetBase
 
 namespace Natural
 
--- subsets
+-- sets: basic definitions
+
+Definition.  Let S : Set(T).
+
+  a. S is empty iff there is no x : T such that x ∈ S.
+  b. S is nonempty iff there is some x : T such that x ∈ S.
 
 Definition.  Let A, B : Set(T).  A ⊆ B iff x ∈ A implies x ∈ B for all x : T.
 

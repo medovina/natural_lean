@@ -42,21 +42,15 @@ def var : Parser := filter_ident (fun s => s.length == 1) "expected var"
 
 def non_var : Parser := filter_ident (fun s => s.length > 1) "expected non_var"
 
-syntax natural_type := non_var non_var ?   -- e.g. "natural numbers"
+syntax compound_name := non_var non_var ?
+
+syntax natural_type := compound_name   -- e.g. "natural numbers"
 
 syntax binder_op := ":" <|> "∈"
 
 syntax adjective := ident
 
 syntax ids_type := atomic(ident,+ binder_op) type
-
-sdef ids_types
-  | sepBy1(ids_type, "and")
-  | natural_type id_list   -- e.g. "natural numbers x, y and z"
-
-sdef var_phrase
-  | ids_types
-  | adjective "function" ident ":" type
 
 kdef _at_least = "at least"
 kdef _at_most = "at most"
@@ -131,10 +125,24 @@ syntax have_contradiction := _is_have &"a" "contradiction"
 
 syntax is_tf := &"is" (&"true" <|> &"false")
 
+sdef ids_types
+  | sepBy1(ids_type, "and")
+  | natural_type id_list   -- e.g. "natural numbers x, y and z"
+
+sdef var_phrase
+  | ids_types
+  | adjective "function" ident ":" type
+
+syntax relation := compound_name
+
+sdef predicative
+  | adjective
+  | _a relation "of" expr
+
 syntax for_all_ids := _for_all ids_types ","
 
 sdef prop
-  | (priority := 1) atomic(expr &"is") adjective
+  | (priority := 1) atomic(expr &"is") predicative
   | (priority := 2) atomic(expr is_tf)
   | atomic(rel_prop) is_tf ?
   |:35 prop:36 "and" prop:35
@@ -326,10 +334,10 @@ sdef type_spec
   | inductive_def
   | quotient_def
 
-syntax defined_term := ident
+syntax defined_term := compound_name
 
 syntax type_def :=
-  "The" &"type" id_sig ("(" "the" defined_term defined_term ? ")")?
+  "The" &"type" id_sig ("(" "the" defined_term ")")?
   "is" "defined" type_spec
 
 syntax attrib := "@" ident
@@ -349,7 +357,8 @@ syntax eq_or_iff := "=" <|> _iff
 sdef def_eq
   | expr "=" expr
   | expr (! "=") rel_op expr _iff prop
-  | expr "is" defined_term _iff prop
+  | expr "is" defined_term _iff prop  -- property definition
+  | expr "is" &"a" defined_term "of" expr _iff prop  -- relation definition
 
 syntax def1 := for_all_ids ? def_eq "."
 
