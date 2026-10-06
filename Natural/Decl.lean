@@ -262,16 +262,26 @@ def declare_op (info: OpInfo): CoreM (Option Command) :=
 
 def is_op (s: String) := !s.front.isAlpha
 
-def generate_def (decl_fn: Option String) (env: Vars) (eqs: List (String × DefEq))
+def quotient_lift (top_name: Ident) (def_name: Ident) (n: Nat) (arg_type: Term)
+      (justification: Option Ident) : CoreM Command := do
+  let by_thms ← proof_by_multi (mkIdent ``Quotient.sound :: justification.toList)
+  let (q, type) ← match n with
+    | 1 => pure (``Quotient.lift, ← `($arg_type → $arg_type))
+    | 2 => pure (``Quotient.lift₂, ← `($arg_type → $arg_type → $arg_type))
+    | _ => throwError "unsupported lift"
+  `(def $top_name : $type := $(mkIdent q) $def_name $by_thms)
+
+def generate_def (decl_fn: Option String) (env: Vars)
+    (eqs: List (String × Option OpKind × DefEq))
     (justification: Option Ident) : TermElabM (List Command) := do
   let env ← env.mapM (check_no_binder_op ·)
-  let eqs ← eqs.mapM (fun (fn, args, r) => do
-    pure $ (fn, ← args.mapM (resolve_left ·.raw), ← resolve_term env r))
-  let (fns, defeqs) := eqs.unzip
-  let fn := fns.head!
+  let eqs ← eqs.mapM (fun (fn, kind, args, r) => do
+    pure $ (fn, kind, ← args.mapM (resolve_left ·.raw), ← resolve_term env r))
+  let (fn, kind, args, _) := eqs.head!
+  let defeqs := eqs.map (fun (_, _, defeq) => defeq)
   if !decl_fn.all (· == fn) then throwError "declaration mismatch"
   let op_info ← if is_op fn
-    then do pure $ some $ ← (← lookup_op fn).getDM (throwError "unknown op")
+    then do pure $ some $ ← (← lookup_op fn kind.get!).getDM (throwError "unknown op")
     else pure none
   let fname := op_info.elim (Name.mkSimple (function_name fn)) (·.fname)
 
@@ -300,11 +310,9 @@ def generate_def (decl_fn: Option String) (env: Vars) (eqs: List (String × DefE
     then .some <$> `(attributes| @[grind]) else pure none
   let def_cmd ← def_command def_name args_types defeqs attr
 
-  let lift_cmd ← if is_quotient then List.singleton <$> do
-    let by_thms ← proof_by_multi (mkIdent ``Quotient.sound :: justification.toList)
-    `(def $top_name (a: $arg_type) (b: $arg_type) : $arg_type :=
-        Quotient.lift₂ $def_name $by_thms a b)
-  else pure []
+  let lift_cmd ← if is_quotient
+    then .singleton <$> quotient_lift top_name def_name args.length arg_type justification
+    else pure []
 
   let op_def_command ← op_info.bindM (declare_op ·)
   let inst_commands ←
@@ -328,22 +336,22 @@ def elab_commands (commands: List Command) : CommandElabM Unit := do
   let command : Command := Lean.TSyntax.mk (mkNullNode commands.toArray)
   elabCommand command
 
-def of_def_eq : TSyntax `def_eq → CoreM (String × DefEq)
+def of_def_eq : TSyntax `def_eq → CoreM (String × Option OpKind × DefEq)
   | `(def_eq| $l:expr = $r:expr) => do
       let (l, r) ← mapM_pair of_expr (l, r)
-      let (op, args) ← match l with
+      let (op, kind, args) ← match l with
         | `(_super $e $s $id:ident) =>  -- either exponentiation or a postfix op
             let id := id.getId.toString (escape := false)
-            if (← lookup_op id).any (fun info => info.kind == .postfix)
-              then pure (id, [e]) else pure ("^", [e, s])
+            if (← lookup_op id .postfix).any (fun info => info.kind == .postfix)
+              then pure (id, .postfix, [e]) else pure ("^", .infix, [e, s])
         | _ => parse_op l
-      pure (map_op op, args, ⟨r.raw⟩)
+      pure (map_op op, kind, args, ⟨r.raw⟩)
   | `(def_eq| $e:expr $op:rel_op $f:expr $_:_iff $r:prop) => do
-      pure (of_binary_op op, [← of_expr e, ← of_expr f], ← of_prop r)
+      pure (of_binary_op op, OpKind.infix, [← of_expr e, ← of_expr f], ← of_prop r)
   | `(def_eq| $e:expr is $i:defined_term $_:_iff $r:prop) => do
-      pure ((← of_defined_term i), [← of_expr e], ← of_prop r)
+      pure ((← of_defined_term i), none, [← of_expr e], ← of_prop r)
   | `(def_eq| $e:expr is a $d:defined_term of $f:expr $_:_iff $r:prop) => do
-      pure ((← of_defined_term d), [← of_expr e, ← of_expr f], ← of_prop r)
+      pure ((← of_defined_term d), none, [← of_expr e, ← of_expr f], ← of_prop r)
   | _ => throwError "unknown def_eq"
 
 def of_def1 : TSyntax ``def1 → CoreM (IdVars × TSyntax `def_eq)
@@ -365,9 +373,9 @@ def elab_direct_def : TSyntax `direct_def → CommandElabM Unit
 
       -- We must elaborate each definition in a group before parsing the next one.
       defs.forM (fun (vars, defeq) => do
-        let (name, eq) ← liftCoreM $ of_def_eq defeq
+        let eq ← liftCoreM $ of_def_eq defeq
         let args := lets_vars ls ++ map_fst TSyntax.getId vars
-        elab_commands (← liftTermElabM $ generate_def none args [(name, eq)] just)
+        elab_commands (← liftTermElabM $ generate_def none args [eq] just)
       )
   | `(direct_def| $n:num $[: $type:type]? = $e:expr .) => do
       let command ← liftTermElabM do

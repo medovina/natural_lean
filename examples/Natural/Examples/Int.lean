@@ -50,6 +50,16 @@ Corollary.  The operator + is commutative on ℤ.
 
 Corollary.  The operator + is associative on ℤ.
 
+-- negation: definition
+
+Lemma.  Let a, b, a₁, b₁ : Nat.  If (a, b) ~ (a₁, b₁), then
+
+  (b, a) ~ (b₁, a₁).   [ℤ.neg_equiv]
+
+Definition.  For all a, b : Nat, − ℤ[(a, b)] = ℤ[(b, a)].
+
+Justification.  By ℤ.neg_equiv.
+
 -- multiplication: definition
 
 Lemma. Let n, j, k, i, n₁, j₁, k₁, i₁ : Nat.  If (n, j) ~ (n₁, j₁) and (k, i) ~ (k₁, i₁) then

@@ -116,6 +116,7 @@ def mk_false : Term := mkIdent ``False
 
 def op_map := [
   ("·", "*"), ("×", "*"),
+  ("−", "-"), -- map minus sign to hyphen
   ("~", "≈"), ("∼", "≈"),  -- map both "~" (tilde) and "∼" (tilde operator) to ≈
   ("≁", "≉"),
   ("|", "∣")  -- map vertical bar to division symbol
@@ -125,12 +126,16 @@ def map_op (op: String) := (op_map.lookup op).getD op
 
 def of_binary_op (op: TSyntax α): String := map_op (syntax_atom op)
 
-def op_class := [
+def binary_op_class := [
   ("+", `add, ``Add), ("*", `mul, ``Mul), ("^", `pow, ``Pow),
   ("∪", `union, ``Union), ("∩", `inter, ``Inter),
   ("<", `lt, ``LT), ("≤", `le, ``LE), ("≈", `Equiv, ``HasEquiv),
   ("∈", `mem, ``Membership), ("⊆", `Subset, `HasSubset),
   ("∣", `dvd, `Dvd) ]
+
+def prefix_op_class := [ ("-", `neg, ``Neg) ]
+
+def postfix_op_class : List α := []
 
 structure OpInfo where
   name: String         -- e.g. "+"
@@ -146,10 +151,14 @@ def lookup_op_attr (op: String) : CoreM (Option OpInfo) := do
         pure $ .some ⟨op, kind, .none, .some typ, fname, ns⟩
     | .none => pure $ .none
 
-def lookup_op (op: String) : CoreM (Option OpInfo) :=
-  match op_class.lookup op with
+def lookup_op (op: String) (kind: OpKind) : CoreM (Option OpInfo) :=
+  let table := match kind with
+    | .infix => binary_op_class
+    | .prefix => prefix_op_class
+    | .postfix => postfix_op_class
+  match table.lookup op with
     | .some (fname, cl) =>
-        pure $ .some ⟨op, .infix, .some cl, .none, fname, .anonymous⟩
+        pure $ .some ⟨op, kind, .some cl, .none, fname, .anonymous⟩
     | .none => lookup_op_attr op
 
 def build_op (kind: OpKind) (op: String) (args: List Term): CoreM Term := do
@@ -407,7 +416,7 @@ partial def resolve (s: Syntax) : TermElabM Term := withRef s do
     | `(_super $t:term $u:term $id:ident) =>
          let t ← resolve t
          let id := id.getId.toString (escape := false)
-         if ← (← lookup_op id).anyM (matches_op .postfix t)
+         if ← (← lookup_op id .postfix).anyM (matches_op .postfix t)
            then build_op .postfix id [t]
            else `($t ^ $(← resolve u))
     | _ => match match_binder s with
