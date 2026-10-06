@@ -4,9 +4,10 @@ This directory contains a set of files that demonstrate the capabilities of Natu
 
 - `SetBase.lean`: definition of sets
 - `Set.lean`: set operations, theorems about sets
-- `Function.lean`: basic notions about functions and cardinality
+- `Function.lean`: basic notions about functions
+- `Cardinality.lean`: basic notions about cardinality, including a proof of Cantor's Theorem
 - `Nat.lean`: definition of ℕ as an inductive type, many theorems about ℕ
-- `Int.lean`: definition of ℤ as a quotient type, various theorems about ℤ
+- `Int.lean`: definition of ℤ as a quotient type, many theorems about ℤ
 - `NatNumGame.lean`: theorems from the [Natural Number Game](https://adam.math.hhu.de/#/g/leanprover-community/nng4)
 - `SetTheoryGame.lean`: theorems from the [Set Theory Game](https://adam.math.hhu.de/#/g/djvelleman/stg4)
 

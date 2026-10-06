@@ -41,10 +41,11 @@ Theorem.  Let a, b, c : ℤ.
   a. a + b = b + a.  [ℤ.add_comm]
   b. a + (b + c) = (a + b) + c.  [ℤ.add_assoc]
   c. a + 0 = a.  [ℤ.add_zero: @simp]
+  d. 0 + a = a.  [ℤ.zero_add: @simp]
 
 Proof.
 
-  a - c. By the definition of ℤ.
+  a - d. By the definition of ℤ.
 
 Corollary.  The operator + is commutative on ℤ.
 
@@ -59,6 +60,22 @@ Lemma.  Let a, b, a₁, b₁ : Nat.  If (a, b) ~ (a₁, b₁), then
 Definition.  For all a, b : Nat, − ℤ[(a, b)] = ℤ[(b, a)].
 
 Justification.  By ℤ.neg_equiv.
+
+Theorem.  Let a, b : ℤ.
+
+  a. a + −a = 0.  [ℤ.add_right_neg: @simp]
+  b. a + b = 0 if and only if b = −a.  [ℤ.add_eq_zero_iff_eq_neg']
+
+Proof.
+
+  a. By the definition of ℤ.
+
+  b. Suppose that b = −a.  Then a + b = 0.  Conversely, suppose that a + b = 0.  Then
+
+    b = 0 + b = (a + −a) + b
+              = (a + b) + −a
+              = 0 + −a
+              = −a.
 
 -- multiplication: definition
 
@@ -79,11 +96,12 @@ Theorem. Let a, b, c : ℤ.
   a. a × b = b × a.  [ℤ.mul_comm]
   b. a × (b × c) = (a × b) × c.  [ℤ.mul_assoc]
   c. a × (b + c) = a × b + a × c.  [ℤ.mul_add]
-  d. a × 1 = a.  [ℤ.mul_one: @simp]
+  d. (a + b) × c = a × c + b × c.  [ℤ.add_mul]
+  e. a × 1 = a.  [ℤ.mul_one: @simp]
 
 Proof.
 
-  a - d. By the definition of ℤ.
+  a - e. By the definition of ℤ.
 
 Corollary.  The operator × is commutative on ℤ.
 
@@ -122,3 +140,36 @@ Thus n · k + j · i ≠ j · k + n · i.
 In any case n · k + j · i ≠ j · k + n · i.  So
 
     a · b = ℤ[(n · k + j · i, j · k + n · i)] ≠ 0 by ℤ.eq_zero.
+
+-- Theorems that hold in ℤ and any ring
+
+Theorem.  Let x, y, z : ℤ.
+
+  a. If x + y = x + z then y = z.  [ℤ.add_left_cancel]
+  b. −0 = 0.  [ℤ.neg_zero: @simp]
+  c. −(−x) = x.  [ℤ.neg_neg: @simp]
+  d. If −x = −y, then x = y.  [ℤ.neg_eq_neg]
+  e. −(x + y) = (−x) + (−y).  [ℤ.neg_add]
+  f. x + y = x iff y = 0.  [ℤ.left_eq_add: @simp]
+  g. x · 0 = 0.  [ℤ.mul_zero: @simp]
+  h. 0 · x = 0.  [ℤ.zero_mul: @simp]
+
+Proof.
+
+  a. Assume that x + y = x + z.  Then −x + (x + y) = −x + (x + z), so (−x + x) + y = (−x + x) + z, so 0 + y = 0 + z by ℤ.add_right_neg.  Therefore y = z.
+
+  c. (−x) + x = x + (−x) = 0.  It follows by ℤ.add_eq_zero_iff_eq_neg' that −(−x) = x.
+
+  d. Suppose that −x = −y.  Then −(−x) = −(−y), so by ℤ.neg_neg x = y.
+
+  e. Observe that
+
+    (x + y) + ((−x) + (−y)) = (x + (−x)) + (y + (−y)) = 0 + 0 = 0.
+
+  Then by ℤ.add_eq_zero_iff_eq_neg' −(x + y) = (−x) + (−y).
+
+  f. If x + y = x then x + y = x + 0, so by ℤ.add_left_cancel y = 0.
+
+  g. x · 0 = x · (0 + 0) = x · 0 + x · 0 by ℤ.mul_add, so x · 0 = 0 by ℤ.left_eq_add.
+
+  h. By ℤ.mul_zero and ℤ.mul_comm.

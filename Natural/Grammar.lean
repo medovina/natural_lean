@@ -201,9 +201,12 @@ kdef _it = "it"
 
 syntax _follows := _it "follows" ("by" reason)? "that"
 
+kdef similarly = "similarly"
+
 sdef _have
   | have1
   | _follows
+  | similarly ","?
 
 kdef _because = "because" | "since"
 
