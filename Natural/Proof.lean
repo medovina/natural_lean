@@ -538,23 +538,23 @@ def trim_steps (thm: Term) (steps: List ProofStep): List ProofStep :=
 def generalize (init_steps: List ProofStep) (t: Term) : CoreM Term :=
   apply_init_steps (trim_steps t init_steps) t
 
-def is_implicit_let (env: Vars) : Term → Option Ident
+def is_implicit_let (env: List Name) : Term → Option Ident
   | `($x:ident ∈ $_) =>
-      if (env.lookup x.getId).isSome then none else some x
+      if x.getId ∈ env then none else some x
   | _ => none
 
-def elim_implicit_let (env: Vars) : List Term → CoreM (List ProofStep)
+def elim_implicit_let (env: List Name) : List Term → CoreM (List ProofStep)
   | [] => pure []
   | u :: rest => do
       let (us, env) ← match is_implicit_let env u with
         | .some x => do
           let anon_type ← `(_)
           pure $ ([ProofStep.let [x.getId] anon_type, .assume u],
-                  ((x.getId, ":", anon_type) :: env))
+                  (x.getId :: env))
         | none => pure ([.assume u], env)
       pure $ us ++ (← elim_implicit_let env rest)
 
-def with_implicit_let (env: Vars) (steps: List ProofStep) : CoreM (List ProofStep) :=
+def with_implicit_let (env: List Name) (steps: List ProofStep) : CoreM (List ProofStep) :=
   match steps with
     | [] => pure []
     | step :: rest => do
@@ -564,7 +564,7 @@ def with_implicit_let (env: Vars) (steps: List ProofStep) : CoreM (List ProofSte
               if ts.any (fun u => (is_implicit_let env u).isSome)
                 then elim_implicit_let env ts else pure [step]
           | _ => pure [step]
-        do pure $ steps ++ (← with_implicit_let (lets_vars steps ++ env) rest)
+        do pure $ steps ++ (← with_implicit_let (steps.flatMap step_decl_vars ++ env) rest)
 
 def translate_proof (init_steps: List ProofStep) (thm: Term): _Proof → TermElabM Term
   | .steps steps => do

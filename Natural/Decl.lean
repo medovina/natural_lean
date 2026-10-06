@@ -141,7 +141,7 @@ def of_init_sentence : TSyntax ``init_sentence → CoreM (List ProofStep)
 
 def of_init_steps (env: Vars): TSyntax ``init_steps → CoreM (List ProofStep)
   | `(init_steps| $iss:init_sentence*) =>
-      iss.toList.flatMapM of_init_sentence >>= with_implicit_let env
+      iss.toList.flatMapM of_init_sentence >>= with_implicit_let (env.map (·.1))
   | _ => throwError "unknown init_steps"
 
 partial def pattern_type (args: LocalEnv) : Term → CoreM Term :=

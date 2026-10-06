@@ -188,7 +188,7 @@ syntax (priority := 1) prop : assert_prop
 syntax (priority := 2) atomic(begin_chain eq_expr_by+) : assert_prop
 
 kdef _so =
-  "but" | "hence" | "so" | "that is" | "then" | "therefore" | "thus"
+  "also" | "but" | "hence" | "so" | "that is" | "then" | "therefore" | "thus"
 
 kdef have1 =
   "clearly" | "it must be that" | "observe that" |

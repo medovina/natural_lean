@@ -241,16 +241,19 @@ Proof.
 
 Theorem.  Let x, y : ℕ.
 
-  a. x < S(y) if and only if x ≤ y.   [ℕ.le_iff_lt_add_one]
-  b. x < y if and only if S(x) ≤ y.   [ℕ.lt_iff_add_one_le]
+  a. 0 ≤ x.  [ℕ.zero_le: @simp]
+  b. x < S(y) if and only if x ≤ y.   [ℕ.le_iff_lt_add_one]
+  c. x < y if and only if S(x) ≤ y.   [ℕ.lt_iff_add_one_le]
 
 Proof.
 
-  a. Suppose that x < S(y).  If x > y then y < x < S(y), which is a contradiction to ℕ.discrete.  So by ℕ.lt_trichotomy we have x ≤ y.
+  a. If x = 0 then 0 ≤ x.  Otherwise x ≠ 0, so by ℕ.is_zero_or_succ x = S(y) for some y : ℕ.  Then 0 + S(y) = x, so 0 ≤ x.  In either case 0 ≤ x.
+
+  b. Suppose that x < S(y).  If x > y then y < x < S(y), which is a contradiction to ℕ.discrete.  So by ℕ.lt_trichotomy we have x ≤ y.
 
   Conversely, suppose that x ≤ y.  If x ≥ S(y) then by ℕ.le_trans we deduce that S(y) ≤ y, which is a contradiction to ℕ.lt_succ and ℕ.lt_trichotomy.  So by ℕ.lt_trichotomy it must be that x < S(y).
 
-  b. Suppose that x < y.  If S(x) > y then x < y < S(x), which is a contradiction to ℕ.discrete.  So by ℕ.lt_trichotomy it must be that S(x) ≤ y.
+  c. Suppose that x < y.  If S(x) > y then x < y < S(x), which is a contradiction to ℕ.discrete.  So by ℕ.lt_trichotomy it must be that S(x) ≤ y.
 
   Conversely, suppose that S(x) ≤ y.  If x ≥ y then by ℕ.le_trans we deduce that S(x) ≤ x, which is a contradiction to ℕ.lt_succ and ℕ.lt_trichotomy.  So by ℕ.lt_trichotomy it must be that x < y.
 
