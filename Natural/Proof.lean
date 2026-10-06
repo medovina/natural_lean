@@ -73,7 +73,7 @@ def of_eq_expr_by1 (t: TSyntax `eq_expr_by): CoreM (String × Term × Term) := m
 def of_eq_expr_by (t: TSyntax `eq_expr_by): CoreM (String × Term × Term) :=
   withRef t (of_eq_expr_by1 t)
 
-def ex_vars (t: Term) : List (Ident × BinderOp × Term) := match match_binders t with
+def ex_vars (t: Term) : IdVars := match match_binders t with
   | .some (.exists, xs, _) => xs
   | _ => []
 
@@ -109,14 +109,22 @@ partial def step_mapM [Monad m] (f: Term → m Term) (step: ProofStep) : m Proof
                      (← f concl)
     | .group steps => pure $ .group (← map_steps steps)
 
-def step_decl_vars_types : ProofStep → Vars
+def init_step_vars_types : ProofStep → Vars
   | .let ids type => ids.map (·, ":", type)
-  | .let_def id _ => [(id, ":", mkIdent `Unit)]  -- just a guess
   | .assume p => map_fst TSyntax.getId (ex_vars p)
-  | .is_some ids .. => ids
   | _ => []
 
-def step_decl_vars (step: ProofStep): List Name := (step_decl_vars_types step).map (·.1)
+def step_decl_vars_types : ProofStep → TermElabM Vars
+  | .let_def id _ => pure $ [(id, ":", mkIdent `Unit)]  -- just a guess
+  | .is_some ids .. => pure ids
+  | step => pure (init_step_vars_types step)
+
+def step_decl_vars : ProofStep → List Name
+  | .let ids _ => ids
+  | .let_def id _ => [id]
+  | .assume p => (ex_vars p).map (TSyntax.getId ·.1)
+  | .is_some ids .. => ids.map (·.1)
+  | _ => []
 
 partial def step_all_decl_vars (step: ProofStep): List Name :=
   let of_steps (steps: List ProofStep) := (steps.flatMap step_all_decl_vars).eraseDups
@@ -396,11 +404,11 @@ partial def infer_blocks (steps: List ProofStep): List Block :=
 
 partial def resolve_block (le: Vars) : Block → TermElabM Block
   | ⟨step, children⟩ => do
-      let ivars := match step with
+      let ivars ← match step with
         | .is_some .. => step_decl_vars_types step
-        | _ => []
+        | _ => pure []
       pure ⟨← step_mapM (resolve_term1 (ivars ++ le)) step,
-            ← children.mapM (resolve_block (step_decl_vars_types step ++ le))⟩
+            ← children.mapM (resolve_block ((← step_decl_vars_types step) ++ le))⟩
 
 def proof_by_multi (names: List Ident) : CoreM Term :=
   tactic (.some (.apply names))
@@ -510,10 +518,10 @@ inductive _Proof where
   | steps (l: List ProofStep)
   | proof_by (r: Option Reason)
 
-def lets_vars (lets: List ProofStep) : Vars := lets.flatMap step_decl_vars_types
+def lets_vars (lets: List ProofStep) : Vars := lets.flatMap init_step_vars_types
 
 def apply_init_step (step: ProofStep) (thm: Term): CoreM Term := match step with
-  | .let .. => for_all (step_decl_vars_types step) thm
+  | .let .. => for_all (init_step_vars_types step) thm
   | .assume a => `($a → $thm)
   | _ => throwError "apply_init_step"
 

@@ -375,6 +375,17 @@ def with_local (name: Name) (type: Term) (f: TermElabM α) : TermElabM α :=
   withAutoBoundImplicit $ do withLocalDecl name .default (← elabType type) (fun _var =>
     withoutAutoBoundImplicit f)
 
+-- Bind the given variables with their types, then run f.
+def with_vars (le: Vars) (f: TermElabM α) : TermElabM α := match le with
+  | [] => f
+  | (name, ":", type) :: rest => with_local name type (with_vars rest f)
+  | (name, "∈", s) :: rest => do
+      let type ← elab_to_type s
+      match type.getAppArgs with
+        | #[u] => withLocalDecl name .default u (fun _var => with_vars rest f)
+        | _ => throwError s!"expected container type: {type}"
+  | _ => throwError "resolve_term1: unknown binder op"
+
 mutual
 
 partial def resolve (s: Syntax) : TermElabM Term := withRef s do
@@ -415,16 +426,8 @@ partial def resolve (s: Syntax) : TermElabM Term := withRef s do
               pure ⟨.node info kind args⟩
           | _ => pure ⟨s⟩
 
-partial def resolve_term1 (le: Vars) (t: Term)
-      : TermElabM Term := match le with
-  | [] => resolve t.raw
-  | (name, ":", type) :: rest => with_local name type (resolve_term1 rest t)
-  | (name, "∈", s) :: rest => do
-      let type ← elab_to_type s
-      match type.getAppArgs with
-        | #[u] => withLocalDecl name .default u (fun _var => resolve_term1 rest t)
-        | _ => throwError s!"expected container type: {type}"
-  | _ => throwError "resolve_term1: unknown binder op"
+partial def resolve_term1 (le: Vars) (t: Term) : TermElabM Term :=
+  with_vars le (resolve t.raw)
 
 partial def resolve_term (le: LocalEnv) (t: Term) : TermElabM Term :=
   resolve_term1 (le.map (fun (x, type) => (x, ":", type))) t
