@@ -202,7 +202,7 @@ def of_because_prop : TSyntax ``because_prop → CoreM ProofStep
 
 def of_which_is_contra (stx: TSyntax `which_is_contra): CoreM ProofStep :=
   let contra r := do
-    pure $ .assert (← `(False)) (.some (.apply $ ← r.toList.flatMapM of_reference))
+    pure $ .assert mk_false (.some (.apply $ ← r.toList.flatMapM of_reference))
   match stx with
     | `(which_is_contra| $_:which_is a contradiction $[to $r:reference]?) => contra r
     | `(which_is_contra| $_:which_is contradicting $r:reference) => contra (some r)
@@ -363,44 +363,48 @@ def is_assert_false : ProofStep → Bool
 
 partial def infer_blocks (steps: List ProofStep): List Block :=
   let rec infer (vars: List (List Name)) (let_vars: List (List Name))
-                (steps: List ProofStep): List Block × List ProofStep :=
+                (steps: List ProofStep): List Block × List ProofStep × Bool :=
     match steps with
-      | [] => ([], [])
+      | [] => ([], [], false)
       | (step :: rest) =>
-          if overlap (step_all_decl_vars step) vars.flatten then ([], steps) else
+          if overlap (step_all_decl_vars step) vars.flatten then ([], steps, false) else
           let in_use := all_free_vars steps
           let vars_in_use := vars.head?.all (fun vs => vs.any in_use.elem)
           let let_vars_in_use := let_vars.head?.all (fun vs => vs.any in_use.elem)
           if (!is_assert_false step && !vars_in_use && !let_vars_in_use)
-            then ([], steps)
-            else let (blocks, rest) := match step with
-              | .assert .. | .assert_chain .. => ([⟨step, []⟩], rest)
+            then ([], steps, false)
+            else let (blocks, rest, bail) : List Block × List ProofStep × Bool := match step with
+              | .assert .. | .assert_chain .. =>
+                  -- If we are asserting false, bail out to the enclosing assumption.
+                  ([⟨step, []⟩], rest, is_assert_false step)
               | .let .. | .let_def .. | .assume _ | .is_some .. =>
                   let vars := if step matches (.assume _)
                     then vars else step_decl_vars step :: vars
                   let let_vars := if step matches (.let ..)
                     then step_decl_vars step :: vars else let_vars
-                  let (children, rest) := infer vars let_vars rest
-                  ([⟨step, children⟩], rest)
+                  let (children, rest, bail) := infer vars let_vars rest
+                  let bail := bail && !(step matches (.assume _))
+                  ([⟨step, children⟩], rest, bail)
               | .if_otherwise p ts fs q =>
                   let tb := ⟨.assume p, infer_blocks ts⟩
                   let fb := ⟨.assume (Syntax.mkCApp ``Not #[p]), infer_blocks fs⟩
                   let block := ⟨.if_otherwise p [] [] q, [tb, fb]⟩
-                  ([block], rest)
+                  ([block], rest, false)
               | .biconditional p fwd q rev =>
                   let fb := ⟨.assume p, infer_blocks fwd⟩
                   let rb := ⟨.assume q, infer_blocks rev⟩
                   let block := ⟨.biconditional p [] q [], [fb, rb]⟩
-                  ([block], rest)
+                  ([block], rest, false)
               | .case cases concl =>
                   let bs := cases.map (fun (p, steps) => ⟨.assume p, infer_blocks steps⟩)
                   let ts := cases.map (fun (p, _steps) => (p, []))
                   let block := ⟨.case ts concl, bs⟩
-                  ([block], rest)
-              | .group steps => (infer_blocks steps, rest)
-            let (blocks2, rest) := infer vars let_vars rest
-            (blocks ++ blocks2, rest)
-  let (blocks, rest) := infer [] [] steps
+                  ([block], rest, false)
+              | .group steps => (infer_blocks steps, rest, false)
+            let (blocks2, rest, bail) :=
+              if bail then ([], rest, true) else infer vars let_vars rest
+            (blocks ++ blocks2, rest, bail)
+  let (blocks, rest, _bail) := infer [] [] steps
   assert! (rest.isEmpty)
   blocks
 
