@@ -4,6 +4,7 @@ import Natural.Prop
 
 open Lean
 open Lean.Elab.Term
+open Lean.Meta
 open Std.Format
 
 namespace Natural
@@ -109,15 +110,18 @@ partial def step_mapM [Monad m] (f: Term → m Term) (step: ProofStep) : m Proof
                      (← f concl)
     | .group steps => pure $ .group (← map_steps steps)
 
-def init_step_vars_types : ProofStep → Vars
+def step_vars_types : ProofStep → Vars
   | .let ids type => ids.map (·, ":", type)
+  | .let_def .. => panic! "no environment"
   | .assume p => map_fst TSyntax.getId (ex_vars p)
   | .is_some p _reason => map_fst TSyntax.getId (ex_vars p)
   | _ => []
 
-def step_decl_vars_types : ProofStep → TermElabM Vars
-  | .let_def id _ => pure $ [(id, ":", mkIdent `Unit)]  -- just a guess
-  | step => pure (init_step_vars_types step)
+def with_step_decl_vars (step: ProofStep) (f: TermElabM α) : TermElabM α := match step with
+  | .let_def id val => do
+      let type ← elab_to_type val
+      withLocalDecl id .default type (fun _var => f)
+  | step => with_vars (step_vars_types step) f
 
 def step_decl_vars : ProofStep → List Name
   | .let ids _ => ids
@@ -400,10 +404,10 @@ partial def infer_blocks (steps: List ProofStep): List Block :=
   assert! (rest.isEmpty)
   blocks
 
-partial def resolve_block (le: Vars) : Block → TermElabM Block
+partial def resolve_block : Block → TermElabM Block
   | ⟨step, children⟩ => do
-      pure ⟨← step_mapM (resolve_term1 le) step,
-            ← children.mapM (resolve_block ((← step_decl_vars_types step) ++ le))⟩
+      let step ← step_mapM (resolve ·.raw) step
+      pure ⟨step, ← with_step_decl_vars step (children.mapM (resolve_block))⟩
 
 def proof_by_multi (names: List Ident) : CoreM Term :=
   tactic (.some (.apply names))
@@ -437,7 +441,7 @@ partial def translate (top: Bool) (parent_ex: Vars) (prev: Term) (concl: Option 
           else pure (← this_term, prev)
   | ⟨step, children⟩ :: rest => do
       let ex_decl := match step with
-        | .is_some .. => init_step_vars_types step
+        | .is_some .. => step_vars_types step
         | _ => []
       let unit ← `(())
       let (c, child_concl) ←
@@ -512,10 +516,10 @@ inductive _Proof where
   | steps (l: List ProofStep)
   | proof_by (r: Option Reason)
 
-def lets_vars (lets: List ProofStep) : Vars := lets.flatMap init_step_vars_types
+def lets_vars (lets: List ProofStep) : Vars := lets.flatMap step_vars_types
 
 def apply_init_step (step: ProofStep) (thm: Term): CoreM Term := match step with
-  | .let .. => for_all (init_step_vars_types step) thm
+  | .let .. => for_all (step_vars_types step) thm
   | .assume a => `($a → $thm)
   | _ => throwError "apply_init_step"
 
@@ -569,7 +573,7 @@ def translate_proof (init_steps: List ProofStep) (thm: Term): _Proof → TermEla
           | _ => pure $ trim_steps thm init_steps ++ steps
       let steps ← with_implicit_let [] steps
       let blocks := infer_blocks steps
-      let blocks ← blocks.mapM (resolve_block [])
+      let blocks ← blocks.mapM resolve_block
       trace[natural.tree] pretty ("\n" ++ (← show_blocks blocks))
       Prod.fst <$> translate True [] (← `(())) none blocks
   | .proof_by (.some (.by_definition_of i)) => do
