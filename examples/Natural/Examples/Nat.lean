@@ -259,6 +259,26 @@ Proof.
 
 Definition.  Let A : Set(ℕ).  Let z : ℕ.  z is a least element of A iff z ∈ A and z ≤ u for all u ∈ A.
 
+Theorem "Least number principle". Let A : Set(ℕ).  Suppose that A is nonempty.  Then there exists some x : ℕ such that x is a least element of A.
+
+Proof.  Assume there is no x : ℕ such that x is a least element of A.  Let
+
+    B = { x : ℕ | for all u : ℕ, if u ≤ x then u ∉ A }.
+
+Observe that for all x ∈ B, x ∉ A.
+
+First assume that 0 ∉ B.  Then there is some u : ℕ such that u ≤ 0 and u ∈ A.  If u < 0 then u > 0, which is a contradiction.  So u = 0.  Thus 0 ∈ A.  Then by ℕ.zero_le 0 is a least element of A, contradicting our assumption.  Hence 0 ∈ B.
+
+Now assume x ∈ B.  Then
+
+    for all u : ℕ, if u ≤ x then u ∉ A.
+
+Assume that S(x) ∈ A.  Suppose that v ∈ A.  If v < S(x) then by ℕ.le_iff_lt_add_one v ≤ x, so v ∉ A, which is a contradiction.  So v ≮ S(x), so v ≥ S(x).  Thus S(x) is a least element of A.  This is a contradiction since there is no x : ℕ such that x is a least element of A.  So S(x) ∉ A.
+
+Hence by ℕ.le_iff_lt_add_one for all u : ℕ, if u ≤ S(x) then u ∉ A. Then S(x) ∈ B.
+
+We have shown that for all x ∈ B, S(x) ∈ B.  Hence by induction x ∈ B for all x : ℕ.  So A is empty, which is a contradiction.
+
 -- multiplication: definition
 
 Definition.  The binary operation · on ℕ is defined recursively such that for all x, y : ℕ,
