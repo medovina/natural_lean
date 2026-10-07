@@ -504,8 +504,8 @@ In Visual Studio Code, if you hover the mouse over a natural name (such as "natu
 You can use an attribute to assign a natural name to a type that already exists in Lean:
 
 ```
-attribute [natural_name "natural number"] Nat
-attribute [natural_name "integer"] Int
+attribute [natural "natural number"] Nat
+attribute [natural "integer"] Int
 ```
 
 In fact the preceding two attributes are predefined in Natural Lean, so you don't need to write them.
@@ -525,11 +525,11 @@ Definition.  The type ℕ (the natural numbers) is defined inductively
 
 ### Type classes
 
-It is not possible to define a type class in Natural Lean at this time.  However, you may give a natural name to an existing type class using a `natural_name` attribute:
+It is not possible to define a type class in Natural Lean at this time.  However, you may give a natural name to an existing type class using a `natural` attribute:
 
 ```
-attribute [natural_name "associative"] Std.Associative
-attribute [natural_name "commutative"] Std.Commutative
+attribute [natural "associative"] Std.Associative
+attribute [natural "commutative"] Std.Commutative
 ```
 
 In fact the preceding two attributes are predefined in Natural Lean.

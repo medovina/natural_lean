@@ -115,7 +115,7 @@ def of_type_def : TSyntax ``type_def → CoreM (List Command)
       let commands ← of_type_spec name sig ts
       let att ← n.mapM (fun n1 => do
         let t ← of_defined_term n1
-        `(attribute [natural_name $(mkStrLit t)] $name:ident)
+        `(attribute [natural $(mkStrLit t)] $name:ident)
       )
       pure $ commands ++ att.toList
   | _ => throwError "unknown definition"
@@ -320,7 +320,7 @@ def generate_def (decl_fn: Option String) (env: Vars)
       (def_inst_commands fname arg_type top_name ·)
 
   let nat_decl ← if is_op fn then pure none
-    else some <$> `(attribute [natural_name $(mkStrLit fn)] $top_name)
+    else some <$> `(attribute [natural $(mkStrLit fn)] $top_name)
 
   pure ([def_cmd] ++ lift_cmd ++ op_def_command.toList ++ inst_commands ++ nat_decl.toList)
 

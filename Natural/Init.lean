@@ -12,9 +12,9 @@ def lookup_assoc {α: Type} [ToString α] (ext: AssocExtension α) (name: String
   let map := ext.getState (← getEnv)
   pure (map.lookup name)
 
--- natural_name attribute
+-- natural attribute
 
-syntax (name := natural_name) "natural_name " str : attr
+syntax (name := natural) "natural " str : attr
 
 initialize name_extension : AssocExtension Name ←
   registerSimpleScopedEnvExtension {
@@ -23,13 +23,13 @@ initialize name_extension : AssocExtension Name ←
   }
 
 initialize registerBuiltinAttribute {
-  name := `natural_name
+  name := `natural
   descr := "Natural name"
   add := fun (decl_name: Name) (stx: Syntax) (attr_kind: AttributeKind) =>
     match stx with
-      | `(natural_name| natural_name $name:str) =>
+      | `(natural| natural $name:str) =>
           name_extension.add (name.getString, decl_name) attr_kind
-      | _ => throwError "natural_name: unexpected"
+      | _ => throwError "natural: unexpected"
 }
 
 def lookup_natural_attr (s: String): CoreM Name := do
@@ -54,7 +54,7 @@ initialize registerBuiltinAttribute {
       | `(natural_op| natural_op $name:str $ns:ident $id:ident $k:op_kind) =>
           let t := (decl_name, ns.getId, id.getId, of_op_kind k)
           op_extension.add (name.getString, t) attr_kind
-      | _ => throwError "natural_name: unexpected"
+      | _ => throwError "natural: unexpected"
 }
 
 -- other attributes
