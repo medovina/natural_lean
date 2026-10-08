@@ -1,5 +1,6 @@
 import Natural
 
+set_option trace.natural true in
 Definition.  Let A and B be types.  Let f : A → B.
 
   a. f is injective iff f(x) = f(y) implies x = y for all x, y : A.

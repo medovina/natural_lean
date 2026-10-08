@@ -519,8 +519,6 @@ Definition.  The type ℕ (the natural numbers) is defined inductively
   with constructors 0 : ℕ and S : ℕ → ℕ.
 ```
 
-
-
 (This particular definition redefines the name "natural number" so that it refers to the inductive type that it is defining, rather than Lean's built-in `Nat` type.)
 
 ### Type classes
@@ -528,11 +526,13 @@ Definition.  The type ℕ (the natural numbers) is defined inductively
 It is not possible to define a type class in Natural Lean at this time.  However, you may give a natural name to an existing type class using a `natural` attribute:
 
 ```
-attribute [natural "associative"] Std.Associative
-attribute [natural "commutative"] Std.Commutative
+attribute [natural adjective "associative"] Std.Associative
+attribute [natural adjective "commutative"] Std.Commutative
 ```
 
 In fact the preceding two attributes are predefined in Natural Lean.
+
+As visible above, the `natural` attribute takes an optional lexical __category__ (`noun`, `verb`, or `adjective`) for the word that is being defined.  The category determined how it may be used in natural-language text.  (If you do not specify a category, the default is `noun`.)
 
 You may declare that an operator belongs to a type class, using the type class's natural name:
 

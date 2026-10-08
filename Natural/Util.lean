@@ -12,6 +12,10 @@ infix:50 "≮" => fun x y => ¬(x < y)
 infix:50 "≯" => fun x y => ¬(x > y)
 infix:50 "≉" => fun x y => ¬(x ≈ y)
 
+-- from Mathlib
+theorem Or.elim3 {c d : Prop} (h : a ∨ b ∨ c) (ha : a → d) (hb : b → d) (hc : c → d) : d :=
+  Or.elim h ha fun h₂ ↦ Or.elim h₂ hb hc
+
 -- options
 
 def Option.anyM [Monad m] (f: α → m Bool) (x: Option α) : m Bool :=
@@ -91,11 +95,6 @@ def is_super_letter (s: String) :=
   match s.toList with
     | [c] => (super_letters.lookup c).isSome
     | _ => false
-
--- English
-
-def singular (s: String) : String :=
-  if s.back == 's' then (s.dropEnd 1).toString else s
 
 -- parsing
 
@@ -354,10 +353,28 @@ elab "rapply" e:term : tactic => do
   let e ← Term.elabTerm e none
   Tactic.liftMetaTactic (rapply · e)
 
+-- natural language
+
+def singular (s: String) : String :=
+  if s.back == 's' then (s.dropEnd 1).toString else s
+
+inductive Category
+  | noun
+  | verb
+  | adjective
+deriving Inhabited
+
+syntax category := &"noun" <|> &"verb" <|> &"adjective"
+
+def of_category : TSyntax ``category → Category
+  | `(category| noun) => .noun
+  | `(category| verb) => .verb
+  | `(category| adjective) => .adjective
+  | _ => panic! "of_category"
+
+def to_category: Category → CoreM (TSyntax ``category)
+  | .noun => `(category| noun)
+  | .verb => `(category| verb)
+  | .adjective => `(category| adjective)
+
 end Natural
-
--- from Mathlib
-theorem Or.elim3 {c d : Prop} (h : a ∨ b ∨ c) (ha : a → d) (hb : b → d) (hc : c → d) : d :=
-  Or.elim h ha fun h₂ ↦ Or.elim h₂ hb hc
-
-abbrev LocalEnv := List (Name × Term)    -- maps name to type

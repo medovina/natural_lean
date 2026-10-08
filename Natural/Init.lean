@@ -8,15 +8,15 @@ namespace Natural
 
 abbrev AssocExtension α := SimpleScopedEnvExtension (String × α) (List (String × α))
 
-def lookup_assoc {α: Type} [ToString α] (ext: AssocExtension α) (name: String): CoreM (Option α) := do
+def lookup_assoc {α: Type} (ext: AssocExtension α) (name: String): CoreM (Option α) := do
   let map := ext.getState (← getEnv)
   pure (map.lookup name)
 
 -- natural attribute
 
-syntax (name := natural) "natural " str : attr
+syntax (name := natural) "natural " category ? str : attr
 
-initialize name_extension : AssocExtension Name ←
+initialize name_extension : AssocExtension (Category × Name) ←
   registerSimpleScopedEnvExtension {
     initial := []
     addEntry | state, (key, val) => (key, val) :: state
@@ -27,12 +27,13 @@ initialize registerBuiltinAttribute {
   descr := "Natural name"
   add := fun (decl_name: Name) (stx: Syntax) (attr_kind: AttributeKind) =>
     match stx with
-      | `(natural| natural $name:str) =>
-          name_extension.add (name.getString, decl_name) attr_kind
+      | `(natural| natural $[$cat:category]? $name:str) =>
+          let cat := (cat.map of_category).getD Category.noun
+          name_extension.add (name.getString, (cat, decl_name)) attr_kind
       | _ => throwError "natural: unexpected"
 }
 
-def lookup_natural_attr (s: String): CoreM Name := do
+def lookup_natural_attr (s: String): CoreM (Category × Name) := do
   (← lookup_assoc name_extension s).getDM (throwError "unknown name")
 
 -- natural_op attribute

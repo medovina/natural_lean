@@ -88,7 +88,7 @@ def of_compound_name : TSyntax ``compound_name → CoreM String
   | _ => throwError "unknown compound_name"
 
 def lookup_natural (s: String) : CoreM Ident := do
-  mkIdentFromRef (← lookup_natural_attr s) (canonical := true)
+  mkIdentFromRef (← lookup_natural_attr s).2 (canonical := true)
 
 def of_natural_type (ntype: TSyntax ``natural_type) : CoreM Term :=
   withRef ntype do match ntype with
@@ -394,6 +394,8 @@ def with_vars (le: Vars) (f: TermElabM α) : TermElabM α := match le with
         | #[u] => withLocalDecl name .default u (fun _var => with_vars rest f)
         | _ => throwError s!"expected container type: {type}"
   | _ => throwError "resolve_term1: unknown binder op"
+
+abbrev LocalEnv := List (Name × Term)    -- maps name to type
 
 mutual
 

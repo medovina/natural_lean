@@ -115,7 +115,7 @@ def of_type_def : TSyntax ``type_def → CoreM (List Command)
       let commands ← of_type_spec name sig ts
       let att ← n.mapM (fun n1 => do
         let t ← of_defined_term n1
-        `(attribute [natural $(mkStrLit t)] $name:ident)
+        `(attribute [natural noun $(mkStrLit t):str] $name:ident)
       )
       pure $ commands ++ att.toList
   | _ => throwError "unknown definition"
@@ -196,13 +196,19 @@ def rm_mkquot (t: Term): CoreM Term := match is_mkquot t with
   | .some (_, t) => pure t
   | .none => throwError "expected quotient projection"
 
-def DefEq := List Term × Term
+structure DefEq where
+  name: String    -- operator (e.g. "+") or natural-language name
+  kind: Option OpKind
+  cat: Option Category
+  args: List Term
+  val: Term
+deriving Inhabited
 
 def def_pat_command (name: Ident) (arg_types: List Term) (eqs: List DefEq)
                     (attr: Option (TSyntax `Lean.Parser.Term.attributes)) : CoreM Command := do
-  let alt | (args, r) => do
-    let args ← args.zipWithM (fun arg type => `( ($arg : $type) )) arg_types
-    `(matchAltExpr| | $(args.toArray),* => $r)
+  let alt (eq: DefEq) := do
+    let args ← eq.args.zipWithM (fun arg type => `( ($arg : $type) )) arg_types
+    `(matchAltExpr| | $(args.toArray),* => $eq.val)
   let alts ← eqs.mapM alt
   let d ← `($attr:attributes ? def $name $(alts.toArray):matchAlt*)
   if eqs.length > 1 then `(set_option linter.unusedVariables false in $d:command) else pure d
@@ -210,10 +216,10 @@ def def_pat_command (name: Ident) (arg_types: List Term) (eqs: List DefEq)
 def def_command (name: Ident) (arg_types: List Term) (eqs: List DefEq)
                 (attr: Option (TSyntax `Lean.Parser.Term.attributes)) : CoreM Command :=
   match eqs with
-    | [(args, r)] => do
-        if args.all (fun t => t.raw.isIdent) then
-          let args ← binders ((args.map as_ident!).zip arg_types)
-          `($attr:attributes ? def $name $args* := $r)
+    | [eq] => do
+        if eq.args.all (fun t => t.raw.isIdent) then
+          let args ← binders ((eq.args.map as_ident!).zip arg_types)
+          `($attr:attributes ? def $name $args* := $eq.val)
         else def_pat_command name arg_types eqs attr
     | _ => def_pat_command name arg_types eqs attr
 
@@ -271,43 +277,46 @@ def quotient_lift (top_name: Ident) (def_name: Ident) (n: Nat) (arg_type: Term)
     | _ => throwError "unsupported lift"
   `(def $top_name : $type := $(mkIdent q) $def_name $by_thms)
 
-def generate_def (decl_fn: Option String) (env: Vars)
-    (eqs: List (String × Option OpKind × DefEq))
+def generate_def (decl_fn: Option String) (env: Vars) (defeqs: List DefEq)
     (justification: Option Ident) : TermElabM (List Command) := do
   let env ← env.mapM (check_no_binder_op ·)
-  let eqs ← eqs.mapM (fun (fn, kind, args, r) => do
-    pure $ (fn, kind, ← args.mapM (resolve_left ·.raw), ← resolve_term env r))
-  let (fn, kind, args, _) := eqs.head!
-  let defeqs := eqs.map (fun (_, _, defeq) => defeq)
+  let defeqs ← defeqs.mapM (fun (d : DefEq) => do
+    pure $ { d with args := ← d.args.mapM (resolve_left ·.raw),
+                    val := ← resolve_term env d.val })
+  let { name := fn, kind, cat, args, .. } := defeqs.head!
   if !decl_fn.all (· == fn) then throwError "declaration mismatch"
   let op_info ← if is_op fn
     then do pure $ some $ ← (← lookup_op fn kind.get!).getDM (throwError "unknown op")
     else pure none
   let fname := op_info.elim (Name.mkSimple (function_name fn)) (·.fname)
 
-  let defeqs := if fn == "∈" then map_fst swap_args defeqs else defeqs
+  let defeqs := if fn == "∈"
+    then defeqs.map (fun d => { d with args := swap_args d.args }) else defeqs
   let arg1 ← match defeqs with
-    | (arg :: _, _) :: _ => pure arg
+    | { args := arg :: _, .. } :: _ => pure arg
     | _ => throwError "generate_def: no arg"
 
   let (is_quotient, arg_type, dname, defeqs) ← match is_mkquot arg1 with
     | .some (qtype, _) =>
-        let defeqs ← mapM_fst (List.mapM (rm_mkquot ·)) defeqs  -- remove projections
+        let defeqs ← defeqs.mapM (fun d => do
+          pure { d with args := ← d.args.mapM (rm_mkquot ·) })  -- remove projections
         pure (true, as_term qtype, fname ++ `aux, defeqs)
     | .none => do
         pure (false, ← pattern_type env arg1, fname, defeqs)
 
   let args_types ← match defeqs with
-    | [(ts, _)] => ts.mapM (pattern_type env ·)
-    | (ts, _) :: _ => pure $ ts.map (fun _ => arg_type)
+    | [{ args := ts, ..}] => ts.mapM (pattern_type env ·)
+    | { args := ts, .. } :: _ => pure $ ts.map (fun _ => arg_type)
     | _ => throwError "generate_def: no arg"
 
   let def_name ← embed_name arg_type dname
   let top_name ← embed_name arg_type fname
 
-  let defeqs := if is_quotient then defeqs else map_snd (replace_op fn top_name) defeqs
+  let defeqs := if is_quotient then defeqs
+    else defeqs.map (fun d => { d with val := replace_op fn top_name d.val })
   let attr ← if op_info.all (fun i => i.type.isSome)
     then .some <$> `(attributes| @[grind]) else pure none
+
   let def_cmd ← def_command def_name args_types defeqs attr
 
   let lift_cmd ← if is_quotient
@@ -320,7 +329,9 @@ def generate_def (decl_fn: Option String) (env: Vars)
       (def_inst_commands fname arg_type top_name ·)
 
   let nat_decl ← if is_op fn then pure none
-    else some <$> `(attribute [natural $(mkStrLit fn)] $top_name)
+    else some <$> do
+      let cat ← to_category cat.get!
+      `(attribute [natural $cat $(mkStrLit fn):str] $top_name)
 
   pure ([def_cmd] ++ lift_cmd ++ op_def_command.toList ++ inst_commands ++ nat_decl.toList)
 
@@ -336,7 +347,7 @@ def elab_commands (commands: List Command) : CommandElabM Unit := do
   let command : Command := Lean.TSyntax.mk (mkNullNode commands.toArray)
   elabCommand command
 
-def of_def_eq : TSyntax `def_eq → CoreM (String × Option OpKind × DefEq)
+def of_def_eq : TSyntax `def_eq → CoreM DefEq
   | `(def_eq| $l:expr = $r:expr) => do
       let (l, r) ← mapM_pair of_expr (l, r)
       let (op, kind, args) ← match l with
@@ -345,13 +356,16 @@ def of_def_eq : TSyntax `def_eq → CoreM (String × Option OpKind × DefEq)
             if (← lookup_op id .postfix).any (fun info => info.kind == .postfix)
               then pure (id, .postfix, [e]) else pure ("^", .infix, [e, s])
         | _ => parse_op l
-      pure (map_op op, kind, args, ⟨r.raw⟩)
+      pure { name := map_op op, kind, cat := none, args, val := ⟨r.raw⟩}
   | `(def_eq| $e:expr $op:rel_op $f:expr $_:_iff $r:prop) => do
-      pure (of_binary_op op, OpKind.infix, [← of_expr e, ← of_expr f], ← of_prop r)
+      pure { name := of_binary_op op, kind := OpKind.infix, cat := none,
+             args := [← of_expr e, ← of_expr f], val := ← of_prop r }
   | `(def_eq| $e:expr is $i:defined_term $_:_iff $r:prop) => do
-      pure ((← of_defined_term i), none, [← of_expr e], ← of_prop r)
+      pure { name := ← of_defined_term i, kind := none, cat := some .adjective,
+             args := [← of_expr e], val := ← of_prop r }
   | `(def_eq| $e:expr is a $d:defined_term of $f:expr $_:_iff $r:prop) => do
-      pure ((← of_defined_term d), none, [← of_expr e, ← of_expr f], ← of_prop r)
+      pure { name := ← of_defined_term d, kind := none, cat := some .noun,
+             args := [← of_expr e, ← of_expr f], val := ← of_prop r }
   | _ => throwError "unknown def_eq"
 
 def of_def1 : TSyntax ``def1 → CoreM (IdVars × TSyntax `def_eq)

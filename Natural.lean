@@ -8,5 +8,5 @@ attribute [natural "natural number"] Nat
 
 attribute [natural "equivalence relation"] Equivalence
 
-attribute [natural "associative"] Std.Associative
-attribute [natural "commutative"] Std.Commutative
+attribute [natural adjective "associative"] Std.Associative
+attribute [natural adjective "commutative"] Std.Commutative
