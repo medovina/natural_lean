@@ -285,41 +285,62 @@ def check_no_binder_op : α × BinderOp × Term → CoreM (α × Term)
 
 -- natural language
 
-def of_adjective : TSyntax ``adjective → CoreM Ident
+def of_adjective : TSyntax ``adjective → CoreM (Term → CoreM Term)
+  | `(adjective| only) => pure (fun x => pure x)
   | `(adjective| $n:compound_name) => do
-      lookup_natural (← of_compound_name n)
-  | _ => throwError "unexpected adjective"
+      let a ← lookup_natural (← of_compound_name n)
+      pure fun e => `($a $e)
+  | _ => throwError "unknown adjective"
 
 def of_noun : TSyntax ``noun → CoreM Ident
   | `(noun| $n:compound_name) => do
       lookup_natural (← of_compound_name n)
   | _ => throwError "unknown relation"
 
-def of_nominal : TSyntax `nominal → CoreM (Term → CoreM Term)
+partial def of_nominal : TSyntax `nominal → CoreM (Term → CoreM Term)
   | `(nominal| $n:noun of $f:expr) => do
       let n ← of_noun n
       let f ← of_expr f
       pure fun e => `($n $e $f)
+  | `(nominal| $a:adjective $nom:nominal) => do
+      let a ← of_adjective a
+      let nom ← of_nominal nom
+      pure fun e => do `($(← nom e) ∧ $(← a e))
   | _ => throwError "unknown nominal"
 
-def of_noun_phrase : TSyntax `noun_phrase → CoreM Term
-  | `(noun_phrase| $e:expr) => of_expr e
+def of_noun_phrase_e : TSyntax `noun_phrase_e → CoreM Term
+  | `(noun_phrase_e| $e:expr) => of_expr e
+  | `(noun_phrase_e| $e:expr and $f:expr) => do
+      let x := mkIdent `x
+      `(fun $x => x = $(← of_expr e) ∨ x = $(← of_expr f))
+  | `(noun_phrase_e| the $nom:nominal) => do
+      let nom ← of_nominal nom
+      let x := mkIdent `x
+      `(fun $x => $(← nom x))  -- characteristic set
   | _ => throwError "unknown noun_phrase"
 
 def of_noun_phrase_e_t : TSyntax `noun_phrase_e_t → CoreM (Term → CoreM Term)
   | `(noun_phrase_e_t| a $nom:nominal) => of_nominal nom
   | _ => throwError "unknown noun_phrase_e_t"
 
-def of_predicative : TSyntax `predicative → CoreM (Term → CoreM Term)
-  | `(predicative| $a:adjective) => do
-      let a ← of_adjective a
-      pure fun e => `($a $e)
-  | `(predicative| $np:noun_phrase_e_t) => of_noun_phrase_e_t np
+def of_predicative_e : TSyntax `predicative_e → CoreM Term
+  | `(predicative_e| $np:noun_phrase_e) => of_noun_phrase_e np
+  | _ => throwError "unknown predicative_e"
+
+def of_predicative_e_t : TSyntax `predicative_e_t → CoreM (Term → CoreM Term)
+  | `(predicative_e_t| $a:adjective) => of_adjective a
+  | `(predicative_e_t| $np:noun_phrase_e_t) => of_noun_phrase_e_t np
   | _ => throwError "unknown predicative"
 
 def of_verb_phrase : TSyntax `verb_phrase → CoreM (Term → CoreM Term)
-  | `(verb_phrase| is $p:predicative) => of_predicative p
-  | _ => throwError "unexpected binder op"
+  | `(verb_phrase| is $p:predicative_e_t) => of_predicative_e_t p
+  | `(verb_phrase| are $p:predicative_e) => do
+      let p ← of_predicative_e p
+      pure $ fun (e : Term) => match e, p with
+        | `(fun x => $e), `(fun x => $p) =>
+              `(∀x : Nat, $e:term ↔ $p:term)
+        | _, _ => throwError "of_verb_phrase: unexpected"
+  | _ => throwError "unknown verb phrase"
 
 -- prop
 
@@ -327,13 +348,14 @@ def of_var_list : TSyntax `var_list → CoreM (IdVars × Option Term)
   | `(var_list| $i:ids_types) => of_ids_types i <&> (·, none)
   | `(var_list| $a:adjective function $f:ident : $type:type) => do
       pure ([(f, ":", ← of_type type)],
-            some $ ← `($(← of_adjective a) $f))
+            -- some $ ← `($(← of_adjective a) $f))
+            some $ ← (← of_adjective a) f)
   | _ => throwError "unknown var_list"
 
 partial def of_prop (prop: TSyntax `prop): CoreM Term := withRef prop do
   match prop with
-    | `(prop| $np:noun_phrase $vp:verb_phrase) => do
-          (← of_verb_phrase vp) (← of_noun_phrase np)
+    | `(prop| $np:noun_phrase_e $vp:verb_phrase) => do
+          (← of_verb_phrase vp) (← of_noun_phrase_e np)
     | `(prop| $e:expr $b:is_tf) => apply_tf (← of_is_tf b) (← of_expr e)
     | `(prop| $e:rel_prop $b:is_tf ?) =>
           apply_tf ((← b.mapM of_is_tf).getD true) (← of_rel_prop e)

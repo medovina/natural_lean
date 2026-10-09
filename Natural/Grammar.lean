@@ -133,25 +133,32 @@ syntax for_all_ids := _for_all ids_types ","
 
 -- natural language
 
-syntax adjective := compound_name  -- type: e → t
+syntax adjective := "only" <|> compound_name  -- type: e → t
 
 syntax noun := compound_name  -- type: e | e → t
 
 sdef nominal    -- type: e → t
   | noun "of" expr
+  | adjective nominal
 
-sdef noun_phrase  -- type: e
+sdef noun_phrase_e
   | expr
+  | expr "and" expr
+  | "the" nominal
 
 declare_syntax_cat noun_phrase_e_t (behavior := symbol)
 syntax &"a" nominal : noun_phrase_e_t
 
-sdef predicative  -- type: e → t
+sdef predicative_e
+  | noun_phrase_e
+
+sdef predicative_e_t
   | adjective
   | noun_phrase_e_t
 
 sdef verb_phrase  -- type: e → t
-  | &"is" predicative
+  | &"is" predicative_e_t
+  | "are" predicative_e
 
 -- prop
 
@@ -160,7 +167,7 @@ sdef var_list
   | adjective "function" ident ":" type
 
 sdef prop
-  | (priority := 1) atomic(noun_phrase verb_phrase)
+  | (priority := 1) atomic(noun_phrase_e verb_phrase)
   | (priority := 2) atomic(expr is_tf)
   | atomic(rel_prop) is_tf ?
   |:35 prop:36 "and" prop:35

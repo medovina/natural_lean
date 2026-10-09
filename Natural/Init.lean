@@ -34,7 +34,7 @@ initialize registerBuiltinAttribute {
 }
 
 def lookup_natural_attr (s: String): CoreM (Category × Name) := do
-  (← lookup_assoc name_extension s).getDM (throwError "unknown name")
+  (← lookup_assoc name_extension s).getDM (throwError s!"unknown name: {s}")
 
 -- natural_op attribute
 
