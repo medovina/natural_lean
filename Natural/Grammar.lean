@@ -59,9 +59,6 @@ sdef multi_specifier
   | _at_most
   | _exactly
 
-syntax adjective := compound_name
-syntax noun := compound_name
-
 -- expr
 
 sdef super_expr
@@ -87,7 +84,7 @@ syntax "(" expr ("," expr)? ")" : expr
 syntax "{" expr,* "}" : expr  -- set of values
 syntax ident "[" expr "]" : expr  -- quotient type projection
 
--- prop
+-- prop helpers
 
 kdef rel_op =
   "=" | "≠" | "<" | "≮" | "≤" | ">" | "≯" | "≥" |
@@ -134,16 +131,36 @@ sdef ids_types
 
 syntax for_all_ids := _for_all ids_types ","
 
+-- natural language
+
+syntax adjective := compound_name  -- type: e → t
+
+syntax noun := compound_name  -- type: e | e → t
+
+sdef nominal    -- type: e → t
+  | noun "of" expr
+
+sdef noun_phrase  -- type: e
+  | expr
+
+declare_syntax_cat noun_phrase_e_t (behavior := symbol)
+syntax &"a" nominal : noun_phrase_e_t
+
+sdef predicative  -- type: e → t
+  | adjective
+  | noun_phrase_e_t
+
+sdef verb_phrase  -- type: e → t
+  | &"is" predicative
+
+-- prop
+
 sdef var_list
   | ids_types
   | adjective "function" ident ":" type
 
-declare_syntax_cat predicative (behavior := symbol)
-syntax adjective : predicative
-syntax &"a" noun "of" expr : predicative
-
 sdef prop
-  | (priority := 1) atomic(expr &"is") predicative
+  | (priority := 1) atomic(noun_phrase verb_phrase)
   | (priority := 2) atomic(expr is_tf)
   | atomic(rel_prop) is_tf ?
   |:35 prop:36 "and" prop:35

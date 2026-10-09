@@ -235,6 +235,8 @@ partial def of_expr (expr: TSyntax `expr): CoreM Term := withRef expr do
         let (stx, bound, type) ← (← try_elab fns expr).getDM (throwError "unknown expr")
         `(bind $bound:ident*, $type:term, $stx:term)
 
+-- prop helpers
+
 def of_rel_prop (prop: TSyntax `rel_prop): CoreM Term := withRef prop do
   let rec build : List Term → List String → CoreM (List Term)
     | _, [] => pure []
@@ -271,15 +273,55 @@ def of_ids_types : TSyntax `ids_types → CoreM IdVars
       pure $ xs.map (·, ":", type)
   | _ => throwError "unknown ids_types"
 
-def of_noun : TSyntax ``noun → CoreM Ident
-  | `(noun| $n:compound_name) => do
-      lookup_natural (← of_compound_name n)
-  | _ => throwError "unknown relation"
+def of_for_all_ids : TSyntax ``for_all_ids → CoreM (List (Ident × BinderOp × Term))
+  | `(for_all_ids| $_:_for_all $ids_type:ids_types ,) => of_ids_types ids_type
+  | _ => throwError "unknown for_all_ids"
+
+def function_name (s: String) : String := s.replace " " "_"
+
+def check_no_binder_op : α × BinderOp × Term → CoreM (α × Term)
+  | (id, ":", t) => pure (id, t)
+  | _ => throwError "unexpected binder op"
+
+-- natural language
 
 def of_adjective : TSyntax ``adjective → CoreM Ident
   | `(adjective| $n:compound_name) => do
       lookup_natural (← of_compound_name n)
   | _ => throwError "unexpected adjective"
+
+def of_noun : TSyntax ``noun → CoreM Ident
+  | `(noun| $n:compound_name) => do
+      lookup_natural (← of_compound_name n)
+  | _ => throwError "unknown relation"
+
+def of_nominal : TSyntax `nominal → CoreM (Term → CoreM Term)
+  | `(nominal| $n:noun of $f:expr) => do
+      let n ← of_noun n
+      let f ← of_expr f
+      pure fun e => `($n $e $f)
+  | _ => throwError "unknown nominal"
+
+def of_noun_phrase : TSyntax `noun_phrase → CoreM Term
+  | `(noun_phrase| $e:expr) => of_expr e
+  | _ => throwError "unknown noun_phrase"
+
+def of_noun_phrase_e_t : TSyntax `noun_phrase_e_t → CoreM (Term → CoreM Term)
+  | `(noun_phrase_e_t| a $nom:nominal) => of_nominal nom
+  | _ => throwError "unknown noun_phrase_e_t"
+
+def of_predicative : TSyntax `predicative → CoreM (Term → CoreM Term)
+  | `(predicative| $a:adjective) => do
+      let a ← of_adjective a
+      pure fun e => `($a $e)
+  | `(predicative| $np:noun_phrase_e_t) => of_noun_phrase_e_t np
+  | _ => throwError "unknown predicative"
+
+def of_verb_phrase : TSyntax `verb_phrase → CoreM (Term → CoreM Term)
+  | `(verb_phrase| is $p:predicative) => of_predicative p
+  | _ => throwError "unexpected binder op"
+
+-- prop
 
 def of_var_list : TSyntax `var_list → CoreM (IdVars × Option Term)
   | `(var_list| $i:ids_types) => of_ids_types i <&> (·, none)
@@ -288,31 +330,11 @@ def of_var_list : TSyntax `var_list → CoreM (IdVars × Option Term)
             some $ ← `($(← of_adjective a) $f))
   | _ => throwError "unknown var_list"
 
-def function_name (s: String) : String := s.replace " " "_"
-
-def of_predicative : TSyntax `predicative → CoreM (Term → CoreM Term)
-  | `(predicative| $a:adjective) => do
-      let a ← of_adjective a
-      pure fun e => `($a $e)
-  | `(predicative| a $n:noun of $f:expr) => do
-      let n ← of_noun n
-      let f ← of_expr f
-      pure fun e => `($n $e $f)
-  | _ => throwError "unknown predicative"
-
-def of_for_all_ids : TSyntax ``for_all_ids → CoreM (List (Ident × BinderOp × Term))
-  | `(for_all_ids| $_:_for_all $ids_type:ids_types ,) => of_ids_types ids_type
-  | _ => throwError "unknown for_all_ids"
-
-def check_no_binder_op : α × BinderOp × Term → CoreM (α × Term)
-  | (id, ":", t) => pure (id, t)
-  | _ => throwError "unexpected binder op"
-
 partial def of_prop (prop: TSyntax `prop): CoreM Term := withRef prop do
   match prop with
+    | `(prop| $np:noun_phrase $vp:verb_phrase) => do
+          (← of_verb_phrase vp) (← of_noun_phrase np)
     | `(prop| $e:expr $b:is_tf) => apply_tf (← of_is_tf b) (← of_expr e)
-    | `(prop| $e:expr is $p:predicative) => do
-        (← of_predicative p) (← of_expr e)
     | `(prop| $e:rel_prop $b:is_tf ?) =>
           apply_tf ((← b.mapM of_is_tf).getD true) (← of_rel_prop e)
     | `(prop| $p:prop and $q:prop) => do `($(← of_prop p) ∧ $(← of_prop q))
