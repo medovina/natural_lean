@@ -271,22 +271,22 @@ def of_ids_types : TSyntax `ids_types → CoreM IdVars
       pure $ xs.map (·, ":", type)
   | _ => throwError "unknown ids_types"
 
+def of_noun : TSyntax ``noun → CoreM Ident
+  | `(noun| $n:compound_name) => do
+      lookup_natural (← of_compound_name n)
+  | _ => throwError "unknown relation"
+
 def of_adjective : TSyntax ``adjective → CoreM Ident
   | `(adjective| $n:compound_name) => do
       lookup_natural (← of_compound_name n)
   | _ => throwError "unexpected adjective"
 
-def of_var_phrase : TSyntax `var_phrase → CoreM (IdVars × Option Term)
-  | `(var_phrase| $i:ids_types) => of_ids_types i <&> (·, none)
-  | `(var_phrase| $a:adjective function $f:ident : $type:type) => do
+def of_var_list : TSyntax `var_list → CoreM (IdVars × Option Term)
+  | `(var_list| $i:ids_types) => of_ids_types i <&> (·, none)
+  | `(var_list| $a:adjective function $f:ident : $type:type) => do
       pure ([(f, ":", ← of_type type)],
             some $ ← `($(← of_adjective a) $f))
-  | _ => throwError "unknown var_phrase"
-
-def of_relation : TSyntax ``relation → CoreM Ident
-  | `(relation| $n:compound_name) => do
-      lookup_natural (← of_compound_name n)
-  | _ => throwError "unknown relation"
+  | _ => throwError "unknown var_list"
 
 def function_name (s: String) : String := s.replace " " "_"
 
@@ -294,10 +294,10 @@ def of_predicative : TSyntax `predicative → CoreM (Term → CoreM Term)
   | `(predicative| $a:adjective) => do
       let a ← of_adjective a
       pure fun e => `($a $e)
-  | `(predicative| a $r:relation of $f:expr) => do
-      let r ← of_relation r
+  | `(predicative| a $n:noun of $f:expr) => do
+      let n ← of_noun n
       let f ← of_expr f
-      pure fun e => `($r $e $f)
+      pure fun e => `($n $e $f)
   | _ => throwError "unknown predicative"
 
 def of_for_all_ids : TSyntax ``for_all_ids → CoreM (List (Ident × BinderOp × Term))
@@ -324,9 +324,9 @@ partial def of_prop (prop: TSyntax `prop): CoreM Term := withRef prop do
           mk_for_all (← of_for_all_ids ids_types) (← of_prop p)
     | `(prop| $p:prop $_:_for_all $ids_type:ids_types) => do
           mk_for_all (← of_ids_types ids_type) (← of_prop p)
-    | `(prop| $_:_there $_:_exists $s:some_or_no ? $vp:var_phrase
+    | `(prop| $_:_there $_:_exists $s:some_or_no ? $vp:var_list
               $[such that $p:prop]?) => do
-          let (vars, cond) ← of_var_phrase vp
+          let (vars, cond) ← of_var_list vp
           let t ← mk_exists vars (← opt_and cond (← p.mapM of_prop))
           let b ← s.elim (pure true) of_some_or_no
           apply_tf b t

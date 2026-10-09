@@ -59,6 +59,9 @@ sdef multi_specifier
   | _at_most
   | _exactly
 
+syntax adjective := compound_name
+syntax noun := compound_name
+
 -- expr
 
 sdef super_expr
@@ -129,19 +132,15 @@ sdef ids_types
   | sepBy1(ids_type, "and")
   | natural_type id_list   -- e.g. "natural numbers x, y and z"
 
-syntax adjective := compound_name
+syntax for_all_ids := _for_all ids_types ","
 
-sdef var_phrase
+sdef var_list
   | ids_types
   | adjective "function" ident ":" type
 
-syntax relation := compound_name
-
 declare_syntax_cat predicative (behavior := symbol)
 syntax adjective : predicative
-syntax &"a" relation "of" expr : predicative
-
-syntax for_all_ids := _for_all ids_types ","
+syntax &"a" noun "of" expr : predicative
 
 sdef prop
   | (priority := 1) atomic(expr &"is") predicative
@@ -157,7 +156,7 @@ sdef prop
   |:18 prop:19 atomic("," "and") prop:18
   |:16 atomic(_either ? prop:17 "," "or") prop:16
   | _if prop atomic("," ? "then") prop
-  | _there _exists some_or_no ? var_phrase ("such" "that" prop)?
+  | _there _exists some_or_no ? var_list ("such" "that" prop)?
   | multi_or
   | have_contradiction
 
