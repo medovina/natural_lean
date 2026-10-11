@@ -294,6 +294,16 @@ def of_adjective : TSyntax ``adjective → CoreM (Term → CoreM Term)
       pure fun e => `($a $e)
   | _ => throwError "unknown adjective"
 
+def of_adjective_phrase : TSyntax `adjective_phrase → CoreM (Term → CoreM Term)
+  | `(adjective_phrase| $a:adjective) => of_adjective a
+  | `(adjective_phrase| $a:adjective than $f:expr) => match a with
+    | `(adjective| $n:natural_name) => do
+        let a ← of_natural_name n
+        let f ← of_expr f
+        pure fun e => `($a $e $f)
+    | _ => throwError "invalid adjective"
+  | _ => throwError "unknown adjective_phrase"
+
 def of_noun : TSyntax ``noun → CoreM Ident
   | `(noun| $n:natural_name) => of_natural_name n
   | _ => throwError "unknown relation"
@@ -329,7 +339,7 @@ def of_predicative_e : TSyntax `predicative_e → CoreM Term
   | _ => throwError "unknown predicative_e"
 
 def of_predicative_e_t : TSyntax `predicative_e_t → CoreM (Term → CoreM Term)
-  | `(predicative_e_t| $a:adjective) => of_adjective a
+  | `(predicative_e_t| $ap:adjective_phrase) => of_adjective_phrase ap
   | `(predicative_e_t| $np:noun_phrase_e_t) => of_noun_phrase_e_t np
   | _ => throwError "unknown predicative"
 

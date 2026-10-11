@@ -175,6 +175,10 @@ syntax for_all_ids := _for_all ids_types ","
 
 syntax adjective := "only" <|> natural_name  -- type: e → t
 
+sdef adjective_phrase  -- type: e → t
+  | adjective
+  | adjective "than" expr
+
 syntax noun := natural_name  -- type: e | e → t
 
 sdef nominal    -- type: e → t
@@ -193,7 +197,7 @@ sdef predicative_e
   | noun_phrase_e
 
 sdef predicative_e_t
-  | adjective
+  | adjective_phrase
   | noun_phrase_e_t
 
 sdef verb_phrase  -- type: e → t
