@@ -8,9 +8,12 @@ namespace Natural
 
 abbrev AssocExtension α := SimpleScopedEnvExtension (String × α) (List (String × α))
 
+def lookup_assoc_in_env (env: Environment) (ext: AssocExtension α) (name: String)
+  : Option α :=
+  (ext.getState env).lookup name
+
 def lookup_assoc {α: Type} (ext: AssocExtension α) (name: String): CoreM (Option α) := do
-  let map := ext.getState (← getEnv)
-  pure (map.lookup name)
+  pure $ lookup_assoc_in_env (← getEnv) ext name
 
 -- natural attribute
 
@@ -33,13 +36,9 @@ initialize registerBuiltinAttribute {
       | _ => throwError "natural: unexpected"
 }
 
-def lookup_natural_attr (s: String): CoreM (Category × Name) := do
-  (← lookup_assoc name_extension s).getDM (throwError s!"unknown name: {s}")
-
 -- natural_op attribute
 
 syntax (name := natural_op) "natural_op " str ident ident op_kind : attr
-
 
 initialize op_extension : AssocExtension (Name × Name × Name × OpKind) ←
   registerSimpleScopedEnvExtension {

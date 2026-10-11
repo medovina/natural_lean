@@ -4,6 +4,7 @@ import Batteries.Data.List.Basic
 open Lean hiding mkStrLit
 open Lean.Parser hiding mkIdent
 open Lean.Parser.Term (bracketedBinder)
+open Lean.PrettyPrinter
 open Lean.Syntax
 open Elab Tactic Meta
 open Elab.Command
@@ -97,6 +98,21 @@ def is_super_letter (s: String) :=
     | _ => false
 
 -- parsing
+
+def checkStackTopEnvFn (p : Environment → Syntax → Bool) (msg : String) : ParserFn :=
+  fun ctx s =>
+    if p ctx.env s.stxStack.back then s
+    else s.mkUnexpectedError msg
+
+-- like the built-in function checkStackTop, but also passes an Environment to p
+def checkStackTopEnv (p : Environment → Syntax → Bool) (msg : String) : Parser := {
+  info := epsilonInfo,
+  fn   := checkStackTopEnvFn p msg
+}
+
+@[combinator_formatter checkStackTopEnv] def checkStackTopEnv.formatter : Formatter := pure ()
+
+@[combinator_parenthesizer checkStackTopEnv] def checkStackTopEnv.parenthesizer : Parenthesizer := pure ()
 
 -- A parser for numeric literals consisting only of digits.  We need this
 -- so that we can parse syntax such as "Let x = 5.", where the built-in parser

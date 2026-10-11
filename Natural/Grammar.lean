@@ -1,6 +1,7 @@
 import Lean
-import Natural.Util
+import Natural.Init
 
+open Lean
 open Lean.Parser
 
 namespace Natural
@@ -42,9 +43,48 @@ def var : Parser := filter_ident (fun s => s.length == 1) "expected var"
 
 def non_var : Parser := filter_ident (fun s => s.length > 1) "expected non_var"
 
-syntax compound_name := non_var non_var ?
+def singular_name : Ident → Option Ident → String
+  | i, none => singular i.getId.toString
+  | i, some j => s!"{i.getId.toString} {singular j.getId.toString}"
 
-syntax natural_type := compound_name   -- e.g. "natural numbers"
+syntax simple_name_id := non_var
+
+def mk_simple_name_id : Parser := node ``simple_name_id non_var
+
+def lookup_simple_name (env: Environment): Syntax → Option (Category × Name)
+  | `(simple_name_id| $i:ident) =>
+      (lookup_assoc_in_env env name_extension (singular_name i none))
+  | _ => none
+
+def check_simple_name (env: Environment) (s: Syntax): Bool :=
+  (lookup_simple_name env s).isSome
+
+def simple_name : Parser :=
+  withAntiquot (mkAntiquot "simple_name" ``simple_name_id) $
+  atomic (mk_simple_name_id >> checkStackTopEnv check_simple_name "unknown simple name")
+
+syntax compound_name_ids := non_var non_var
+
+def mk_compound_name_ids : Parser := node ``compound_name_ids (non_var >> non_var)
+
+def lookup_compound_name (env: Environment) (s: Syntax): Option (Category × Name) :=
+  match s with
+  | `(compound_name_ids| $i:ident $j:ident) =>
+      lookup_assoc_in_env env name_extension (singular_name i j)
+  | _ => none
+
+def check_compound_name (env: Environment) (s: Syntax): Bool :=
+  (lookup_compound_name env s).isSome
+
+def compound_name : Parser :=
+  withAntiquot (mkAntiquot "compound_name" ``compound_name_ids) $
+  atomic (mk_compound_name_ids >> checkStackTopEnv check_compound_name "unknown compound name")
+
+syntax natural_name := simple_name <|> compound_name
+
+declare_syntax_cat natural_type (behavior := symbol)
+syntax (&"type" <|> "types") : natural_type
+syntax natural_name : natural_type  -- e.g. "natural numbers"
 
 syntax binder_op := ":" <|> "∈"
 
@@ -133,9 +173,9 @@ syntax for_all_ids := _for_all ids_types ","
 
 -- natural language
 
-syntax adjective := "only" <|> compound_name  -- type: e → t
+syntax adjective := "only" <|> natural_name  -- type: e → t
 
-syntax noun := compound_name  -- type: e | e → t
+syntax noun := natural_name  -- type: e | e → t
 
 sdef nominal    -- type: e → t
   | noun "of" expr
@@ -363,7 +403,7 @@ sdef type_spec
   | inductive_def
   | quotient_def
 
-syntax defined_term := compound_name
+syntax defined_term := non_var non_var ?
 
 syntax type_def :=
   "The" &"type" id_sig ("(" "the" defined_term ")")?

@@ -104,7 +104,7 @@ def of_type_spec (name: Ident) (sig: Option Ident): TSyntax `type_spec → CoreM
   | _ => throwError "unknown type_spec"
 
 def of_defined_term : TSyntax ``defined_term → CoreM String
-  | `(defined_term| $n:compound_name) => of_compound_name n
+  | `(defined_term| $i:ident $j:ident ?) => pure $ singular_name i j
   | _ => throwError "unknown defined_term"
 
 def of_type_def : TSyntax ``type_def → CoreM (List Command)
@@ -385,7 +385,7 @@ def elab_direct_def : TSyntax `direct_def → CommandElabM Unit
       let (ls, defs, just) ← liftCoreM $ do
         pure (← ls.toList.mapM (of_let_step ·), ← of_defs defs)
 
-      -- We must elaborate each definition in a group before parsing the next one.
+      -- We must elaborate each definition in a group before processing the next one.
       defs.forM (fun (vars, defeq) => do
         let eq ← liftCoreM $ of_def_eq defeq
         let args := lets_vars ls ++ map_fst TSyntax.getId vars

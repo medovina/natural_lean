@@ -81,20 +81,21 @@ def of_id_list : TSyntax ``id_list → CoreM (List Ident)
       pure $ [id] ++ ids.toList ++ id2.toList
   | _ => throwError "unknown id_list"
 
-def of_compound_name : TSyntax ``compound_name → CoreM String
-  | `(compound_name| $n1:ident $n2:ident ?) => pure $ match n2 with
-    | .some n2 => s!"{n1.getId.toString} {singular n2.getId.toString}"
-    | .none => singular n1.getId.toString
-  | _ => throwError "unknown compound_name"
+def of_natural_name (stx: TSyntax ``natural_name) : CoreM Ident := do
+  let (_cat, name) ← match stx with
+    | `(natural_name| $s:simple_name) => do
+        (lookup_simple_name (← getEnv) s).getDM (throwError "unknown name")
+    | `(natural_name| $c:compound_name) => do
+        (lookup_compound_name (← getEnv) c).getDM (throwError "unknown name")
+    | _ =>
+      throwError "unknown natural_name"
+  mkIdentFromRef name (canonical := true)
 
-def lookup_natural (s: String) : CoreM Ident := do
-  mkIdentFromRef (← lookup_natural_attr s).2 (canonical := true)
-
-def of_natural_type (ntype: TSyntax ``natural_type) : CoreM Term :=
+def of_natural_type (ntype: TSyntax `natural_type) : CoreM Term :=
   withRef ntype do match ntype with
-    | `(natural_type| $n:compound_name) => do
-        let s ← of_compound_name n
-        if s == "type" then `(Type) else lookup_natural s
+    | `(natural_type| type)
+    | `(natural_type| types) => `(Type)
+    | `(natural_type| $n:natural_name) => of_natural_name n
     | _ => throwError "unknown natural_type"
 
 def syntax_atom (t: TSyntax α): String := match t.raw with
@@ -287,14 +288,13 @@ def check_no_binder_op : α × BinderOp × Term → CoreM (α × Term)
 
 def of_adjective : TSyntax ``adjective → CoreM (Term → CoreM Term)
   | `(adjective| only) => pure (fun x => pure x)
-  | `(adjective| $n:compound_name) => do
-      let a ← lookup_natural (← of_compound_name n)
+  | `(adjective| $n:natural_name) => do
+      let a ← of_natural_name n
       pure fun e => `($a $e)
   | _ => throwError "unknown adjective"
 
 def of_noun : TSyntax ``noun → CoreM Ident
-  | `(noun| $n:compound_name) => do
-      lookup_natural (← of_compound_name n)
+  | `(noun| $n:natural_name) => of_natural_name n
   | _ => throwError "unknown relation"
 
 partial def of_nominal : TSyntax `nominal → CoreM (Term → CoreM Term)
