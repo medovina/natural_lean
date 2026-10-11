@@ -11,18 +11,33 @@ namespace Natural
 
 syntax "bind" ident+ "," term "," term : term
 
-partial def syntax_free_vars (s: Syntax): List Name := match match_binder s with
-  | .some (_bt, xs, t) => (syntax_free_vars t).removeAll (xs.map (·.1.getId))
-  | _ => match s with
-    | `(bind $xs:ident*, $_:term, $t:term) =>
-        (syntax_free_vars t).removeAll (xs.toList.map TSyntax.getId)
-    | _ => match s with
-      | .missing => []
-      | .node _ _ args => args.toList.flatMap syntax_free_vars |>.eraseDups
-      | .ident _ _ _ _ => [s.getId]
-      | .atom _ _ => []
+partial def syntax_free_vars (only_free: Bool) : Syntax → List Name :=
+  let rec find (s: Syntax) : List Name :=
+    let combine (vars: List Name) (t: List Name) :=
+      if only_free then t.removeAll vars
+      else (vars ++ t).eraseDups
+    match match_binder s with
+      | .some (_bt, xs, t) => combine (xs.map (·.1.getId)) (find t)
+      | _ => match s with
+        | `(bind $xs:ident*, $_:term, $t:term) =>
+            combine (xs.toList.map TSyntax.getId) (find t)
+        | _ => match s with
+          | .missing => []
+          | .node _ _ args => args.toList.flatMap find |>.eraseDups
+          | .ident _ _ _ _ => [s.getId]
+          | .atom _ _ => []
+  find
 
-def free_vars (t: Term): List Name := syntax_free_vars (t.raw)
+def free_vars (t: Term): List Name := syntax_free_vars true (t.raw)
+
+def all_vars (t: Term): List Name := syntax_free_vars false (t.raw)
+
+partial def next_var (v: Name) (taken: List Name) :=
+  if v ∈ taken then
+    let c := v.toString.front
+    let d := if c == 'z' then 'a' else Char.ofNat (c.toNat + 1)
+    next_var (Name.mkSimple d.toString) taken
+  else v
 
 def name_to_term (n: Name) : CoreM Term := `($(mkIdent n))
 
@@ -112,9 +127,6 @@ def of_multi_specifier : TSyntax `multi_specifier → List Term → CoreM (List 
   | `(multi_specifier| $_:_at_most) => at_most
   | `(multi_specifier| $_:_exactly) => precisely_one
   | _ => fun _ => throwError "unknown multi_specifier"
-
-def mk_false : Term := mkIdent ``False
-def mk_true : Term := mkIdent ``True
 
 def op_map := [
   ("·", "*"), ("×", "*"),
@@ -319,7 +331,12 @@ partial def of_nominal_e_e_t :
       pure fun e f => do mk_and  (← a e) (← nom e f)
   | _ => throwError "unknown nominal_e_e_t"
 
-partial def of_nominal_e_t : TSyntax ``nominal_e_t → CoreM (Term → CoreM Term)
+partial def of_nominal_e_t : TSyntax `nominal_e_t → CoreM (Term → CoreM Term)
+  | `(nominal_e_t| $n:noun) => do
+      let n ← of_noun n
+      let t := (← getConstInfo n.getId).type
+      if t.isType then pure fun _e => pure mk_true
+      else throwError "of_nominal_e_t: unimplemented"
   | `(nominal_e_t| $n:nominal_e_e_t of $f:expr) => do
       let n ← of_nominal_e_e_t n
       let f ← of_expr f
@@ -346,6 +363,17 @@ def of_noun_phrase_e_t : TSyntax `noun_phrase_e_t → CoreM (Term → CoreM Term
   | `(noun_phrase_e_t| a $nom:nominal_e_t) => of_nominal_e_t nom
   | _ => throwError "unknown noun_phrase_e_t"
 
+def of_noun_phrase_et_t:
+        TSyntax ``noun_phrase_et_t → CoreM ((Term → CoreM Term) → CoreM Term)
+  | `(noun_phrase_et_t| Every $nom:nominal_e_t) => do
+      let nom ← of_nominal_e_t nom
+      pure $ fun q => do
+        let x := mkIdent `x
+        let t ← nom (← `($x))
+        let u ← q (← `($x))
+        `(∀ $x, $(← mk_implies t u))
+  | _ => throwError "unknown noun_phrase_et_t"
+
 def of_predicative_e : TSyntax `predicative_e → CoreM Term
   | `(predicative_e| $np:noun_phrase_e) => of_noun_phrase_e np
   | _ => throwError "unknown predicative_e"
@@ -359,8 +387,9 @@ def of_verb_phrase : TSyntax `verb_phrase → CoreM (Term → CoreM Term)
   | `(verb_phrase| has $np:noun_phrase_e_e_t) => do
       let np ← of_noun_phrase_e_e_t np
       pure fun e => do
-        let t ← np (← `(x)) e
-        `(∃ x, $t)
+        let y := mkIdent `y
+        let t ← np (← `($y)) e
+        `(∃ $y:ident, $t)
   | `(verb_phrase| is $p:predicative_e_t) => of_predicative_e_t p
   | `(verb_phrase| are $p:predicative_e) => do
       let p ← of_predicative_e p
@@ -386,6 +415,8 @@ partial def of_prop (prop: TSyntax `prop): CoreM Term := withRef prop do
   match prop with
     | `(prop| $np:noun_phrase_e $vp:verb_phrase) => do
           (← of_verb_phrase vp) (← of_noun_phrase_e np)
+    | `(prop| $np:noun_phrase_et_t $vp:verb_phrase) => do
+          (← of_noun_phrase_et_t np) (← of_verb_phrase vp)
     | `(prop| $e:expr $b:is_tf) => apply_tf (← of_is_tf b) (← of_expr e)
     | `(prop| $e:rel_prop $b:is_tf ?) =>
           apply_tf ((← b.mapM of_is_tf).getD true) (← of_rel_prop e)
@@ -418,11 +449,9 @@ def is_declared (n: Name): MetaM Bool := do
 
 def global_type (n: Name): CoreM (Option Expr) := do
   match (← resolveGlobalName n (enableLog := false)) with
-    | (name, _) :: _ =>
-        let env ← getEnv
-        .some <$> match env.find? name with
-          | .some cinfo => pure cinfo.type
-          | .none => throwError s!"lookup: can't find {name}"
+    | (name, _) :: _ => do
+        let cinfo ← getConstInfo name
+        pure cinfo.type
     | _ => pure none
 
 def type_matches_name (type: Expr) (n: Name) :=

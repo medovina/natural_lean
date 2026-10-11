@@ -179,13 +179,17 @@ sdef adjective_phrase  -- type: e → t
   | adjective
   | adjective "than" expr
 
-syntax noun := natural_name  -- type: e | e → t
+-- type: e → t (e.g. "integer")
+-- type: e → e → t  (e.g. "divisor")
+syntax noun := natural_name
 
 sdef nominal_e_e_t
   | noun
   | adjective nominal_e_e_t
 
-syntax nominal_e_t := nominal_e_e_t "of" expr
+sdef nominal_e_t
+  | noun
+  | nominal_e_e_t "of" expr
 
 sdef noun_phrase_e
   | expr
@@ -197,6 +201,8 @@ syntax &"a" nominal_e_e_t : noun_phrase_e_e_t
 
 declare_syntax_cat noun_phrase_e_t (behavior := symbol)
 syntax &"a" nominal_e_t : noun_phrase_e_t
+
+syntax noun_phrase_et_t := "Every" nominal_e_t  -- type: (e → t) → t
 
 sdef predicative_e
   | noun_phrase_e
@@ -218,6 +224,7 @@ sdef var_list
 
 sdef prop
   | (priority := 1) atomic(noun_phrase_e verb_phrase)
+  | noun_phrase_et_t verb_phrase
   | (priority := 2) atomic(expr is_tf)
   | atomic(rel_prop) is_tf ?
   |:35 prop:36 "and" prop:35
