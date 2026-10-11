@@ -587,8 +587,9 @@ def translate_proof (init_steps: List ProofStep) (thm: Term): _Proof → TermEla
       let .some val := info.value? | throwError "no value"
       unless val.isAppOf ``Quotient do throwError "not a quotient type"
       let gthm ← generalize init_steps thm
-      let qvars := (bound_vars gthm).filterMap (fun (x, op, type) => do
-        if op == ":" && Syntax.getId type == q then some (mkIdent x) else none)
+      let qvars := (bound_vars gthm).filterMap (fun (x, binding) =>
+        binding.bind (fun (op, type) =>
+          if op == ":" && Syntax.getId type == q then some (mkIdent x) else none))
       if qvars == [] then throwError "no arguments of given type"
       let ind ← qvars.mapM (fun x => `(tactic| cases $x:ident using Quotient.ind))
       `(by

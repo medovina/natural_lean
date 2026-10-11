@@ -274,14 +274,14 @@ def of_ids_types : TSyntax `ids_types → CoreM IdVars
       pure $ xs.map (·, ":", type)
   | _ => throwError "unknown ids_types"
 
-def of_for_all_ids : TSyntax ``for_all_ids → CoreM (List (Ident × BinderOp × Term))
+def of_for_all_ids : TSyntax ``for_all_ids → CoreM IdVars
   | `(for_all_ids| $_:_for_all $ids_type:ids_types ,) => of_ids_types ids_type
   | _ => throwError "unknown for_all_ids"
 
 def function_name (s: String) : String := s.replace " " "_"
 
-def check_no_binder_op : α × BinderOp × Term → CoreM (α × Term)
-  | (id, ":", t) => pure (id, t)
+def check_no_binder_op : α × Option (BinderOp × Term) → CoreM (α × Term)
+  | (id, some (":", t)) => pure (id, t)
   | _ => throwError "unexpected binder op"
 
 -- natural language
@@ -312,7 +312,7 @@ def of_noun_phrase_e : TSyntax `noun_phrase_e → CoreM Term
   | `(noun_phrase_e| $e:expr) => of_expr e
   | `(noun_phrase_e| $e:expr and $f:expr) => do
       let x := mkIdent `x
-      `(fun $x => x = $(← of_expr e) ∨ x = $(← of_expr f))
+      `(fun $x => $x = $(← of_expr e) ∨ $x = $(← of_expr f))
   | `(noun_phrase_e| the $nom:nominal) => do
       let nom ← of_nominal nom
       let x := mkIdent `x
@@ -336,9 +336,11 @@ def of_verb_phrase : TSyntax `verb_phrase → CoreM (Term → CoreM Term)
   | `(verb_phrase| is $p:predicative_e_t) => of_predicative_e_t p
   | `(verb_phrase| are $p:predicative_e) => do
       let p ← of_predicative_e p
-      pure $ fun (e : Term) => match e, p with
-        | `(fun x => $e), `(fun x => $p) =>
-              `(∀x : Nat, $e:term ↔ $p:term)
+      pure $ fun (e : Term) =>
+        match e, p with
+        | `(fun $x:ident => $e), `(fun $y:ident => $p) =>
+            let p := subst_var x y.getId p
+            `(∀ $x, $(⟨e⟩):term ↔ $(⟨p⟩):term)
         | _, _ => throwError "of_verb_phrase: unexpected"
   | _ => throwError "unknown verb phrase"
 
@@ -431,8 +433,11 @@ def with_local (name: Name) (type: Term) (f: TermElabM α) : TermElabM α :=
 -- Bind the given variables with their types, then run f.
 def with_vars (le: Vars) (f: TermElabM α) : TermElabM α := match le with
   | [] => f
-  | (name, ":", type) :: rest => with_local name type (with_vars rest f)
-  | (name, "∈", s) :: rest => do
+  | (name, none) :: rest =>
+      let type := Lean.mkConst ``Unit  -- just a guess
+      withLocalDecl name .default type (fun _var => with_vars rest f)
+  | (name, some (":", type)) :: rest => with_local name type (with_vars rest f)
+  | (name, some ("∈", s)) :: rest => do
       let type ← elab_to_type s
       match type.getAppArgs with
         | #[u] => withLocalDecl name .default u (fun _var => with_vars rest f)

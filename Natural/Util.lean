@@ -134,7 +134,7 @@ attribute [combinator_parenthesizer rawNumLitNoAntiquot] PrettyPrinter.Parenthes
 def nat : Parser :=
   withAntiquot (mkAntiquot "num" numLitKind) rawNumLitNoAntiquot
 
--- syntax helpers
+-- syntax/term helpers
 
 def as_ident : Term → Option Ident
   | `($i:ident) => .some i
@@ -145,6 +145,12 @@ def as_ident! (t: Term): Ident := (as_ident t).get!
 def as_term (t: TSyntax α): Term := ⟨t.raw⟩
 
 def id_append (id: Ident) (name: Name) := mkIdent (id.getId ++ name)
+
+def subst_var (i: Ident) (j: Name) (s: Syntax): Syntax := match s with
+  | .ident _ _ n _ => if n == j then i else s
+  | .node info kind args =>
+      .node info kind (args.map (subst_var i j))
+  | _ => s
 
 def opt_and : Option Term → Option Term → CoreM Term
   | none, some p => pure p
@@ -229,14 +235,16 @@ deriving BEq
 
 abbrev BinderOp := String
 
-abbrev Vars := List (Name × BinderOp × Term)
-abbrev IdVars := List (Ident × BinderOp × Term)
+abbrev Vars := List (Name × Option (BinderOp × Term))
+abbrev IdVars := List (Ident × Option (BinderOp × Term))
 
-def of_bracketed_binder : TSyntax ``bracketedBinder → Ident × BinderOp × Term
-  | `(bracketedBinder| ($x:ident : $t)) => (x, ":", t)
+def of_bracketed_binder (b: TSyntax ``bracketedBinder) : Ident × Option (BinderOp × Term) := match b with
+  | `($x:ident) => (x, none)
+  | `(bracketedBinder| ($x:ident : $t)) => (x, some (":", t))
   | _ => panic! "of_bracketed_binder"
 
-def of_bracketed_ex_binder : TSyntax ``bracketedExplicitBinders → Ident × BinderOp × Term
+def of_bracketed_ex_binder :
+      TSyntax ``bracketedExplicitBinders → Ident × Option (BinderOp × Term)
   | `(bracketedExplicitBinders| ($x:ident : $t)) => (x, ":", t)
   | _ => panic! "of_ex_bracketed_binder"
 
@@ -267,14 +275,16 @@ partial def match_binders (s: Syntax): Option (BinderType × IdVars × Term) :=
 
 def mk_for_all (vars: IdVars) (t: Term) : CoreM Term :=
   vars.foldrM (fun
-    | (x, ":", t), a => `(∀ $x : $t, $a)
-    | (x, "∈", t), a => `(∀ $x:ident ∈ $t, $a)
+    | (x, none), a => `(∀ $x, $a)
+    | (x, some (":", t)), a => `(∀ $x : $t, $a)
+    | (x, some ("∈", t)), a => `(∀ $x:ident ∈ $t, $a)
     | _, _ => throwError "mk_for_all: unknown op") t
 
 def mk_exists (vars: IdVars) (t: Term) : CoreM Term :=
   vars.foldrM (fun
-    | (x, ":", t), a => `(∃ $x:ident : $t, $a)
-    | (x, "∈", t), a => `(∃ $x:ident ∈ $t, $a)
+    | (x, none), a => `(∃ $x:ident, $a)
+    | (x, some (":", t)), a => `(∃ $x:ident : $t, $a)
+    | (x, some ("∈", t)), a => `(∃ $x:ident ∈ $t, $a)
     | _, _ => throwError "mk_for_all: unknown op") t
 
 def mk_binder (bt: BinderType) (xs: IdVars) (t: Term)
