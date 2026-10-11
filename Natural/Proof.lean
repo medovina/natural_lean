@@ -358,7 +358,7 @@ partial def show_blocks (blocks: List Block): CoreM Format :=
   do pure $ joinSep (← blocks.mapM show1) "\n"
 
 def is_assert_false : ProofStep → Bool
-  | .assert t _ => Syntax.getId t == ``False
+  | .assert t _ => is_const_false t
   | _ => false
 
 partial def infer_blocks (steps: List ProofStep): List Block :=

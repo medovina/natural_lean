@@ -152,10 +152,18 @@ def subst_var (i: Ident) (j: Name) (s: Syntax): Syntax := match s with
       .node info kind (args.map (subst_var i j))
   | _ => s
 
+def is_const_true (t: Term) := Syntax.getId t == ``True
+def is_const_false (t: Term) := Syntax.getId t == ``False
+
+def mk_and (t: Term) (u: Term): CoreM Term :=
+  if is_const_true t then pure u
+  else if is_const_true u then pure t
+  else `($t ∧ $u)
+
 def opt_and : Option Term → Option Term → CoreM Term
   | none, some p => pure p
   | some p, none => pure p
-  | some p, some q => `($p ∧ $q)
+  | some p, some q => mk_and p q
   | _, _ => throwError "opt_and: no term"
 
 inductive OpKind

@@ -114,6 +114,7 @@ def of_multi_specifier : TSyntax `multi_specifier → List Term → CoreM (List 
   | _ => fun _ => throwError "unknown multi_specifier"
 
 def mk_false : Term := mkIdent ``False
+def mk_true : Term := mkIdent ``True
 
 def op_map := [
   ("·", "*"), ("×", "*"),
@@ -287,7 +288,7 @@ def check_no_binder_op : α × Option (BinderOp × Term) → CoreM (α × Term)
 -- natural language
 
 def of_adjective : TSyntax ``adjective → CoreM (Term → CoreM Term)
-  | `(adjective| only) => pure (fun x => pure x)
+  | `(adjective| only) => pure (fun _x => pure mk_true)
   | `(adjective| $n:natural_name) => do
       let a ← of_natural_name n
       pure fun e => `($a $e)
@@ -305,7 +306,7 @@ partial def of_nominal : TSyntax `nominal → CoreM (Term → CoreM Term)
   | `(nominal| $a:adjective $nom:nominal) => do
       let a ← of_adjective a
       let nom ← of_nominal nom
-      pure fun e => do `($(← nom e) ∧ $(← a e))
+      pure fun e => do mk_and (← nom e) (← a e)
   | _ => throwError "unknown nominal"
 
 def of_noun_phrase_e : TSyntax `noun_phrase_e → CoreM Term
