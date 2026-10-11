@@ -331,11 +331,14 @@ partial def of_nominal_e_e_t :
       pure fun e f => do mk_and  (← a e) (← nom e f)
   | _ => throwError "unknown nominal_e_e_t"
 
+mutual
 partial def of_nominal_e_t : TSyntax `nominal_e_t → CoreM (Term → CoreM Term)
-  | `(nominal_e_t| $n:noun) => do
+  | `(nominal_e_t| $n:noun $[that $vp:verb_phrase]?) => do
       let n ← of_noun n
       let t := (← getConstInfo n.getId).type
-      if t.isType then pure fun _e => pure mk_true
+      if t.isType then match vp with
+        | some vp => of_verb_phrase vp
+        | none => pure fun _e => pure mk_true
       else throwError "of_nominal_e_t: unimplemented"
   | `(nominal_e_t| $n:nominal_e_e_t of $f:expr) => do
       let n ← of_nominal_e_e_t n
@@ -343,7 +346,7 @@ partial def of_nominal_e_t : TSyntax `nominal_e_t → CoreM (Term → CoreM Term
       pure fun e => n e f
   | _ => throwError "unknown nominal_e_t"
 
-def of_noun_phrase_e : TSyntax `noun_phrase_e → CoreM Term
+partial def of_noun_phrase_e : TSyntax `noun_phrase_e → CoreM Term
   | `(noun_phrase_e| $e:expr) => of_expr e
   | `(noun_phrase_e| $e:expr and $f:expr) => do
       let x := mkIdent `x
@@ -354,16 +357,16 @@ def of_noun_phrase_e : TSyntax `noun_phrase_e → CoreM Term
       `(fun $x => $(← nom x))  -- characteristic set
   | _ => throwError "unknown noun_phrase"
 
-def of_noun_phrase_e_e_t :
+partial def of_noun_phrase_e_e_t :
         TSyntax `noun_phrase_e_e_t → CoreM (Term → Term → CoreM Term)
   | `(noun_phrase_e_e_t| a $nom:nominal_e_e_t) => of_nominal_e_e_t nom
   | _ => throwError "unknown noun_phrase_e_t"
 
-def of_noun_phrase_e_t : TSyntax `noun_phrase_e_t → CoreM (Term → CoreM Term)
+partial def of_noun_phrase_e_t : TSyntax `noun_phrase_e_t → CoreM (Term → CoreM Term)
   | `(noun_phrase_e_t| a $nom:nominal_e_t) => of_nominal_e_t nom
   | _ => throwError "unknown noun_phrase_e_t"
 
-def of_noun_phrase_et_t:
+partial def of_noun_phrase_et_t:
         TSyntax ``noun_phrase_et_t → CoreM ((Term → CoreM Term) → CoreM Term)
   | `(noun_phrase_et_t| Every $nom:nominal_e_t) => do
       let nom ← of_nominal_e_t nom
@@ -374,16 +377,16 @@ def of_noun_phrase_et_t:
         `(∀ $x, $(← mk_implies t u))
   | _ => throwError "unknown noun_phrase_et_t"
 
-def of_predicative_e : TSyntax `predicative_e → CoreM Term
+partial def of_predicative_e : TSyntax `predicative_e → CoreM Term
   | `(predicative_e| $np:noun_phrase_e) => of_noun_phrase_e np
   | _ => throwError "unknown predicative_e"
 
-def of_predicative_e_t : TSyntax `predicative_e_t → CoreM (Term → CoreM Term)
+partial def of_predicative_e_t : TSyntax `predicative_e_t → CoreM (Term → CoreM Term)
   | `(predicative_e_t| $ap:adjective_phrase) => of_adjective_phrase ap
   | `(predicative_e_t| $np:noun_phrase_e_t) => of_noun_phrase_e_t np
   | _ => throwError "unknown predicative"
 
-def of_verb_phrase : TSyntax `verb_phrase → CoreM (Term → CoreM Term)
+partial def of_verb_phrase : TSyntax `verb_phrase → CoreM (Term → CoreM Term)
   | `(verb_phrase| has $np:noun_phrase_e_e_t) => do
       let np ← of_noun_phrase_e_e_t np
       pure fun e => do
@@ -400,6 +403,7 @@ def of_verb_phrase : TSyntax `verb_phrase → CoreM (Term → CoreM Term)
             `(∀ $x, $(⟨e⟩):term ↔ $(⟨p⟩):term)
         | _, _ => throwError "of_verb_phrase: unexpected"
   | _ => throwError "unknown verb phrase"
+end
 
 -- prop
 

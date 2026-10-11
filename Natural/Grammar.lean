@@ -179,6 +179,8 @@ sdef adjective_phrase  -- type: e → t
   | adjective
   | adjective "than" expr
 
+declare_syntax_cat verb_phrase  -- forward declaration
+
 -- type: e → t (e.g. "integer")
 -- type: e → e → t  (e.g. "divisor")
 syntax noun := natural_name
@@ -188,7 +190,7 @@ sdef nominal_e_e_t
   | adjective nominal_e_e_t
 
 sdef nominal_e_t
-  | noun
+  | noun ("that" verb_phrase)?
   | nominal_e_e_t "of" expr
 
 sdef noun_phrase_e
@@ -211,10 +213,10 @@ sdef predicative_e_t
   | adjective_phrase
   | noun_phrase_e_t
 
-sdef verb_phrase  -- type: e → t
-  | "has" noun_phrase_e_e_t
-  | &"is" predicative_e_t
-  | "are" predicative_e
+-- verb_phrase, type: e → t
+syntax "has" noun_phrase_e_e_t : verb_phrase
+syntax &"is" predicative_e_t : verb_phrase
+syntax "are" predicative_e : verb_phrase
 
 -- prop
 
