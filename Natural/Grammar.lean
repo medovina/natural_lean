@@ -181,17 +181,22 @@ sdef adjective_phrase  -- type: e → t
 
 syntax noun := natural_name  -- type: e | e → t
 
-sdef nominal    -- type: e → t
-  | noun "of" expr
-  | adjective nominal
+sdef nominal_e_e_t
+  | noun
+  | adjective nominal_e_e_t
+
+syntax nominal_e_t := nominal_e_e_t "of" expr
 
 sdef noun_phrase_e
   | expr
   | expr "and" expr
-  | "the" nominal
+  | "the" nominal_e_t
+
+declare_syntax_cat noun_phrase_e_e_t (behavior := symbol)
+syntax &"a" nominal_e_e_t : noun_phrase_e_e_t
 
 declare_syntax_cat noun_phrase_e_t (behavior := symbol)
-syntax &"a" nominal : noun_phrase_e_t
+syntax &"a" nominal_e_t : noun_phrase_e_t
 
 sdef predicative_e
   | noun_phrase_e
@@ -201,6 +206,7 @@ sdef predicative_e_t
   | noun_phrase_e_t
 
 sdef verb_phrase  -- type: e → t
+  | "has" noun_phrase_e_e_t
   | &"is" predicative_e_t
   | "are" predicative_e
 

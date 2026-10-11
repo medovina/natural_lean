@@ -246,29 +246,31 @@ abbrev BinderOp := String
 abbrev Vars := List (Name × Option (BinderOp × Term))
 abbrev IdVars := List (Ident × Option (BinderOp × Term))
 
-def of_bracketed_binder (b: TSyntax ``bracketedBinder) : Ident × Option (BinderOp × Term) := match b with
-  | `($x:ident) => (x, none)
+def of_bracketed_binder :
+      TSyntax ``bracketedBinder → Ident × Option (BinderOp × Term)
   | `(bracketedBinder| ($x:ident : $t)) => (x, some (":", t))
   | _ => panic! "of_bracketed_binder"
 
 def of_bracketed_ex_binder :
       TSyntax ``bracketedExplicitBinders → Ident × Option (BinderOp × Term)
   | `(bracketedExplicitBinders| ($x:ident : $t)) => (x, ":", t)
-  | _ => panic! "of_ex_bracketed_binder"
+  | _ => panic! "of_bracketed_ex_binder"
 
 def match_binder (s: Syntax) : Option (BinderType × IdVars × Term) :=
   match s with
+    | `(∀ $x:ident, $t) => .some (.all, [(x, none)], t)
     | `(∀ $xs:ident* : $type, $t) =>
         .some (.all, xs.toList.map (·, ":", type), t)
     | `(∀ $xs:bracketedBinder*, $t) =>
         .some (.all, xs.toList.map of_bracketed_binder, t)
     | `(∀ $x:ident ∈ $s, $t) => .some (.all, [(x, "∈", s)], t)
+    | `(∃ $x:ident, $t) => .some (.exists, [(x, none)], t)
     | `(∃ $[$xs:ident]* : $type, $t) =>
         .some (.exists, xs.toList.map (·, ":", type), t)
     | `(∃ $xs:bracketedExplicitBinders*, $t) =>
         .some (.exists, xs.toList.map of_bracketed_ex_binder, t)
     | `(∃ $x:ident ∈ $s, $t) => .some (.exists, [(x, "∈", s)], t)
-    | _ => .none
+    | _ => Option.none
 
 partial def match_binders (s: Syntax): Option (BinderType × IdVars × Term) :=
   let m := match_binder s
