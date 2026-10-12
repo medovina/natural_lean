@@ -394,16 +394,27 @@ partial def of_noun_phrase_e_t : TSyntax `noun_phrase_e_t → CoreM (Term → Co
   | `(noun_phrase_e_t| a $nom:nominal_e_t) => of_nominal_e_t nom
   | _ => throwError "unknown noun_phrase_e_t"
 
-partial def of_noun_phrase_et_t:
+partial def of_noun_phrase_et_t :
         TSyntax ``noun_phrase_et_t → CoreM ((Term → CoreM Term) → CoreM Term)
   | `(noun_phrase_et_t| Every $nom:nominal_e_t) => do
       let nom ← of_nominal_e_t nom
-      pure $ fun q => do
+      pure $ fun p => do
         let x := mkIdent `x
         let t ← nom (← `($x))
-        let u ← q (← `($x))
+        let u ← p (← `($x))
         `(∀ $x, $(← mk_implies t u))
   | _ => throwError "unknown noun_phrase_et_t"
+
+partial def of_noun_phrase_e_et_t :
+        TSyntax ``noun_phrase_e_et_t → CoreM (Term → (Term → CoreM Term) → CoreM Term)
+  | `(noun_phrase_e_et_t| no $nom:nominal_e_e_t) => do
+      let nom ← of_nominal_e_e_t nom
+      let y := mkIdent `y
+      pure $ fun e p => do
+        let t ← nom (← `($y)) e
+        let u ← p (← `($y))
+        `(¬ ∃ $y:ident, $(← mk_implies t u))
+  | _ => throwError "unknown noun_phrase_e_et_t"
 
 partial def of_predicative_e : TSyntax `predicative_e → CoreM Term
   | `(predicative_e| $np:noun_phrase_e) => of_noun_phrase_e np
@@ -421,6 +432,9 @@ partial def of_verb_phrase : TSyntax `verb_phrase → CoreM (Term → CoreM Term
         let y := mkIdent `y
         let t ← np (← `($y)) e
         `(∃ $y:ident, $t)
+  | `(verb_phrase| has $np:noun_phrase_e_et_t) => do
+      let np ← of_noun_phrase_e_et_t np
+      pure $ fun e => np e (fun _x => pure mk_true)
   | `(verb_phrase| is $p:predicative_e_t) => of_predicative_e_t p
   | `(verb_phrase| are $p:predicative_e) => do
       let p ← of_predicative_e p

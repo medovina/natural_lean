@@ -165,6 +165,7 @@ def mk_and (t: Term) (u: Term): CoreM Term :=
 
 def mk_implies (t: Term) (u: Term): CoreM Term :=
   if is_const_true t then pure u
+  else if is_const_true u then pure t
   else `($t → $u)
 
 def opt_and : Option Term → Option Term → CoreM Term

@@ -190,14 +190,16 @@ sdef adjective_phrase  -- type: e → t
 
 declare_syntax_cat verb_phrase  -- forward declaration
 
--- type: e → t (e.g. "integer")
--- type: e → e → t  (e.g. "divisor")
+-- e → t (e.g. "integer")
+-- e → e → t  (e.g. "divisor")
 syntax noun := natural_noun
 
+-- e → e → t (e.g. "prime divisor")
 sdef nominal_e_e_t
   | noun
   |:50 adjective nominal_e_e_t:50
 
+-- e → t (e.g. "positive integer")
 sdef nominal_e_t
   | noun
   |:60 atomic(nominal_e_e_t:60 "of") expr
@@ -210,13 +212,19 @@ sdef noun_phrase_e
   | expr "and" expr
   | "the" nominal_e_t
 
+-- e → e → t (e.g. "a prime divisor")
 declare_syntax_cat noun_phrase_e_e_t (behavior := symbol)
 syntax &"a" nominal_e_e_t : noun_phrase_e_e_t
 
+-- e → t (e.g. "a positive integer")
 declare_syntax_cat noun_phrase_e_t (behavior := symbol)
 syntax &"a" nominal_e_t : noun_phrase_e_t
 
-syntax noun_phrase_et_t := "Every" nominal_e_t  -- type: (e → t) → t
+-- (e → t) → t (e.g. "every positive integer")
+syntax noun_phrase_et_t := "Every" nominal_e_t
+
+-- e → (e → t) → t (e.g. "no divisor")
+syntax noun_phrase_e_et_t := "no" nominal_e_e_t
 
 sdef predicative_e
   | noun_phrase_e
@@ -227,6 +235,7 @@ sdef predicative_e_t
 
 -- verb_phrase, type: e → t
 syntax "has" noun_phrase_e_e_t : verb_phrase
+syntax "has" noun_phrase_e_et_t : verb_phrase
 syntax &"is" predicative_e_t : verb_phrase
 syntax "are" predicative_e : verb_phrase
 
