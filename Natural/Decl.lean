@@ -490,6 +490,11 @@ def mk_decl (is_instance: Bool) (attr: Option Ident) (name: Option Ident)
     | Option.some name => `($a:attributes ? theorem $name : $thm := $proof)
     | Option.none => `($a:attributes ? example : $thm := $proof)
 
+def of_type_class_ref : TSyntax `type_class_ref → CoreM Ident
+  | `(type_class_ref| $a:natural_adjective) => of_natural_adjective a
+  | `(type_class_ref| $_:_a $n:natural_noun) => of_natural_noun n
+  | _ => throwError "unknown type_class_ref"
+
 def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
           (body: TSyntax `theorem_body) : TermElabM (List Command × List Ident) := do
   let by_default : Option Ident := match corollary_of with
@@ -506,12 +511,10 @@ def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
             let command ← mk_decl false attr name thm proof
             pure (command, name))
         pure (commands, (names.flatMap Option.toList))
-    | `(theorem_body| The $_:_operator $op:binary_op is $_:_a ? $kind:natural_type
+    | `(theorem_body| The $_:_operator $op:binary_op is $kind:type_class_ref
                       on $type:type . $pn:post_name) => withRef body do
         let env ← getEnv
-        let kind ← match (← of_natural_type kind) with
-          | `($kind:ident) => pure kind  -- name of type class or structure
-          | _ => throwError "id expected"
+        let kind ← of_type_class_ref kind
         unless Lean.isStructure env kind.getId do throwError "not a structure"
         let type ← of_type type
         let (name, attr) ← of_post_name pn

@@ -96,11 +96,21 @@ def of_id_list : TSyntax ``id_list → CoreM (List Ident)
       pure $ [id] ++ ids.toList ++ id2.toList
   | _ => throwError "unknown id_list"
 
-def of_natural_name (stx: TSyntax ``natural_name) : CoreM Ident := do
+def of_natural_noun (stx: TSyntax ``natural_noun) : CoreM Ident := do
   let (_cat, name) ← match stx with
-    | `(natural_name| $s:simple_name) => do
+    | `(natural_noun| $s:simple_noun) => do
         (lookup_simple_name (← getEnv) s).getDM (throwError "unknown name")
-    | `(natural_name| $c:compound_name) => do
+    | `(natural_noun| $c:compound_noun) => do
+        (lookup_compound_name (← getEnv) c).getDM (throwError "unknown name")
+    | _ =>
+      throwError "unknown natural_name"
+  mkIdentFromRef name (canonical := true)
+
+def of_natural_adjective (stx: TSyntax ``natural_adjective) : CoreM Ident := do
+  let (_cat, name) ← match stx with
+    | `(natural_adjective| $s:simple_adjective) => do
+        (lookup_simple_name (← getEnv) s).getDM (throwError "unknown name")
+    | `(natural_adjective| $c:compound_adjective) => do
         (lookup_compound_name (← getEnv) c).getDM (throwError "unknown name")
     | _ =>
       throwError "unknown natural_name"
@@ -110,7 +120,7 @@ def of_natural_type (ntype: TSyntax `natural_type) : CoreM Term :=
   withRef ntype do match ntype with
     | `(natural_type| type)
     | `(natural_type| types) => `(Type)
-    | `(natural_type| $n:natural_name) => of_natural_name n
+    | `(natural_type| $n:natural_noun) => of_natural_noun n
     | _ => throwError "unknown natural_type"
 
 def syntax_atom (t: TSyntax α): String := match t.raw with
@@ -301,23 +311,28 @@ def check_no_binder_op : α × Option (BinderOp × Term) → CoreM (α × Term)
 
 def of_adjective : TSyntax ``adjective → CoreM (Term → CoreM Term)
   | `(adjective| only) => pure (fun _x => pure mk_true)
-  | `(adjective| $n:natural_name) => do
-      let a ← of_natural_name n
+  | `(adjective| $n:natural_adjective) => do
+      let a ← of_natural_adjective n
       pure fun e => `($a $e)
   | _ => throwError "unknown adjective"
 
-def of_adjective_phrase : TSyntax `adjective_phrase → CoreM (Term → CoreM Term)
-  | `(adjective_phrase| $a:adjective) => of_adjective a
-  | `(adjective_phrase| $a:adjective than $f:expr) => match a with
-    | `(adjective| $n:natural_name) => do
-        let a ← of_natural_name n
+def of_comp_adjective_phrase :
+      TSyntax ``comp_adjective_phrase → CoreM (Term → CoreM Term)
+  | `(comp_adjective_phrase| $a:adjective than $f:expr) => match a with
+    | `(adjective| $n:natural_adjective) => do
+        let a ← of_natural_adjective n
         let f ← of_expr f
         pure fun e => `($a $e $f)
     | _ => throwError "invalid adjective"
+  | _ => throwError "unknown comp_adjective_phrase"
+
+def of_adjective_phrase : TSyntax `adjective_phrase → CoreM (Term → CoreM Term)
+  | `(adjective_phrase| $a:adjective) => of_adjective a
+  | `(adjective_phrase| $cp:comp_adjective_phrase) => of_comp_adjective_phrase cp
   | _ => throwError "unknown adjective_phrase"
 
 def of_noun : TSyntax ``noun → CoreM Ident
-  | `(noun| $n:natural_name) => of_natural_name n
+  | `(noun| $n:natural_noun) => of_natural_noun n
   | _ => throwError "unknown relation"
 
 partial def of_nominal_e_e_t :
@@ -331,20 +346,33 @@ partial def of_nominal_e_e_t :
       pure fun e f => do mk_and  (← a e) (← nom e f)
   | _ => throwError "unknown nominal_e_e_t"
 
+def and_e_t (x y: Term → CoreM Term): Term → CoreM Term :=
+  fun e => do mk_and (← x e) (← y e)
+
 mutual
 partial def of_nominal_e_t : TSyntax `nominal_e_t → CoreM (Term → CoreM Term)
-  | `(nominal_e_t| $n:noun $[that $vp:verb_phrase]?) => do
+  | `(nominal_e_t| $n:noun) => do
       let n ← of_noun n
       let t := (← getConstInfo n.getId).type
-      if t.isType then match vp with
-        | some vp => of_verb_phrase vp
-        | none => pure fun _e => pure mk_true
+      if t.isType then pure fun _e => pure mk_true
       else throwError "of_nominal_e_t: unimplemented"
   | `(nominal_e_t| $n:nominal_e_e_t of $f:expr) => do
       let n ← of_nominal_e_e_t n
       let f ← of_expr f
       pure fun e => n e f
-  | _ => throwError "unknown nominal_e_t"
+  | `(nominal_e_t| $a:adjective $n:nominal_e_t) => do
+      pure $ and_e_t (← of_adjective a) (← of_nominal_e_t n)
+  | `(nominal_e_t| $n:nominal_e_t $ap:comp_adjective_phrase) => do
+      pure $ and_e_t (← of_nominal_e_t n) (← of_comp_adjective_phrase ap)
+  | `(nominal_e_t| $n:nominal_e_t that $vp:verb_phrase) => do
+      pure $ and_e_t (← of_nominal_e_t n) (← of_verb_phrase vp)
+  | x => do
+    let x := x.raw
+    if x.isOfKind choiceKind then
+      dbg_trace "of_nominal_e_t: {x.getNumArgs} choices"
+      for e in x.getArgs do
+        dbg_trace "{e}"
+    throwError "unknown nominal_e_t"
 
 partial def of_noun_phrase_e : TSyntax `noun_phrase_e → CoreM Term
   | `(noun_phrase_e| $e:expr) => of_expr e
@@ -411,7 +439,6 @@ def of_var_list : TSyntax `var_list → CoreM (IdVars × Option Term)
   | `(var_list| $i:ids_types) => of_ids_types i <&> (·, none)
   | `(var_list| $a:adjective function $f:ident : $type:type) => do
       pure ([(f, ":", ← of_type type)],
-            -- some $ ← `($(← of_adjective a) $f))
             some $ ← (← of_adjective a) f)
   | _ => throwError "unknown var_list"
 

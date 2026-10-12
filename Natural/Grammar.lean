@@ -56,12 +56,15 @@ def lookup_simple_name (env: Environment): Syntax → Option (Category × Name)
       (lookup_assoc_in_env env name_extension (singular_name i none))
   | _ => none
 
-def check_simple_name (env: Environment) (s: Syntax): Bool :=
-  (lookup_simple_name env s).isSome
+def check_simple_name (c: Category) (env: Environment) (s: Syntax): Bool :=
+  (lookup_simple_name env s).any (·.1 == c)
 
-def simple_name : Parser :=
-  withAntiquot (mkAntiquot "simple_name" ``simple_name_id) $
-  atomic (mk_simple_name_id >> checkStackTopEnv check_simple_name "unknown simple name")
+def simple_name (c: Category) (syntax_cat: String) : Parser :=
+  withAntiquot (mkAntiquot syntax_cat ``simple_name_id) $
+  atomic (mk_simple_name_id >> checkStackTopEnv (check_simple_name c) "unknown simple name")
+
+def simple_noun := simple_name Category.noun "simple_noun"
+def simple_adjective := simple_name Category.adjective "simple_adjective"
 
 syntax compound_name_ids := non_var non_var
 
@@ -73,18 +76,22 @@ def lookup_compound_name (env: Environment) (s: Syntax): Option (Category × Nam
       lookup_assoc_in_env env name_extension (singular_name i j)
   | _ => none
 
-def check_compound_name (env: Environment) (s: Syntax): Bool :=
-  (lookup_compound_name env s).isSome
+def check_compound_name (c: Category) (env: Environment) (s: Syntax): Bool :=
+  (lookup_compound_name env s).any (·.1 == c)
 
-def compound_name : Parser :=
-  withAntiquot (mkAntiquot "compound_name" ``compound_name_ids) $
-  atomic (mk_compound_name_ids >> checkStackTopEnv check_compound_name "unknown compound name")
+def compound_name (c: Category) (syntax_cat: String) : Parser :=
+  withAntiquot (mkAntiquot syntax_cat ``compound_name_ids) $
+  atomic (mk_compound_name_ids >> checkStackTopEnv (check_compound_name c) "unknown compound name")
 
-syntax natural_name := simple_name <|> compound_name
+def compound_noun := compound_name Category.noun "compound_noun"
+def compound_adjective := compound_name Category.adjective "compound_adjective"
+
+syntax natural_noun := simple_noun <|> compound_noun
+syntax natural_adjective := simple_adjective <|> compound_adjective
 
 declare_syntax_cat natural_type (behavior := symbol)
 syntax (&"type" <|> "types") : natural_type
-syntax natural_name : natural_type  -- e.g. "natural numbers"
+syntax natural_noun : natural_type  -- e.g. "natural numbers"
 
 syntax binder_op := ":" <|> "∈"
 
@@ -173,25 +180,30 @@ syntax for_all_ids := _for_all ids_types ","
 
 -- natural language
 
-syntax adjective := "only" <|> natural_name  -- type: e → t
+syntax adjective := "only" <|> natural_adjective  -- type: e → t
+
+syntax comp_adjective_phrase := adjective "than" expr  -- type: e → t
 
 sdef adjective_phrase  -- type: e → t
   | adjective
-  | adjective "than" expr
+  | comp_adjective_phrase
 
 declare_syntax_cat verb_phrase  -- forward declaration
 
 -- type: e → t (e.g. "integer")
 -- type: e → e → t  (e.g. "divisor")
-syntax noun := natural_name
+syntax noun := natural_noun
 
 sdef nominal_e_e_t
   | noun
-  | adjective nominal_e_e_t
+  |:50 adjective nominal_e_e_t:50
 
 sdef nominal_e_t
-  | noun ("that" verb_phrase)?
-  | nominal_e_e_t "of" expr
+  | noun
+  |:60 atomic(nominal_e_e_t:60 "of") expr
+  |adjective nominal_e_t
+  | nominal_e_t comp_adjective_phrase
+  | nominal_e_t "that" verb_phrase
 
 sdef noun_phrase_e
   | expr
@@ -481,9 +493,13 @@ sdef props_proofs
   | top_sentence (_proof_dot proof)?
   | prop_item+ (_proof_dot proof_items)?
 
+sdef type_class_ref
+  | natural_adjective
+  | _a natural_noun
+
 sdef theorem_body
   | init_steps props_proofs
-  | "The" _operator binary_op "is" _a ? natural_type "on" type "." post_name
+  | "The" _operator binary_op "is" type_class_ref "on" type "." post_name
 
 syntax _theorem := thm_name ? str ? "." theorem_body
 

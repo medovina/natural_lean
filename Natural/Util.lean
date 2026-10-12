@@ -405,7 +405,7 @@ inductive Category
   | noun
   | verb
   | adjective
-deriving Inhabited
+deriving BEq, Inhabited
 
 syntax category := &"noun" <|> &"verb" <|> &"adjective"
 
