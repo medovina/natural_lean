@@ -445,8 +445,10 @@ sdef type_spec
 
 syntax defined_term := non_var non_var ?
 
+syntax a_or_the := _a <|> "the"
+
 syntax type_def :=
-  "The" &"type" id_sig ("(" "the" defined_term ")")?
+  "The" &"type" id_sig ("(" a_or_the defined_term ")")?
   "is" "defined" type_spec
 
 syntax attrib := "@" ident

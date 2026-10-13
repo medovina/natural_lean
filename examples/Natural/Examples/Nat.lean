@@ -257,7 +257,7 @@ Proof.
 
   Conversely, suppose that S(x) ≤ y.  If x ≥ y then by ℕ.le_trans we deduce that S(x) ≤ x, which is a contradiction to ℕ.lt_succ and ℕ.lt_trichotomy.  So by ℕ.lt_trichotomy it must be that x < y.
 
-Definition.  Let A : Set(ℕ).  Let z : ℕ.  z is a least element of A iff z ∈ A and z ≤ u for all u ∈ A.
+Definition.  Let A : Set(ℕ).  Let z : ℕ.  z is a least element of A iff z ∈ A and for all u ∈ A, z ≤ u.
 
 Theorem "Least number principle". Let A : Set(ℕ).  Suppose that A is nonempty.  Then there exists some x : ℕ such that x is a least element of A.
 

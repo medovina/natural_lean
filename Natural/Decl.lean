@@ -109,7 +109,7 @@ def of_defined_term : TSyntax ``defined_term → CoreM String
 
 def of_type_def : TSyntax ``type_def → CoreM (List Command)
   | `(type_def|
-        The type $id_sig:id_sig $[(the $n:defined_term)]?
+        The type $id_sig:id_sig $[($_:a_or_the $n:defined_term)]?
         is defined $ts:type_spec) => do
       let (name, sig) ← of_id_sig id_sig
       let commands ← of_type_spec name sig ts

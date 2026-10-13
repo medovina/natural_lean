@@ -10,7 +10,7 @@ namespace Natural
 
 -- sets: definition
 
-Definition.  The type Set(T) is defined as T → Prop.
+Definition.  The type Set(T) (a set) is defined as T → Prop.
 
 Definition.  For any S : Set(T) and x : T, x ∈ S iff S(x) is true.
 
