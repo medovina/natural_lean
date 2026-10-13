@@ -1,7 +1,5 @@
 import Natural.Examples.SetBase
 
-namespace Natural
-
 -- sets: basic definitions
 
 Definition.  Let S : Set(T).

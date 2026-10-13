@@ -4,8 +4,6 @@ import Natural.Examples.Set
     https://adam.math.hhu.de/#/g/djvelleman/stg4
 -/
 
-namespace Natural
-
 -- subset world
 
 Theorem.  Let A, B, C : Set(T).

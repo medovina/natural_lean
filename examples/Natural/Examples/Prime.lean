@@ -1,4 +1,5 @@
 import Natural
+import Natural.Examples.Nat
 
 Definition.  Let x : Int.  x is positive iff x > 0.
 

@@ -3,10 +3,9 @@ import Natural
 open Lean.Core
 open Lean.Parser.Term
 open Lean.Syntax
+open Natural
 
 -- Low-level definitions related to sets.  Most of these use native Lean syntax since they can't be expressed in Natural Lean at this time.
-
-namespace Natural
 
 -- sets: definition
 

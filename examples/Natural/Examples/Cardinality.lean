@@ -1,8 +1,6 @@
 import Natural.Examples.Set
 import Natural.Examples.Function
 
-namespace Natural
-
 Definition.  Let A and B be types.  A ~ B iff there is a bijective function f : A → B.
 
 -- Cantor's Theorem, Wiedijk #63
