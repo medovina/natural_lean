@@ -115,7 +115,7 @@ def of_type_def : TSyntax ``type_def → CoreM (List Command)
       let commands ← of_type_spec name sig ts
       let att ← n.mapM (fun n1 => do
         let t ← of_defined_term n1
-        `(attribute [natural noun $(mkStrLit t):str] $name:ident)
+        `(attribute [natural type $(mkStrLit t):str] $name:ident)
       )
       pure $ commands ++ att.toList
   | _ => throwError "unknown definition"

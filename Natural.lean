@@ -10,7 +10,7 @@ attribute [natural "equivalence relation"] Equivalence
 
 attribute [natural adjective "greater"] GT.gt
 
-attribute [natural "natural number"] Nat
-attribute [natural "integer"] Int
+attribute [natural type "natural number"] Nat
+attribute [natural type "integer"] Int
 
 attribute [natural "divisor"] Dvd.dvd

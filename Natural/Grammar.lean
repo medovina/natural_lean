@@ -65,6 +65,7 @@ def simple_name (c: Category) (syntax_cat: String) : Parser :=
 
 def simple_noun := simple_name Category.noun "simple_noun"
 def simple_adjective := simple_name Category.adjective "simple_adjective"
+def simple_type := simple_name Category.type "simple_type"
 
 syntax compound_name_ids := non_var non_var
 
@@ -85,13 +86,16 @@ def compound_name (c: Category) (syntax_cat: String) : Parser :=
 
 def compound_noun := compound_name Category.noun "compound_noun"
 def compound_adjective := compound_name Category.adjective "compound_adjective"
+def compound_type := compound_name Category.type "compound_type"
 
 syntax natural_noun := simple_noun <|> compound_noun
 syntax natural_adjective := simple_adjective <|> compound_adjective
+syntax natural_type_name := simple_type <|> compound_type
 
 declare_syntax_cat natural_type (behavior := symbol)
-syntax (&"type" <|> "types") : natural_type
-syntax natural_noun : natural_type  -- e.g. "natural numbers"
+syntax &"type" : natural_type
+syntax "types" : natural_type
+syntax natural_type_name ("of" natural_type)? : natural_type
 
 syntax binder_op := ":" <|> "∈"
 
@@ -190,18 +194,17 @@ sdef adjective_phrase  -- type: e → t
 
 declare_syntax_cat verb_phrase  -- forward declaration
 
--- e → t (e.g. "integer")
 -- e → e → t  (e.g. "divisor")
-syntax noun := natural_noun
+syntax noun_e_e_t := natural_noun
 
 -- e → e → t (e.g. "prime divisor")
 sdef nominal_e_e_t
-  | noun
+  | noun_e_e_t
   |:50 adjective nominal_e_e_t:50
 
--- e → t (e.g. "positive integer")
+-- e → t (e.g. "positive integer", "divisor of n")
 sdef nominal_e_t
-  | noun
+  | natural_type
   |:60 atomic(nominal_e_e_t:60 "of") expr
   |adjective nominal_e_t
   | nominal_e_t comp_adjective_phrase
@@ -337,10 +340,6 @@ kdef _assume1 = "assume" | "suppose"
 
 sdef _assume
   | _also ? _assume1 "that"?
-
-sdef type_suffix
-  | ":" type
-  | "be" natural_type
 
 sdef let_step
   | atomic(_let ident,+ ":") type

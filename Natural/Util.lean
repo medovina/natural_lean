@@ -406,19 +406,22 @@ inductive Category
   | noun
   | verb
   | adjective
+  | type  -- also a noun
 deriving BEq, Inhabited
 
-syntax category := &"noun" <|> &"verb" <|> &"adjective"
+syntax category := &"noun" <|> &"verb" <|> &"adjective" <|> &"type"
 
 def of_category : TSyntax ``category → Category
   | `(category| noun) => .noun
   | `(category| verb) => .verb
   | `(category| adjective) => .adjective
+  | `(category| type) => .type
   | _ => panic! "of_category"
 
 def to_category: Category → CoreM (TSyntax ``category)
   | .noun => `(category| noun)
   | .verb => `(category| verb)
   | .adjective => `(category| adjective)
+  | .type => `(category| type)
 
 end Natural

@@ -102,8 +102,7 @@ def of_natural_noun (stx: TSyntax ``natural_noun) : CoreM Ident := do
         (lookup_simple_name (← getEnv) s).getDM (throwError "unknown name")
     | `(natural_noun| $c:compound_noun) => do
         (lookup_compound_name (← getEnv) c).getDM (throwError "unknown name")
-    | _ =>
-      throwError "unknown natural_name"
+    | _ => throwError "unknown natural_noun"
   mkIdentFromRef name (canonical := true)
 
 def of_natural_adjective (stx: TSyntax ``natural_adjective) : CoreM Ident := do
@@ -112,15 +111,25 @@ def of_natural_adjective (stx: TSyntax ``natural_adjective) : CoreM Ident := do
         (lookup_simple_name (← getEnv) s).getDM (throwError "unknown name")
     | `(natural_adjective| $c:compound_adjective) => do
         (lookup_compound_name (← getEnv) c).getDM (throwError "unknown name")
-    | _ =>
-      throwError "unknown natural_name"
+    | _ => throwError "unknown natural_adjective"
   mkIdentFromRef name (canonical := true)
 
-def of_natural_type (ntype: TSyntax `natural_type) : CoreM Term :=
+def of_natural_type_name (stx: TSyntax ``natural_type_name) : CoreM Ident := do
+  let (_cat, name) ← match stx with
+    | `(natural_type_name| $s:simple_type) => do
+        (lookup_simple_name (← getEnv) s).getDM (throwError "unknown name")
+    | `(natural_type_name| $c:compound_type) => do
+        (lookup_compound_name (← getEnv) c).getDM (throwError "unknown name")
+    | _ => throwError "unknown natural_type_name"
+  mkIdentFromRef name (canonical := true)
+
+partial def of_natural_type (ntype: TSyntax `natural_type) : CoreM Term :=
   withRef ntype do match ntype with
     | `(natural_type| type)
     | `(natural_type| types) => `(Type)
-    | `(natural_type| $n:natural_noun) => of_natural_noun n
+    | `(natural_type| $n:natural_type_name) => of_natural_type_name n
+    | `(natural_type| $n:natural_type_name of $t:natural_type) => do
+        `($(← of_natural_type_name n) $(← of_natural_type t))
     | _ => throwError "unknown natural_type"
 
 def syntax_atom (t: TSyntax α): String := match t.raw with
@@ -331,14 +340,14 @@ def of_adjective_phrase : TSyntax `adjective_phrase → CoreM (Term → CoreM Te
   | `(adjective_phrase| $cp:comp_adjective_phrase) => of_comp_adjective_phrase cp
   | _ => throwError "unknown adjective_phrase"
 
-def of_noun : TSyntax ``noun → CoreM Ident
-  | `(noun| $n:natural_noun) => of_natural_noun n
-  | _ => throwError "unknown relation"
+def of_noun_e_e_t : TSyntax ``noun_e_e_t → CoreM Ident
+  | `(noun_e_e_t| $n:natural_noun) => of_natural_noun n
+  | _ => throwError "unknown noun_e_e_t"
 
 partial def of_nominal_e_e_t :
         TSyntax `nominal_e_e_t → CoreM (Term → Term → CoreM Term)
-  | `(nominal_e_e_t| $n:noun) => do
-      let n ← of_noun n
+  | `(nominal_e_e_t| $n:noun_e_e_t) => do
+      let n ← of_noun_e_e_t n
       pure fun e f => `($n $e $f)
   | `(nominal_e_e_t| $a:adjective $nom:nominal_e_e_t) => do
       let a ← of_adjective a
@@ -351,11 +360,8 @@ def and_e_t (x y: Term → CoreM Term): Term → CoreM Term :=
 
 mutual
 partial def of_nominal_e_t : TSyntax `nominal_e_t → CoreM (Term → CoreM Term)
-  | `(nominal_e_t| $n:noun) => do
-      let n ← of_noun n
-      let t := (← getConstInfo n.getId).type
-      if t.isType then pure fun _e => pure mk_true
-      else throwError "of_nominal_e_t: unimplemented"
+  | `(nominal_e_t| $_t:natural_type) =>
+      pure fun _e => pure mk_true
   | `(nominal_e_t| $n:nominal_e_e_t of $f:expr) => do
       let n ← of_nominal_e_e_t n
       let f ← of_expr f

@@ -504,8 +504,8 @@ In Visual Studio Code, if you hover the mouse over a natural name (such as "natu
 You can use an attribute to assign a natural name to a type that already exists in Lean:
 
 ```
-attribute [natural "natural number"] Nat
-attribute [natural "integer"] Int
+attribute [natural type "natural number"] Nat
+attribute [natural type "integer"] Int
 ```
 
 In fact the preceding two attributes are predefined in Natural Lean, so you don't need to write them.
@@ -532,7 +532,7 @@ attribute [natural adjective "commutative"] Std.Commutative
 
 In fact the preceding two attributes are predefined in Natural Lean.
 
-As visible above, the `natural` attribute takes an optional lexical __category__ (`noun`, `verb`, or `adjective`) for the word that is being defined.  The category determined how it may be used in natural-language text.  (If you do not specify a category, the default is `noun`.)
+As visible above, the `natural` attribute takes an optional __category__ (`noun`, `verb`, `adjective`, or `type`) for the word that is being defined. (If you do not specify a category, the default is `noun`.)
 
 You may declare that an operator belongs to a type class, using the type class's natural name:
 
