@@ -146,6 +146,14 @@ def as_term (t: TSyntax α): Term := ⟨t.raw⟩
 
 def id_append (id: Ident) (name: Name) := mkIdent (id.getId ++ name)
 
+def map_vars (map: List (Name × Name)) (s: Syntax): Syntax := match s with
+  | .ident _ _ n _ => match map.lookup n with
+    | some n1 => .ident .none n1.toString.toRawSubstring n1 []
+    | none => s
+  | .node info kind args =>
+      .node info kind (args.map (map_vars map))
+  | _ => s
+
 def subst_var (i: Ident) (j: Name) (s: Syntax): Syntax := match s with
   | .ident _ _ n _ => if n == j then i else s
   | .node info kind args =>

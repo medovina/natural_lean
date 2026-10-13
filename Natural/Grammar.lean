@@ -192,8 +192,9 @@ sdef adjective_phrase  -- type: e → t
   | adjective
   | comp_adjective_phrase
 
-declare_syntax_cat verb_phrase  -- forward declaration
-declare_syntax_cat noun_phrase_e_et_t  -- forward declaration
+-- forward declarations
+declare_syntax_cat verb_phrase
+declare_syntax_cat noun_phrase_e_et_t
 
 -- e → e → t  (e.g. "divisor")
 syntax noun_e_e_t := natural_noun
@@ -250,6 +251,8 @@ sdef var_list
   | ids_types
   | adjective "function" ident ":" type
 
+declare_syntax_cat exists_phrase  -- forward declaration
+
 sdef prop
   | (priority := 1) atomic(noun_phrase_e verb_phrase)
   | noun_phrase_et_t verb_phrase
@@ -265,9 +268,12 @@ sdef prop
   |:18 prop:19 atomic("," "and") prop:18
   |:16 atomic(_either ? prop:17 "," "or") prop:16
   | _if prop atomic("," ? "then") prop
-  | _there _exists some_or_no ? var_list ("such" "that" prop)?
+  | _there _exists some_or_no ? exists_phrase
   | multi_or
   | have_contradiction
+
+syntax var_list ("such" "that" prop)? : exists_phrase
+syntax nominal_e_t : exists_phrase
 
 -- proof steps
 

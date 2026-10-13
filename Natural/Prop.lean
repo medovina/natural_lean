@@ -358,6 +358,8 @@ partial def of_nominal_e_e_t :
 def and_e_t (x y: Term → CoreM Term): Term → CoreM Term :=
   fun e => do mk_and (← x e) (← y e)
 
+def fresh_var : CoreM Ident := mkIdent <$> mkFreshUserName `x
+
 mutual
 partial def of_nominal_e_t : TSyntax `nominal_e_t → CoreM (Term → CoreM Term)
   | `(nominal_e_t| $_t:natural_type) =>
@@ -376,18 +378,12 @@ partial def of_nominal_e_t : TSyntax `nominal_e_t → CoreM (Term → CoreM Term
       pure $ and_e_t (← of_nominal_e_t n) (← of_comp_adjective_phrase ap)
   | `(nominal_e_t| $n:nominal_e_t that $vp:verb_phrase) => do
       pure $ and_e_t (← of_nominal_e_t n) (← of_verb_phrase vp)
-  | x => do
-    let x := x.raw
-    if x.isOfKind choiceKind then
-      dbg_trace "of_nominal_e_t: {x.getNumArgs} choices"
-      for e in x.getArgs do
-        dbg_trace "{e}"
-    throwError "unknown nominal_e_t"
+  | _ => throwError "unknown nominal_e_t"
 
 partial def of_noun_phrase_e : TSyntax `noun_phrase_e → CoreM Term
   | `(noun_phrase_e| $e:expr) => of_expr e
   | `(noun_phrase_e| $e:expr and $f:expr) => do
-      let x := mkIdent `x
+      let x ← fresh_var
       `(fun $x => $x = $(← of_expr e) ∨ $x = $(← of_expr f))
   | `(noun_phrase_e| the $nom:nominal_e_t) => do
       let nom ← of_nominal_e_t nom
@@ -409,7 +405,7 @@ partial def of_noun_phrase_et_t :
   | `(noun_phrase_et_t| Every $nom:nominal_e_t) => do
       let nom ← of_nominal_e_t nom
       pure $ fun p => do
-        let x := mkIdent `x
+        let x ← fresh_var
         let t ← nom (← `($x))
         let u ← p (← `($x))
         `(∀ $x, $(← mk_implies t u))
@@ -419,11 +415,11 @@ partial def of_noun_phrase_e_et_t :
         TSyntax `noun_phrase_e_et_t → CoreM (Term → (Term → CoreM Term) → CoreM Term)
   | `(noun_phrase_e_et_t| no $nom:nominal_e_e_t) => do
       let nom ← of_nominal_e_e_t nom
-      let y := mkIdent `y
+      let x ← fresh_var
       pure $ fun e p => do
-        let t ← nom (← `($y)) e
-        let u ← p (← `($y))
-        `(¬ ∃ $y:ident, $(← mk_implies t u))
+        let t ← nom (← `($x)) e
+        let u ← p (← `($x))
+        `(¬ ∃ $x:ident, $(← mk_implies t u))
   | _ => throwError "unknown noun_phrase_e_et_t"
 
 partial def of_predicative_e : TSyntax `predicative_e → CoreM Term
@@ -439,9 +435,9 @@ partial def of_verb_phrase : TSyntax `verb_phrase → CoreM (Term → CoreM Term
   | `(verb_phrase| has $np:noun_phrase_e_e_t) => do
       let np ← of_noun_phrase_e_e_t np
       pure fun e => do
-        let y := mkIdent `y
-        let t ← np (← `($y)) e
-        `(∃ $y:ident, $t)
+        let x ← fresh_var
+        let t ← np (← `($x)) e
+        `(∃ $x:ident, $t)
   | `(verb_phrase| has $np:noun_phrase_e_et_t) => do
       let np ← of_noun_phrase_e_et_t np
       pure $ fun e => np e (fun _x => pure mk_true)
@@ -466,7 +462,8 @@ def of_var_list : TSyntax `var_list → CoreM (IdVars × Option Term)
             some $ ← (← of_adjective a) f)
   | _ => throwError "unknown var_list"
 
-partial def of_prop (prop: TSyntax `prop): CoreM Term := withRef prop do
+mutual
+partial def of_prop1 (prop: TSyntax `prop): CoreM Term := withRef prop do
   match prop with
     | `(prop| $np:noun_phrase_e $vp:verb_phrase) => do
           (← of_verb_phrase vp) (← of_noun_phrase_e np)
@@ -475,28 +472,55 @@ partial def of_prop (prop: TSyntax `prop): CoreM Term := withRef prop do
     | `(prop| $e:expr $b:is_tf) => apply_tf (← of_is_tf b) (← of_expr e)
     | `(prop| $e:rel_prop $b:is_tf ?) =>
           apply_tf ((← b.mapM of_is_tf).getD true) (← of_rel_prop e)
-    | `(prop| $p:prop and $q:prop) => do `($(← of_prop p) ∧ $(← of_prop q))
-    | `(prop| $_:_either ? $p:prop or $q:prop) => do `($(← of_prop p) ∨ $(← of_prop q))
+    | `(prop| $p:prop and $q:prop) => do `($(← of_prop1 p) ∧ $(← of_prop1 q))
+    | `(prop| $_:_either ? $p:prop or $q:prop) => do `($(← of_prop1 p) ∨ $(← of_prop1 q))
     | `(prop| $p:prop implies $q:prop)
-    | `(prop| $_:_if $p:prop $[,]? then $q:prop) => do `($(← of_prop p) → $(← of_prop q))
-    | `(prop| $p:prop $_:_iff $q:prop) => do `($(← of_prop p) ↔ $(← of_prop q))
+    | `(prop| $_:_if $p:prop $[,]? then $q:prop) => do `($(← of_prop1 p) → $(← of_prop1 q))
+    | `(prop| $p:prop $_:_iff $q:prop) => do `($(← of_prop1 p) ↔ $(← of_prop1 q))
     | `(prop| $ids_types:for_all_ids $p:prop) =>
-          mk_for_all (← of_for_all_ids ids_types) (← of_prop p)
+          mk_for_all (← of_for_all_ids ids_types) (← of_prop1 p)
     | `(prop| $p:prop $_:_for_all $ids_type:ids_types) => do
-          mk_for_all (← of_ids_types ids_type) (← of_prop p)
-    | `(prop| $_:_there $_:_exists $s:some_or_no ? $vp:var_list
-              $[such that $p:prop]?) => do
-          let (vars, cond) ← of_var_list vp
-          let t ← mk_exists vars (← opt_and cond (← p.mapM of_prop))
+          mk_for_all (← of_ids_types ids_type) (← of_prop1 p)
+    | `(prop| $_:_there $_:_exists $s:some_or_no ? $ep:exists_phrase) => do
+          let t ← of_exists_phrase ep
           let b ← s.elim (pure true) of_some_or_no
           apply_tf b t
     | `(prop| $p:prop $_:_for some $ids_type:ids_types) => do
-          mk_exists (← of_ids_types ids_type) (← of_prop p)
-    | `(prop| $p:prop , and $q:prop) => do `($(← of_prop p) ∧ $(← of_prop q))
-    | `(prop| $_:_either ? $p:prop , or $q:prop) => do `($(← of_prop p) ∨ $(← of_prop q))
+          mk_exists (← of_ids_types ids_type) (← of_prop1 p)
+    | `(prop| $p:prop , and $q:prop) => do `($(← of_prop1 p) ∧ $(← of_prop1 q))
+    | `(prop| $_:_either ? $p:prop , or $q:prop) => do `($(← of_prop1 p) ∨ $(← of_prop1 q))
     | `(prop| $m:multi_or) => of_multi_or m
     | `(prop| $_:have_contradiction) => pure mk_false
     | stx => throwError s!"unknown prop: {stx}"
+
+partial def of_exists_phrase (phrase: TSyntax `exists_phrase) : CoreM Term :=
+  withRef phrase do match phrase with
+    | `(exists_phrase| $vp:var_list $[such that $p:prop]?) => do
+        let (vars, cond) ← of_var_list vp
+        mk_exists vars (← opt_and cond (← p.mapM of_prop1))
+    | `(exists_phrase| $nom:nominal_e_t) => do
+        let nom ← of_nominal_e_t nom
+        let x ← fresh_var
+        let t ← nom (← `($x))
+        `(∃ $x:ident, $t)
+    | _ => throwError "unknown exists_phrase"
+end
+
+def nice_names :=
+  [`x, `y, `z] ++ ('a' ... 'e').toList.map (Name.mkSimple ·.toString)
+
+-- Rename vars x✝, x✝¹, x✝², ... generated by fresh_var to have
+-- nice names x, y, z, a, b, ...
+def fix_vars (t: Term): Term :=
+  let vars := all_vars t
+  let to_map := (all_vars t).filter (fun v =>
+    v.hasMacroScopes && v.eraseMacroScopes == `x)
+  let names := nice_names.removeAll vars
+  let map := to_map.zip names
+  ⟨map_vars map t.raw⟩
+
+def of_prop (prop: TSyntax `prop) : CoreM Term :=
+  fix_vars <$> of_prop1 prop
 
 def is_declared (n: Name): MetaM Bool := do
   pure $ (← getLCtx).usesUserName n ||
