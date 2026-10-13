@@ -498,12 +498,14 @@ def is_declared (n: Name): MetaM Bool := do
   pure $ (← getLCtx).usesUserName n ||
          (← resolveGlobalName n (enableLog := false)) != []
 
-def global_type (n: Name): CoreM (Option Expr) := do
+def global_info (n: Name): CoreM (Option ConstantInfo) := do
   match (← resolveGlobalName n (enableLog := false)) with
     | (name, _) :: _ => do
-        let cinfo ← getConstInfo name
-        pure cinfo.type
+        pure (← getConstInfo name)
     | _ => pure none
+
+def global_type (n: Name): CoreM (Option Expr) :=
+  (ConstantInfo.type <$> ·) <$> global_info n
 
 def type_matches_name (type: Expr) (n: Name) :=
   (type.getAppFnArgs).1 == n

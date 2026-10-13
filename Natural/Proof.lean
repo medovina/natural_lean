@@ -581,9 +581,8 @@ def translate_proof (init_steps: List ProofStep) (thm: Term): _Proof → TermEla
       trace[natural.tree] pretty ("\n" ++ (← show_blocks blocks))
       Prod.fst <$> translate True [] (← `(())) none blocks
   | .proof_by (.some (.by_definition_of i)) => do
-      let env ← getEnv
       let q := i.getId
-      let .some info := env.find? q | throwError "type not found"
+      let .some info ← global_info q | throwError s!"type not found: {q}"
       let .some val := info.value? | throwError "no value"
       unless val.isAppOf ``Quotient do throwError "not a quotient type"
       let gthm ← generalize init_steps thm
