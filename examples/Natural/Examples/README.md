@@ -13,7 +13,7 @@ This directory contains a set of files that demonstrate the capabilities of Natu
 ### Number systems
 
 - `NatDef.lean`: definition of ℕ as an inductive type, many theorems about ℕ
-- `Nat.lean`: definition of ℕ as Lean's built-in type Nat
+- `Nat.lean`: definition of ℕ as Lean's built-in type `Nat`
 - `NatNumGame.lean`: theorems from the [Natural Number Game](https://adam.math.hhu.de/#/g/leanprover-community/nng4)
 - `Prime.lean`: some basic definitions about prime numbers
 - `IntDef.lean`: definition of ℤ as a quotient type, many theorems about ℤ

@@ -193,6 +193,7 @@ sdef adjective_phrase  -- type: e → t
   | comp_adjective_phrase
 
 declare_syntax_cat verb_phrase  -- forward declaration
+declare_syntax_cat noun_phrase_e_et_t  -- forward declaration
 
 -- e → e → t  (e.g. "divisor")
 syntax noun_e_e_t := natural_noun
@@ -206,6 +207,7 @@ sdef nominal_e_e_t
 sdef nominal_e_t
   | natural_type
   |:60 atomic(nominal_e_e_t:60 "of") expr
+  | nominal_e_t "with" noun_phrase_e_et_t
   |adjective nominal_e_t
   | nominal_e_t comp_adjective_phrase
   | nominal_e_t "that" verb_phrase
@@ -227,7 +229,7 @@ syntax &"a" nominal_e_t : noun_phrase_e_t
 syntax noun_phrase_et_t := "Every" nominal_e_t
 
 -- e → (e → t) → t (e.g. "no divisor")
-syntax noun_phrase_e_et_t := "no" nominal_e_e_t
+syntax "no" nominal_e_e_t : noun_phrase_e_et_t
 
 sdef predicative_e
   | noun_phrase_e

@@ -1,8 +1,6 @@
 import Natural
 import Natural.Examples.Nat
 
-Definition.  Let x : Int.  x is positive iff x > 0.
+Definition.  Let p : ℕ.  p is prime iff p > 1 and the only divisors of p are 1 and p.
 
-Definition.  Let p : Int.  p is prime iff p > 1 and the only positive divisors of p are 1 and p.
-
--- Theorem.  Every integer that is greater than 1 has a prime divisor.
+-- Theorem.  Every natural number greater than 1 has a prime divisor.

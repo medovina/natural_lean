@@ -366,6 +366,10 @@ partial def of_nominal_e_t : TSyntax `nominal_e_t → CoreM (Term → CoreM Term
       let n ← of_nominal_e_e_t n
       let f ← of_expr f
       pure fun e => n e f
+  | `(nominal_e_t| $n:nominal_e_t with $np:noun_phrase_e_et_t) => do
+      let n ← of_nominal_e_t n
+      let np ← of_noun_phrase_e_et_t np
+      pure fun e => do mk_and (← n e) (← np e (fun _x => pure mk_true))
   | `(nominal_e_t| $a:adjective $n:nominal_e_t) => do
       pure $ and_e_t (← of_adjective a) (← of_nominal_e_t n)
   | `(nominal_e_t| $n:nominal_e_t $ap:comp_adjective_phrase) => do
@@ -412,7 +416,7 @@ partial def of_noun_phrase_et_t :
   | _ => throwError "unknown noun_phrase_et_t"
 
 partial def of_noun_phrase_e_et_t :
-        TSyntax ``noun_phrase_e_et_t → CoreM (Term → (Term → CoreM Term) → CoreM Term)
+        TSyntax `noun_phrase_e_et_t → CoreM (Term → (Term → CoreM Term) → CoreM Term)
   | `(noun_phrase_e_et_t| no $nom:nominal_e_e_t) => do
       let nom ← of_nominal_e_e_t nom
       let y := mkIdent `y
