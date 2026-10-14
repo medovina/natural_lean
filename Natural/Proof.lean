@@ -39,7 +39,8 @@ def of_thm_name: TSyntax ``thm_name → CoreM Ident
 
 def of_reference: TSyntax `reference → CoreM (List Ident)
   | `(reference| $[$n:thm_name] and*) => n.toList.mapM of_thm_name
-  | `(reference| $_:assumption $[that $_p:prop]?) => pure []
+  | `(reference| the fact that $_p:prop)
+  | `(reference| $_:assumption $[that $_p:prop]?) => pure []  -- ignore prop for now
   | _ => throwError s!"unknown reference"
 
 inductive Reason where
@@ -205,12 +206,14 @@ def of_which_is_contra (stx: TSyntax `which_is_contra): CoreM ProofStep :=
     pure $ .assert mk_false (.some (.apply $ ← r.toList.flatMapM of_reference))
   match stx with
     | `(which_is_contra| $_:which_is a contradiction $[to $r:reference]?) => contra r
-    | `(which_is_contra| $_:which_is contradicting $r:reference) => contra (some r)
+    | `(which_is_contra| $_:which_is contradicting $r:reference)
+    | `(which_is_contra| which contradicts $r:reference) => contra (some r)
     | _ => throwError "unknown which_is_contra"
 
-def of_which_is_contradiction (stx: TSyntax ``which_is_contradiction) : CoreM (List ProofStep) :=
+def of_which_is_contradiction (stx: TSyntax ``which_is_contradiction)
+        : CoreM (List ProofStep) :=
   withRef stx do match stx with
-    | `(which_is_contradiction| $c:which_is_contra $b:because_prop ?) => do
+    | `(which_is_contradiction| , $c:which_is_contra $b:because_prop ?) => do
           let because ← b.toList.mapM of_because_prop
           pure (because ++ [← of_which_is_contra c])
     | _ => throwError "unknown which_is_contradiction"

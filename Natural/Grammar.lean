@@ -285,6 +285,7 @@ syntax assumption := ("our" <|> "the") "assumption"
 
 sdef reference
   | sepBy1(thm_name, "and")
+  | atomic("the" "fact") "that" prop
   | assumption ("that" prop)?
 
 sdef reason
@@ -328,13 +329,15 @@ syntax because_prop := _because prop
 
 kdef _by = "by"
 
-syntax which_is := "," ("which" "is")? "again"?
+syntax which_is := ("which" "is")? "again"?
 
 sdef which_is_contra
   | atomic(which_is &"a" "contradiction") ("to" reference)?
   | atomic(which_is "contradicting") reference
+  | atomic("which" "contradicts") reference
 
-syntax which_is_contradiction := which_is_contra because_prop ?
+syntax which_is_contradiction :=
+  atomic("," which_is_contra) because_prop ?
 
 sdef proof_prop
   | (because_prop "," ?)? (_by reason)? _have ? assert_prop
