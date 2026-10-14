@@ -7,7 +7,7 @@ Definition.  Let A : Set(ℕ).  Let z : ℕ.  z is a least element of A iff z �
 
 -- Here we prove that ℕ is well ordered using induction on ℕ.  (An alternative proof could use the fact that Nat belongs to the WellFoundedRelation type class.)
 
-Theorem "Well-Ordering Property".  Every nonempty set of natural numbers has a least element.
+Theorem "Well-Ordering Property".  Every nonempty set of natural numbers has a least element.  [ℕ.well_ordered]
 
 Proof.  Let A : Set(ℕ).  Suppose that A is nonempty.  Assume that A has no least element.  Let
 

@@ -392,8 +392,9 @@ partial def of_noun_phrase_e : TSyntax `noun_phrase_e → CoreM Term
   | _ => throwError "unknown noun_phrase"
 
 partial def of_noun_phrase_e_e_t :
-        TSyntax `noun_phrase_e_e_t → CoreM (Term → Term → CoreM Term)
-  | `(noun_phrase_e_e_t| a $nom:nominal_e_e_t) => of_nominal_e_e_t nom
+        TSyntax `noun_phrase_e_e_t → CoreM ((Term → Term → CoreM Term) × Option Ident)
+  | `(noun_phrase_e_e_t| a $nom:nominal_e_e_t $v:ident ?) =>
+      of_nominal_e_e_t nom <&> (·, v)
   | _ => throwError "unknown noun_phrase_e_t"
 
 partial def of_noun_phrase_e_t : TSyntax `noun_phrase_e_t → CoreM (Term → CoreM Term)
@@ -433,9 +434,9 @@ partial def of_predicative_e_t : TSyntax `predicative_e_t → CoreM (Term → Co
 
 partial def of_verb_phrase : TSyntax `verb_phrase → CoreM (Term → CoreM Term)
   | `(verb_phrase| has $np:noun_phrase_e_e_t) => do
-      let np ← of_noun_phrase_e_e_t np
+      let (np, v) ← of_noun_phrase_e_e_t np
       pure fun e => do
-        let x ← fresh_var
+        let x ← v.getDM fresh_var
         let t ← np (← `($x)) e
         `(∃ $x:ident, $t)
   | `(verb_phrase| has $np:noun_phrase_e_et_t) => do

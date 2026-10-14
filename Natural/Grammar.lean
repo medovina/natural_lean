@@ -196,7 +196,7 @@ sdef adjective_phrase  -- type: e → t
 declare_syntax_cat verb_phrase
 declare_syntax_cat noun_phrase_e_et_t
 
--- e → e → t  (e.g. "divisor")
+-- e → e → t  (e.g. "divisor", "least element")
 syntax noun_e_e_t := natural_noun
 
 -- e → e → t (e.g. "prime divisor")
@@ -218,9 +218,9 @@ sdef noun_phrase_e
   | expr "and" expr
   | "the" nominal_e_t
 
--- e → e → t (e.g. "a prime divisor")
+-- e → e → t (e.g. "a prime divisor p")
 declare_syntax_cat noun_phrase_e_e_t (behavior := symbol)
-syntax &"a" nominal_e_e_t : noun_phrase_e_e_t
+syntax &"a" nominal_e_e_t var ? : noun_phrase_e_e_t
 
 -- e → t (e.g. "a positive integer")
 declare_syntax_cat noun_phrase_e_t (behavior := symbol)
