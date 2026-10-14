@@ -62,7 +62,8 @@ def of_reason: TSyntax `reason → CoreM (Option Reason)
   | `(reason| [ $t:tactic ]) => pure (Reason.tactic t)
   | `(reason| $r:reference) => .some <$> Reason.apply <$> of_reference r
   | `(reason| induction) => pure Reason.induction
-  | `(reason| the inductive hypothesis) => pure .none
+  | `(reason| the inductive hypothesis)
+  | `(reason| definition) => pure Option.none
   | `(reason| the definition of $i:ident) => pure (.some (.by_definition_of i))
   | _ => throwError "unknown reason"
 

@@ -398,7 +398,7 @@ partial def of_noun_phrase_e : TSyntax `noun_phrase_e → CoreM Term
 
 partial def of_noun_phrase_e_e_t :
         TSyntax `noun_phrase_e_e_t → CoreM ((Term → Term → CoreM Term) × Option Ident)
-  | `(noun_phrase_e_e_t| a $nom:nominal_e_e_t $v:ident ?) =>
+  | `(noun_phrase_e_e_t| $_:a_or_some $nom:nominal_e_e_t $v:ident ?) =>
       of_nominal_e_e_t nom <&> (·, v)
   | _ => throwError "unknown noun_phrase_e_t"
 

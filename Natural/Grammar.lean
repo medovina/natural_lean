@@ -168,7 +168,9 @@ kdef _either = "either"
 
 syntax _a := &"a" <|> "an"
 
-syntax some_or_no := &"some" <|> _a <|> "no"
+syntax a_or_some := _a <|> &"some"
+
+syntax some_or_no := a_or_some <|> "no"
 
 kdef _is_have = "this is" | "we have"
 
@@ -222,7 +224,7 @@ sdef noun_phrase_e
 
 -- e → e → t (e.g. "a prime divisor p")
 declare_syntax_cat noun_phrase_e_e_t (behavior := symbol)
-syntax &"a" nominal_e_e_t var ? : noun_phrase_e_e_t
+syntax a_or_some nominal_e_e_t var ? : noun_phrase_e_e_t
 
 -- e → t (e.g. "a positive integer")
 declare_syntax_cat noun_phrase_e_t (behavior := symbol)
@@ -290,12 +292,13 @@ sdef reference
   | atomic("the" "fact") "that" prop
   | assumption ("that" prop)?
 
-sdef reason
-  | "[" tactic "]"
-  | reference
-  | "induction"
-  | "the" "inductive" "hypothesis"
-  | "the" &"definition" "of" ident
+declare_syntax_cat reason (behavior := symbol)
+syntax "[" tactic "]" : reason
+syntax (priority := 1) reference : reason
+syntax "induction" : reason
+syntax "the" "inductive" "hypothesis" : reason
+syntax (priority := 2) &"definition" : reason
+syntax "the" &"definition" "of" ident : reason
 
 sdef eq_expr_by
   | rel_op expr ("by" reason)?
