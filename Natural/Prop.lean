@@ -318,6 +318,11 @@ def check_no_binder_op : α × Option (BinderOp × Term) → CoreM (α × Term)
 
 -- natural language
 
+def of_opt_not : TSyntax ``opt_not → CoreM Bool
+  | `(opt_not| not) => pure false
+  | `(opt_not| ) => pure true
+  | _ => throwError "unknown opt_not"
+
 def of_adjective : TSyntax ``adjective → CoreM (Term → CoreM Term)
   | `(adjective| only) => pure (fun _x => pure mk_true)
   | `(adjective| $n:natural_adjective) => do
@@ -442,7 +447,10 @@ partial def of_verb_phrase : TSyntax `verb_phrase → CoreM (Term → CoreM Term
   | `(verb_phrase| has $np:noun_phrase_e_et_t) => do
       let np ← of_noun_phrase_e_et_t np
       pure $ fun e => np e (fun _x => pure mk_true)
-  | `(verb_phrase| is $p:predicative_e_t) => of_predicative_e_t p
+  | `(verb_phrase| is $n:opt_not $p:predicative_e_t) => do
+        let n ← of_opt_not n
+        let p ← of_predicative_e_t p
+        pure fun e => p e >>= apply_tf n
   | `(verb_phrase| are $p:predicative_e) => do
       let p ← of_predicative_e p
       pure $ fun (e : Term) =>

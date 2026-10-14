@@ -184,6 +184,8 @@ syntax for_all_ids := _for_all ids_types ","
 
 -- natural language
 
+syntax opt_not := "not" ?
+
 syntax adjective := "only" <|> natural_adjective  -- type: e → t
 
 syntax comp_adjective_phrase := adjective "than" expr  -- type: e → t
@@ -242,7 +244,7 @@ sdef predicative_e_t
 -- verb_phrase, type: e → t
 syntax "has" noun_phrase_e_e_t : verb_phrase
 syntax "has" noun_phrase_e_et_t : verb_phrase
-syntax &"is" predicative_e_t : verb_phrase
+syntax &"is" opt_not predicative_e_t : verb_phrase
 syntax "are" predicative_e : verb_phrase
 
 -- prop
