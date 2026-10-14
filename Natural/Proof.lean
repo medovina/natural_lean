@@ -393,7 +393,7 @@ partial def infer_blocks (steps: List ProofStep): List Block :=
                   let tb := ⟨.assume p, infer_blocks ts⟩
                   let fb := ⟨.assume (Syntax.mkCApp ``Not #[p]), infer_blocks fs⟩
                   let block := ⟨.if_otherwise p [] [] q, [tb, fb]⟩
-                  ([block], rest, false)
+                  ([block], rest, is_const_false q)
               | .biconditional p fwd q rev =>
                   let fb := ⟨.assume p, infer_blocks fwd⟩
                   let rb := ⟨.assume q, infer_blocks rev⟩
@@ -403,7 +403,7 @@ partial def infer_blocks (steps: List ProofStep): List Block :=
                   let bs := cases.map (fun (p, steps) => ⟨.assume p, infer_blocks steps⟩)
                   let ts := cases.map (fun (p, _steps) => (p, []))
                   let block := ⟨.case ts concl, bs⟩
-                  ([block], rest, false)
+                  ([block], rest, is_const_false concl)
               | .group steps => (infer_blocks steps, rest, false)
             let (blocks2, rest, bail) :=
               if bail then ([], rest, true) else infer vars let_vars rest
@@ -421,10 +421,6 @@ def proof_by_multi (names: List Ident) : CoreM Term :=
   tactic (.some (.apply names))
 
 def proof_by (name: Option Ident) : CoreM Term := proof_by_multi name.toList
-
-def produces_let : ProofStep → Bool
-  | .let_def .. | .is_some .. => true
-  | _ => false
 
 -- Given a list of ids such as [x, y, z], produce an existential
 -- binding pattern such as `( ⟨x, ⟨y, ⟨z, _⟩⟩⟩ ).
@@ -454,7 +450,7 @@ partial def translate (top: Bool) (parent_ex: Vars) (prev: Term) (concl: Option 
       let unit ← `(())
       let (c, child_concl) ←
         if step matches (.if_otherwise ..) || step matches (.case ..) then pure (unit, unit) else
-        translate (top && rest.isEmpty && produces_let step) ex_decl unit none children
+        translate false ex_decl unit none children
       let translate_case (concl: Term) : Block → CoreM Term
         | ⟨.assume p, bs⟩ => do
             let (c, _) ← translate false [] unit (.some concl) bs

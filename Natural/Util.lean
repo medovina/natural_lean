@@ -12,6 +12,7 @@ open Elab.Command
 infix:50 "≮" => fun x y => ¬(x < y)
 infix:50 "≯" => fun x y => ¬(x > y)
 infix:50 "≉" => fun x y => ¬(x ≈ y)
+infix:50 "∤" => fun x y => ¬(x ∣ y)
 
 -- from Mathlib
 theorem Or.elim3 {c d : Prop} (h : a ∨ b ∨ c) (ha : a → d) (hb : b → d) (hc : c → d) : d :=

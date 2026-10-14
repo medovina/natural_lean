@@ -26,3 +26,7 @@ Assume that S(x) ∈ A.  Suppose that v ∈ A.  If v < S(x) then v ≤ x, so v �
 Hence for all u : ℕ, if u ≤ S(x) then u ∉ A. Then S(x) ∈ B.
 
 We have shown that for all x ∈ B, S(x) ∈ B.  Hence by induction x ∈ B for all x : ℕ.  So A is empty, which is a contradiction.
+
+-- divisibility
+
+Lemma.  Let a : ℕ.  a | a.  [ℕ.dvd_rfl: @refl]

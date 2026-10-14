@@ -140,8 +140,9 @@ syntax ident "[" expr "]" : expr  -- quotient type projection
 kdef rel_op =
   "=" | "≠" | "<" | "≮" | "≤" | ">" | "≯" | "≥" |
   "≁" | "∈" | "∉" | "⊆" |
-  "~" | "∼" | -- tilde, tilde operator: we accept either
-  "|" | "∣"   -- vertical bar, division symbol: we accept either
+  "~" | "∼" |  -- tilde, tilde operator: we accept either
+  "|" | "∣" |  -- vertical bar, division symbol: we accept either
+  "∤"         -- does not divide
 
 kdef binary_op = "+" | "·" | "×" | "^" | "<" | "≤" | "~" | "∼"
 
