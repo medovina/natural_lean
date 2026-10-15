@@ -27,7 +27,8 @@ def of_notation_decl: TSyntax ``notation_decl → CoreM (List Command)
                   | .postfix => `(syntax expr $op:str : expr)
 
             let ns ← getCurrNamespace
-            let a ← `(attribute [natural_op $op $(mkIdent ns) $(mkIdent fn) $kind]
+            let prec := Syntax.mkNumLit (if rel.isSome then 50 else 100).repr
+            let a ← `(attribute [natural_op $op $(mkIdent ns) $(mkIdent fn) $kind $prec]
                                 $(mkIdent type))
             pure (s ++ [a])
         | _ => throwError "notation: expected type.name"
@@ -263,10 +264,11 @@ def declare_op (info: OpInfo): CoreM (Option Command) :=
   info.type.mapM (fun type =>
       let name := Lean.Syntax.mkStrLit info.name
       let fn := mkIdent (type ++ info.fname)
+      let prec := mkNumLit info.prec.repr
       match info.kind with
-        | .infix => `(infix:1024 $name:str => $fn)
-        | .prefix => `(prefix:1024 $name:str => $fn)
-        | .postfix => `(postfix:1024 $name:str => $fn)
+        | .infix => `(infix:$prec $name:str => $fn)
+        | .prefix => `(prefix:$prec $name:str => $fn)
+        | .postfix => `(postfix:$prec $name:str => $fn)
   )
 
 def is_op (s: String) := !(Lean.isIdFirst s.front)

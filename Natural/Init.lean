@@ -38,7 +38,7 @@ initialize registerBuiltinAttribute {
 
 -- natural_op attribute
 
-syntax (name := natural_op) "natural_op " str ident ident op_kind : attr
+syntax (name := natural_op) "natural_op " str ident ident op_kind num: attr
 
 initialize op_extension : AssocExtension OpInfo ←
   registerSimpleScopedEnvExtension {
@@ -51,10 +51,12 @@ initialize registerBuiltinAttribute {
   descr := "Natural operation"
   add := fun (decl_name: Name) (stx: Syntax) (attr_kind: AttributeKind) =>
     match stx with
-      | `(natural_op| natural_op $name:str $ns:ident $id:ident $k:op_kind) =>
+      | `(natural_op|
+            natural_op $name:str $ns:ident $id:ident $k:op_kind $prec:num) =>
           let t : OpInfo := {
             name := name.getString, kind := of_op_kind k, cls := .none,
-            type := .some decl_name, fname := id.getId, ns := ns.getId }
+            type := .some decl_name, fname := id.getId, ns := ns.getId,
+            prec := prec.getNat }
           op_extension.add (name.getString, t) attr_kind
       | _ => throwError "natural: unexpected"
 }

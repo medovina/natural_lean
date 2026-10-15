@@ -254,6 +254,7 @@ structure OpInfo where
   type: Option Name    -- type (if any) associated with op, e.g. `Set for op "⋃"
   fname: Name          -- function name, e.g. `add
   ns: Name             -- namespace in which op's syntax is defined
+  prec: Nat            -- precedence for operator declaration
 deriving Inhabited
 
 def binders (xs: List (Ident × Term)) : CoreM (Array (TSyntax ``bracketedBinder)) :=
