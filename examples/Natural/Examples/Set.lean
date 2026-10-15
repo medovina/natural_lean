@@ -13,6 +13,8 @@ Proof.  Let S = { x : T | P(x) is true }.  Suppose that S is empty.  Let x : T. 
 
 Definition.  Let A, B : Set(T).  A ⊆ B iff x ∈ A implies x ∈ B for all x : T.
 
+Definition.  Let A : Set(T).  𝒫(A) = { X : Set(T) | X ⊆ A }.
+
 -- set operations
 
 Definition.  Let A, B : Set(T).  A ∪ B = { x : T | x ∈ A or x ∈ B }.

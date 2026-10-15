@@ -152,7 +152,7 @@ sdef rel_prop
 kdef _if = "if"
 
 sdef _iff
-  | "iff" <|> ("if" "and" "only" "if")
+  | "iff" <|> (atomic("if" "and") "only" "if")
 
 kdef _for = "for"
 
@@ -479,7 +479,7 @@ syntax init_steps := init_sentence*
 
 syntax _operator := "binary" ? ("operation" <|> "operator")
 
-syntax def_if := "if" <|> _iff
+syntax def_if := _iff <|> "if"
 
 sdef def_eq
   | expr "=" expr

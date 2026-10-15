@@ -214,7 +214,7 @@ def parse_op_opt : Syntax → Option (OpKind × String × List Syntax)
 def parse_op (t: Term): CoreM (String × OpKind × List Term) :=
   match parse_op_opt t.raw with
     | .some (kind, op, args) => pure (op, kind, args.map (⟨·⟩))
-    | .none => throwError "infix expression expected"
+    | .none => throwError "operator expected"
 
 def sourceInfo (t: Term) := t.raw.getInfo?.getD .none
 

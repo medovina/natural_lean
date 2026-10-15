@@ -266,7 +266,7 @@ def declare_op (info: OpInfo): CoreM (Option Command) :=
         | .postfix => `(postfix:1024 $name:str => $fn)
   )
 
-def is_op (s: String) := !s.front.isAlpha
+def is_op (s: String) := !(Lean.isIdFirst s.front)
 
 def quotient_lift (top_name: Ident) (def_name: Ident) (n: Nat) (arg_type: Term)
       (justification: Option Ident) : CoreM Command := do
@@ -309,8 +309,10 @@ def generate_def (decl_fn: Option String) (env: Vars) (defeqs: List DefEq)
     | { args := ts, .. } :: _ => pure $ ts.map (fun _ => arg_type)
     | _ => throwError "generate_def: no arg"
 
-  let def_name ← embed_name arg_type dname
-  let top_name ← embed_name arg_type fname
+  let (def_name, top_name) ←
+    if (is_op fn || cat.isSome)
+      then mapM_pair (embed_name arg_type ·) (dname, fname)
+      else pure (mkIdent dname, mkIdent fname)
 
   let defeqs := if is_quotient then defeqs
     else defeqs.map (fun d => { d with val := replace_op fn top_name d.val })
@@ -329,9 +331,9 @@ def generate_def (decl_fn: Option String) (env: Vars) (defeqs: List DefEq)
       (def_inst_commands fname arg_type top_name ·)
 
   let nat_decl ← if is_op fn then pure none
-    else some <$> do
-      let cat ← to_category cat.get!
-      `(attribute [natural $cat $(mkStrLit fn):str] $top_name)
+    else cat.mapM (fun cat => do
+      let cat ← to_category cat
+      `(attribute [natural $cat $(mkStrLit fn):str] $top_name))
 
   pure ([def_cmd] ++ lift_cmd ++ op_def_command.toList ++ inst_commands ++ nat_decl.toList)
 
@@ -350,12 +352,13 @@ def elab_commands (commands: List Command) : CommandElabM Unit := do
 def of_def_eq : TSyntax `def_eq → CoreM DefEq
   | `(def_eq| $l:expr = $r:expr) => do
       let (l, r) ← mapM_pair of_expr (l, r)
-      let (op, kind, args) ← match l with
+      let (op, kind, args) ← match ← resolve_left l with
         | `(_super $e $s $id:ident) =>  -- either exponentiation or a postfix op
             let id := id.getId.toString (escape := false)
             if (← lookup_op id .postfix).any (fun info => info.kind == .postfix)
-              then pure (id, .postfix, [e]) else pure ("^", .infix, [e, s])
-        | _ => parse_op l
+              then pure (id, some .postfix, [e]) else pure ("^", some .infix, [e, s])
+        | `($f:ident $arg) => pure (f.getId.toString, .none, [arg])
+        | _ => parse_op l <&> fun (op, kind, args) => (op, .some kind, args)
       pure { name := map_op op, kind, cat := none, args, val := ⟨r.raw⟩}
   | `(def_eq| $e:expr $op:rel_op $f:expr $_:def_if $r:prop) => do
       pure { name := of_binary_op op, kind := OpKind.infix, cat := none,
