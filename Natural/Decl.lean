@@ -12,16 +12,19 @@ namespace Natural
 -- notation
 
 def of_notation_decl: TSyntax ``notation_decl → CoreM (List Command)
-  | `(notation_decl| Notation . $op:str is $_:_a $kind:op_kind operator . [ $i:ident ]) => do
+  | `(notation_decl| Notation . $op:str is $_:_a
+          $kind:op_kind $[$rel:relational]? operator . [ $i:ident ]) => do
       match i.getId.components with
         | [ type, fn ] => do
             let k := of_op_kind kind
             let s ← if k == .postfix && is_super_letter op.getString
               then pure []  -- looks like exponentation, so no need for syntax rule
-              else .singleton <$> match of_op_kind kind with
-                | .infix => `(syntax expr $op:str expr : expr)
-                | .prefix => `(syntax $op:str expr : expr)
-                | .postfix => `(syntax expr $op:str : expr)
+              else .singleton <$>
+                if rel.isSome then `(syntax $op:str : rel_op)
+                else match of_op_kind kind with
+                  | .infix => `(syntax expr $op:str expr : expr)
+                  | .prefix => `(syntax $op:str expr : expr)
+                  | .postfix => `(syntax expr $op:str : expr)
 
             let ns ← getCurrNamespace
             let a ← `(attribute [natural_op $op $(mkIdent ns) $(mkIdent fn) $kind]

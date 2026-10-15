@@ -137,12 +137,12 @@ syntax ident "[" expr "]" : expr  -- quotient type projection
 
 -- prop helpers
 
-kdef rel_op =
-  "=" | "≠" | "<" | "≮" | "≤" | ">" | "≯" | "≥" |
-  "≁" | "∈" | "∉" | "⊆" |
-  "~" | "∼" |  -- tilde, tilde operator: we accept either
-  "|" | "∣" |  -- vertical bar, division symbol: we accept either
-  "∤"         -- does not divide
+sdef rel_op
+  | "=" | "≠" | "<" | "≮" | "≤" | ">" | "≯" | "≥"
+  | "≁" | "∈" | "∉" | "⊆"
+  | "~" | "∼"    -- tilde, tilde operator: we accept either
+  | "|" | "∣"    -- vertical bar, division symbol: we accept either
+  | "∤"         -- does not divide
 
 kdef binary_op = "+" | "·" | "×" | "^" | "<" | "≤" | "~" | "∼"
 
@@ -436,8 +436,10 @@ sdef proof
 
 -- notation
 
+syntax relational := "relational"
+
 syntax notation_decl :=
-  "Notation" "." str "is" _a op_kind "operator" "." "[" ident "]"
+  "Notation" "." str "is" _a op_kind relational ? "operator" "." "[" ident "]"
 
 -- definitions
 

@@ -132,8 +132,11 @@ partial def of_natural_type (ntype: TSyntax `natural_type) : CoreM Term :=
         `($(← of_natural_type_name n) $(← of_natural_type t))
     | _ => throwError "unknown natural_type"
 
+-- Retrieve the string constant from syntax matching one of our categories
+-- such as 'rel_op' or 'binary_op'.
 def syntax_atom (t: TSyntax α): String := match t.raw with
-  | .node _ _ #[.node _ _ #[a]] => a.getAtomVal
+  | .node _ _ #[.atom _ val]
+  | .node _ _ #[.node _ _ #[.atom _ val]] => val
   | _ => panic! "syntax_atom"
 
 def of_ids_type : TSyntax ``ids_type → CoreM (List Ident × BinderOp × Term)
