@@ -139,12 +139,11 @@ syntax ident "[" expr "]" : expr  -- quotient type projection
 
 sdef rel_op
   | "=" | "≠" | "<" | "≮" | "≤" | ">" | "≯" | "≥"
-  | "≁" | "∈" | "∉" | "⊆"
-  | "~" | "∼"    -- tilde, tilde operator: we accept either
+  | "≁" | "∈" | "∉" | "⊆" | "≈" | "≉"
   | "|" | "∣"    -- vertical bar, division symbol: we accept either
   | "∤"         -- does not divide
 
-kdef binary_op = "+" | "·" | "×" | "^" | "<" | "≤" | "~" | "∼"
+kdef binary_op = "+" | "·" | "×" | "^" | "<" | "≤" | "≈"
 
 sdef rel_prop
   | expr (rel_op expr)+

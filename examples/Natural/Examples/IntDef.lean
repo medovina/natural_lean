@@ -4,19 +4,19 @@ import Natural
 
 namespace IntDef
 
-Definition.  For all n, k, j, i : Nat, (n, j) ~ (k, i) if and only if n + i = k + j.
+Definition.  For all n, k, j, i : Nat, (n, j) ≈ (k, i) if and only if n + i = k + j.
 
 Theorem.  Let h, i, j, k, m, n : Nat.
 
-  a. (h, i) ~ (h, i).  [ℤ.equiv_refl]
-  b. If (h, i) ~ (j, k) then (j, k) ~ (h, i).  [ℤ.equiv_symm]
-  c. If (h, i) ~ (j, k) and (j, k) ~ (m, n) then (h, i) ~ (m, n).  [ℤ.equiv_trans]
+  a. (h, i) ≈ (h, i).  [ℤ.equiv_refl]
+  b. If (h, i) ≈ (j, k) then (j, k) ≈ (h, i).  [ℤ.equiv_symm]
+  c. If (h, i) ≈ (j, k) and (j, k) ≈ (m, n) then (h, i) ≈ (m, n).  [ℤ.equiv_trans]
 
-Corollary.  The operator ~ is an equivalence relation on Nat × Nat.  [ℤ.is_equiv]
+Corollary.  The operator ≈ is an equivalence relation on Nat × Nat.  [ℤ.is_equiv]
 
 -- definition of ℤ as a quotient type
 
-Definition.  The type ℤ (the integers) is defined as the quotient Nat × Nat / ~.
+Definition.  The type ℤ (the integers) is defined as the quotient Nat × Nat / ≈.
 
 Justification.  By ℤ.is_equiv.
 
@@ -26,13 +26,13 @@ Definition.  1 = ℤ[(1, 0)].
 
 Lemma.  For all a, b : Nat, ℤ[(a, b)] = 0 if and only if a = b.  [ℤ.eq_zero]
 
-Proof.  Let a, b : Nat.  Suppose that ℤ[(a, b)] = 0.  Then ℤ[(a, b)] = ℤ[(0, 0)], so (a, b) ~ (0, 0), so a + 0 = b + 0, so a = b.  Conversely, suppose that a = b.  Then (a, b) ~ (0, 0), so ℤ[(a, b)] = ℤ[(0, 0)] = 0.
+Proof.  Let a, b : Nat.  Suppose that ℤ[(a, b)] = 0.  Then ℤ[(a, b)] = ℤ[(0, 0)], so (a, b) ≈ (0, 0), so a + 0 = b + 0, so a = b.  Conversely, suppose that a = b.  Then (a, b) ≈ (0, 0), so ℤ[(a, b)] = ℤ[(0, 0)] = 0.
 
 -- addition: definition
 
-Lemma.  Let n, j, k, i, n₁, j₁, k₁, i₁ : Nat.  If (n, j) ~ (n₁, j₁) and (k, i) ~ (k₁, i₁) then
+Lemma.  Let n, j, k, i, n₁, j₁, k₁, i₁ : Nat.  If (n, j) ≈ (n₁, j₁) and (k, i) ≈ (k₁, i₁) then
 
-  (n + k, j + i) ~ (n₁ + k₁, j₁ + i₁).   [ℤ.add_equiv]
+  (n + k, j + i) ≈ (n₁ + k₁, j₁ + i₁).   [ℤ.add_equiv]
 
 Definition.  For all a, b, c, d : Nat, ℤ[(a, b)] + ℤ[(c, d)] = ℤ[(a + c, b + d)].
 
@@ -55,9 +55,9 @@ Corollary.  The operator + is associative on ℤ.
 
 -- negation: definition
 
-Lemma.  Let a, b, a₁, b₁ : Nat.  If (a, b) ~ (a₁, b₁), then
+Lemma.  Let a, b, a₁, b₁ : Nat.  If (a, b) ≈ (a₁, b₁), then
 
-  (b, a) ~ (b₁, a₁).   [ℤ.neg_equiv]
+  (b, a) ≈ (b₁, a₁).   [ℤ.neg_equiv]
 
 Definition.  For all a, b : Nat, − ℤ[(a, b)] = ℤ[(b, a)].
 
@@ -81,9 +81,9 @@ Proof.
 
 -- multiplication: definition
 
-Lemma. Let n, j, k, i, n₁, j₁, k₁, i₁ : Nat.  If (n, j) ~ (n₁, j₁) and (k, i) ~ (k₁, i₁) then
+Lemma. Let n, j, k, i, n₁, j₁, k₁, i₁ : Nat.  If (n, j) ≈ (n₁, j₁) and (k, i) ≈ (k₁, i₁) then
 
-  (n × k + j × i, j × k + n × i) ~ (n₁ × k₁ + j₁ × i₁, j₁ × k₁ + n₁ × i₁).  [ℤ.mul_equiv]
+  (n × k + j × i, j × k + n × i) ≈ (n₁ × k₁ + j₁ × i₁, j₁ × k₁ + n₁ × i₁).  [ℤ.mul_equiv]
 
 Definition.  For all n, j, k, i : Nat,
 
