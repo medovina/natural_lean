@@ -479,13 +479,13 @@ syntax init_steps := init_sentence*
 
 syntax _operator := "binary" ? ("operation" <|> "operator")
 
-syntax eq_or_iff := "=" <|> _iff
+syntax def_if := "if" <|> _iff
 
 sdef def_eq
   | expr "=" expr
-  | expr (! "=") rel_op expr _iff prop
-  | expr "is" defined_term _iff prop  -- property definition
-  | expr "is" &"a" defined_term "of" expr _iff prop  -- relation definition
+  | expr (! "=") rel_op expr def_if prop
+  | expr "is" defined_term def_if prop  -- property definition
+  | expr "is" &"a" defined_term "of" expr def_if prop  -- relation definition
 
 syntax def1 := for_all_ids ? def_eq "."
 
