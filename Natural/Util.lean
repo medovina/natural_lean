@@ -247,6 +247,15 @@ partial def syntax_replace_op (op: String) (name: Ident) :=
 def replace_op (op: String) (name: Ident) (t: Term) : Term :=
   ⟨syntax_replace_op op name t.raw⟩
 
+structure OpInfo where
+  name: String         -- e.g. "+"
+  kind: OpKind
+  cls: Option Name     -- type class (if any) associated with op, e.g. `Add
+  type: Option Name    -- type (if any) associated with op, e.g. `Set for op "⋃"
+  fname: Name          -- function name, e.g. `add
+  ns: Name             -- namespace in which op's syntax is defined
+deriving Inhabited
+
 def binders (xs: List (Ident × Term)) : CoreM (Array (TSyntax ``bracketedBinder)) :=
   xs.toArray.mapM (fun | (x, t) => `(bracketedBinder| ($x : $t)))
 

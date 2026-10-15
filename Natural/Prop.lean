@@ -173,19 +173,7 @@ def prefix_op_class := [ ("-", `neg, ``Neg) ]
 
 def postfix_op_class : List α := []
 
-structure OpInfo where
-  name: String         -- e.g. "+"
-  kind: OpKind
-  cls: Option Name     -- type class (if any) associated with op, e.g. `Add
-  type: Option Name    -- type (if any) associated with op, e.g. `Set for op "⋃"
-  fname: Name          -- function name, e.g. `add
-  ns: Name         -- namespace in which op's syntax is defined
-
-def lookup_op_attr (op: String) : CoreM (Option OpInfo) := do
-  match ← lookup_assoc op_extension op with
-    | .some (typ, ns, fname, kind) =>
-        pure $ .some ⟨op, kind, .none, .some typ, fname, ns⟩
-    | .none => pure $ .none
+def lookup_op_attr (op: String) : CoreM (Option OpInfo) := lookup_assoc op_extension op
 
 def lookup_op (op: String) (kind: OpKind) : CoreM (Option OpInfo) :=
   let table := match kind with
