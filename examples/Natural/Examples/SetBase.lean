@@ -46,6 +46,20 @@ def set_comp_elab : NaturalElab
       (·, #[x], type) <$> `({ $x:ident : $type | $(← of_prop p)})
   | _ => Lean.Elab.throwUnsupportedSyntax
 
+-- Define notation for a range of natural numbers.
+
+notation "{" x "," "..." "," y "}" => { n : Nat | x <= n ∧ n <= y }
+
+-- Expose the range syntax to Natural Lean.
+
+syntax (name := range) "{" expr "," "..." "," expr "}" : expr
+
+@[natural_elab range]
+def range_elab : NaturalElab
+  | `(expr| { $e:expr , ... , $f:expr }) => do
+      `({ $(← of_expr e), ..., $(← of_expr f)}) <&> (·, #[], Lean.mkIdent ``Unit)
+  | _ => Lean.Elab.throwUnsupportedSyntax
+
 -- Singleton and Insert instances, needed for syntax {a, b, c} to work
 
 def Set.singleton (a : α) : Set α := {b : α | b = a}

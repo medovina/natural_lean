@@ -139,7 +139,7 @@ syntax ident "[" expr "]" : expr  -- quotient type projection
 
 sdef rel_op
   | "=" | "≠" | "<" | "≮" | "≤" | ">" | "≯" | "≥"
-  | "≁" | "∈" | "∉" | "⊆" | "≈" | "≉"
+  | "∈" | "∉" | "⊆" | "≈" | "≉"
   | "|" | "∣"    -- vertical bar, division symbol: we accept either
   | "∤"         -- does not divide
 
