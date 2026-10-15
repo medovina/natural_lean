@@ -17,6 +17,12 @@ Definition.  For any S : Set(T) and x : T, x ∈ S iff S(x) is true.
 theorem ext {a b : Set α} (h : ∀ (x : α), x ∈ a ↔ x ∈ b) : a = b :=
   funext (fun x => propext (h x))
 
+-- Define a coercion from sets to types.
+
+@[coe, reducible] def Elem (s : Set α) : Type u := {x // x ∈ s}
+
+instance : CoeSort (Set α) (Type u) := ⟨Elem⟩
+
 -- Define set comprehension notation.
 
 @[implicit_reducible]
