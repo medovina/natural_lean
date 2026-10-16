@@ -1,5 +1,6 @@
 import Natural
 
+open Lean
 open Lean.Core
 open Lean.Parser.Term
 open Lean.Syntax
@@ -28,7 +29,9 @@ instance : CoeSort (Set α) (Type u) := ⟨Elem⟩
 @[implicit_reducible]
 def Set.ofPred {α : Type u} (p : α → Prop) : Set α := p
 
-notation "{" x " : " type " | " body "}" => Set.ofPred fun x : type => body
+notation "{" x " : " type " | " body "}" => Set.ofPred (fun x : type => body)
+
+notation "{" x " | " body "}" => Set.ofPred (fun x => body)
 
 @[simp]
 theorem mem_ofPred_eq {x : α} {p : α → Prop} : (x ∈ {y : α | p y}) = p x := rfl
@@ -58,6 +61,16 @@ syntax (name := range) "{" expr "," "..." "," expr "}" : expr
 def range_elab : NaturalElab
   | `(expr| { $e:expr , ... , $f:expr }) => do
       `({ $(← of_expr e), ..., $(← of_expr f)}) <&> (·, #[], Lean.mkIdent ``Unit)
+  | _ => Lean.Elab.throwUnsupportedSyntax
+
+-- Define an elaborator for a set of all values with some property.
+
+@[natural_elab collection]
+def set_of_elab : NaturalElab
+  | `(collection| set of $a:adjective) => do
+      let a ← of_adjective a
+      let x := mkIdent `x
+      `({ $x:ident | $(← a x)}) <&> (·, #[x], Lean.mkIdent ``Unit)
   | _ => Lean.Elab.throwUnsupportedSyntax
 
 -- Singleton and Insert instances, needed for syntax {a, b, c} to work

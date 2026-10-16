@@ -148,23 +148,21 @@ kdef binary_op = "+" | "·" | "×" | "^" | "<" | "≤" | "≈"
 sdef rel_prop
   | expr (rel_op expr)+
 
+kdef _either = "either"
 kdef _if = "if"
+kdef _for = "for"
+kdef _the = "the"
+kdef _there = "there"
 
 sdef _iff
   | "iff" <|> (atomic("if" "and") "only" "if")
 
-kdef _for = "for"
-
 syntax _for_all := _for ("all" <|> "any" <|> "every")
-
-kdef _there = "there"
 
 kdef _exists = "exist" | "exists" | "is"
 
 sdef multi_or
   | multi_specifier "one" "of" rel_prop,+ "is" &"true"
-
-kdef _either = "either"
 
 syntax _a := &"a" <|> "an"
 
@@ -217,10 +215,14 @@ sdef nominal_e_t
   | nominal_e_t comp_adjective_phrase
   | nominal_e_t "that" verb_phrase
 
+declare_syntax_cat collection
+syntax (name := collection) natural_type_name "of" adjective : collection
+
 sdef noun_phrase_e
   | expr
   | expr "and" expr
-  | "the" nominal_e_t
+  | _the nominal_e_t  -- e.g. "the divisors of p"
+  | _the collection  -- e.g. "the set of primes"
 
 -- e → e → t (e.g. "a prime divisor p")
 declare_syntax_cat noun_phrase_e_e_t (behavior := symbol)
@@ -258,7 +260,7 @@ sdef var_list
 declare_syntax_cat exists_phrase  -- forward declaration
 
 sdef prop
-  | (priority := 1) atomic(noun_phrase_e verb_phrase)
+  | (priority := 1) noun_phrase_e verb_phrase
   | noun_phrase_et_t verb_phrase
   | (priority := 2) atomic(expr is_tf)
   | atomic(rel_prop) is_tf ?
@@ -402,6 +404,10 @@ sdef proof_sentence1
 sdef proof_sentence
   | clause_intro ? proof_sentence1 "."
 
+syntax label := ident
+
+syntax proof_label := label ("-" label)? "."
+
 declare_syntax_cat proof_unit
 
 sdef otherwise_intro
@@ -419,7 +425,7 @@ syntax biconditional_unit :=
 sdef_extend proof_unit
   | otherwise_unit
   | biconditional_unit
-  | proof_sentence
+  | (! proof_label) proof_sentence
 
 syntax case := "Case" num ":" prop "." proof_unit+
 
@@ -441,8 +447,6 @@ syntax notation_decl :=
   "Notation" "." str "is" _a op_kind relational ? "operator" "." "[" ident "]"
 
 -- definitions
-
-syntax label := ident
 
 syntax id_sig := ident atomic("(" var ")")?
 
@@ -513,7 +517,7 @@ syntax prop_item := label "." init_steps top_sentence
 
 syntax _proof_dot := "Proof" "."
 
-syntax proof_item := label ("-" label)? "." proof
+syntax proof_item := proof_label proof
 
 syntax proof_items := proof_item+
 
@@ -527,7 +531,7 @@ sdef type_class_ref
 
 sdef theorem_body
   | init_steps props_proofs
-  | "The" _operator binary_op "is" type_class_ref "on" type "." post_name
+  | atomic("The" _operator) binary_op "is" type_class_ref "on" type "." post_name
 
 syntax _theorem := thm_name ? str ? "." theorem_body
 

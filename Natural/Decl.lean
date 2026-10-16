@@ -36,10 +36,6 @@ def of_notation_decl: TSyntax ``notation_decl → CoreM (List Command)
 
 -- definitions
 
-def of_label: TSyntax ``label → CoreM Name
-  | `(label| $i:ident) => pure i.getId
-  | _ => throwError "unknown label"
-
 def of_id_sig : TSyntax ``id_sig → CoreM (Ident × Option Ident)
   | `(id_sig| $i:ident) => pure (i, none)
   | `(id_sig| $i:ident ( $j:ident )) => pure (i, some j)
@@ -440,8 +436,8 @@ def label_range (i j: Name) : CoreM (List Name) :=
     | _, _ => throwError "label must be a single letter"
 
 def of_proof_item: TSyntax ``proof_item → CoreM (List (Name × _Proof))
-  | `(proof_item| $i:label $[- $j:label]? . $p:proof) => do
-      let (i, j) ← pairM (of_label i) (j.mapM of_label)
+  | `(proof_item| $l:proof_label $p:proof) => do
+      let (i, j) ← of_proof_label l
       let p ← of_proof p
       match j with
         | .some j => .map (·, p) <$> label_range i j

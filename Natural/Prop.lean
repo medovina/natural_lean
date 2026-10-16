@@ -32,12 +32,6 @@ def free_vars (t: Term): List Name := syntax_free_vars true (t.raw)
 
 def all_vars (t: Term): List Name := syntax_free_vars false (t.raw)
 
-partial def next_var (v: Name) (taken: List Name) :=
-  if v ∈ taken then
-    let c := v.toString.front
-    let d := if c == 'z' then 'a' else Char.ofNat (c.toNat + 1)
-    next_var (Name.mkSimple d.toString) taken
-  else v
 
 def name_to_term (n: Name) : CoreM Term := `($(mkIdent n))
 
@@ -230,6 +224,14 @@ def try_elab [Monad m] [MonadExcept Exception m] {α: Type u}
           else throw ex
         | _ => throw ex
 
+def elab_expr (expr: Syntax): CoreM Term := do
+  let fns : List NaturalElab :=
+    (naturalElabAttribute.getEntries (← getEnv) expr.getKind).map (·.value)
+  let (stx, bound, type) ← (← try_elab fns expr).getDM (throwError "unknown expr")
+  match bound with
+    | #[] => pure stx
+    | _ => `(bind $bound:ident*, $type:term, $stx:term)
+
 partial def of_expr (expr: TSyntax `expr): CoreM Term := withRef expr do
   match parse_op_opt expr with
     | .some (kind, op, ts) =>
@@ -251,11 +253,7 @@ partial def of_expr (expr: TSyntax `expr): CoreM Term := withRef expr do
           let es ← es.getElems.mapM of_expr
           `({ $es:term,* })
       | `(expr| $i:ident [ $e:expr ]) => `($(id_append i `mk_quot) $(← of_expr e))
-      | _ =>
-        let fns : List NaturalElab :=
-          (naturalElabAttribute.getEntries (← getEnv) expr.raw.getKind).map (·.value)
-        let (stx, bound, type) ← (← try_elab fns expr).getDM (throwError "unknown expr")
-        `(bind $bound:ident*, $type:term, $stx:term)
+      | _ => elab_expr expr
 
 -- prop helpers
 
@@ -379,10 +377,11 @@ partial def of_noun_phrase_e : TSyntax `noun_phrase_e → CoreM Term
   | `(noun_phrase_e| $e:expr and $f:expr) => do
       let x ← fresh_var
       `(fun $x => $x = $(← of_expr e) ∨ $x = $(← of_expr f))
-  | `(noun_phrase_e| the $nom:nominal_e_t) => do
+  | `(noun_phrase_e| $_:_the $nom:nominal_e_t) => do
       let nom ← of_nominal_e_t nom
       let x := mkIdent `x
       `(fun $x => $(← nom x))  -- characteristic set
+  | `(noun_phrase_e| $_:_the $c:collection) => elab_expr c
   | _ => throwError "unknown noun_phrase"
 
 partial def of_noun_phrase_e_e_t :

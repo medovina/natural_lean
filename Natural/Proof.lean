@@ -301,6 +301,15 @@ def of_proof_sentence: TSyntax `proof_sentence → CoreM (List ProofStep)
       of_proof_sentence1 s
   | _ => throwError "unknown proof_sentence"
 
+def of_label: TSyntax ``label → CoreM Name
+  | `(label| $i:ident) => pure i.getId
+  | _ => throwError "unknown label"
+
+def of_proof_label: TSyntax ``proof_label → CoreM (Name × Option Name)
+  | `(proof_label| $i:label $[- $j:label]? . ) =>
+      pairM (of_label i) (j.mapM of_label)
+  | _ => throwError "unknown proof_label"
+
 mutual
 partial def of_otherwise_intro: TSyntax `otherwise_intro → CoreM (Term × List ProofStep)
   | `(otherwise_intro| $_:_assume $p:prop . $ts:proof_unit*) => do
