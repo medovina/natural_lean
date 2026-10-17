@@ -180,7 +180,9 @@ sdef ids_types
   | sepBy1(ids_type, "and")
   | natural_type id_list   -- e.g. "natural numbers x, y and z"
 
-syntax for_all_ids := _for_all ids_types ","
+syntax for_all_ids := _for_all ids_types
+
+syntax for_all_opt_with := for_all_ids ("with" rel_prop)?
 
 -- natural language
 
@@ -267,8 +269,8 @@ sdef prop
   |:35 prop:36 "and" prop:35
   |:30 atomic(_either ? prop:31 "or") prop:30
   |:25 prop:26 "implies" prop:25
-  | for_all_ids prop
-  |:23 prop:23 _for_all ids_types
+  | for_all_opt_with "," prop
+  |:23 prop:23 for_all_opt_with
   |:23 prop:23 _for &"some" ids_types
   |:20 prop:21 _iff prop:21
   |:18 prop:19 atomic("," "and") prop:18
@@ -492,7 +494,7 @@ sdef def_eq
   | expr "is" defined_term def_if prop  -- property definition
   | expr "is" &"a" defined_term "of" expr def_if prop  -- relation definition
 
-syntax def1 := for_all_ids ? def_eq "."
+syntax def1 := (for_all_ids ",") ? def_eq "."
 
 sdef defs
   | def1 justification ?
@@ -504,7 +506,7 @@ syntax (priority := 2) num (":" type)? "=" expr "." : direct_def
 
 syntax cases_def :=
   "The" _operator binary_op "on" ident
-  "is" "defined" "recursively" "such" "that" for_all_ids (label "." def_eq ".")+
+  "is" "defined" "recursively" "such" "that" for_all_ids "," (label "." def_eq ".")+
 
 sdef definition
   | type_def

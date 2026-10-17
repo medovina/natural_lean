@@ -373,7 +373,7 @@ def of_def_eq : TSyntax `def_eq → CoreM DefEq
   | _ => throwError "unknown def_eq"
 
 def of_def1 : TSyntax ``def1 → CoreM (IdVars × DefEq)
-  | `(def1| $ids:for_all_ids ? $eq:def_eq .) => do
+  | `(def1| $[$ids:for_all_ids ,]? $eq:def_eq .) => do
       pure $ (← ids.toList.flatMapM (of_for_all_ids ·), ← of_def_eq eq)
   | _ => throwError "unknown def1"
 
@@ -400,7 +400,7 @@ def of_direct_def : TSyntax `direct_def → TermElabM (List Command)
 def of_cases_def : TSyntax ``cases_def → TermElabM (List Command)
   | `(cases_def|
         The $_:_operator $op:binary_op on $_type:ident is defined recursively
-        such that $ids:for_all_ids $[$_:label . $eqs:def_eq .]*) => do
+        such that $ids:for_all_ids , $[$_:label . $eqs:def_eq .]*) => do
       let args ← of_for_all_ids ids
       let eqs ← eqs.toList.mapM (of_def_eq ·)
       generate_def (some (of_binary_op op)) (map_fst TSyntax.getId args) eqs none

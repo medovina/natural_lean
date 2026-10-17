@@ -294,8 +294,13 @@ def of_ids_types : TSyntax `ids_types → CoreM IdVars
   | _ => throwError "unknown ids_types"
 
 def of_for_all_ids : TSyntax ``for_all_ids → CoreM IdVars
-  | `(for_all_ids| $_:_for_all $ids_type:ids_types ,) => of_ids_types ids_type
+  | `(for_all_ids| $_:_for_all $ids_type:ids_types) => of_ids_types ids_type
   | _ => throwError "unknown for_all_ids"
+
+def of_for_all_opt_with : TSyntax ``for_all_opt_with → CoreM (IdVars × Term)
+  | `(for_all_opt_with| $f:for_all_ids $[with $p:rel_prop]?) => do
+    pure (← of_for_all_ids f, (← p.mapM of_rel_prop).getD mk_true)
+  | _ => throwError "unknown for_all_opt_with"
 
 def function_name (s: String) : String := s.replace " " "_"
 
@@ -474,10 +479,10 @@ partial def of_prop1 (prop: TSyntax `prop): CoreM Term := withRef prop do
     | `(prop| $p:prop implies $q:prop)
     | `(prop| $_:_if $p:prop $[,]? then $q:prop) => do `($(← of_prop1 p) → $(← of_prop1 q))
     | `(prop| $p:prop $_:_iff $q:prop) => do `($(← of_prop1 p) ↔ $(← of_prop1 q))
-    | `(prop| $ids_types:for_all_ids $p:prop) =>
-          mk_for_all (← of_for_all_ids ids_types) (← of_prop1 p)
-    | `(prop| $p:prop $_:_for_all $ids_type:ids_types) => do
-          mk_for_all (← of_ids_types ids_type) (← of_prop1 p)
+    | `(prop| $f:for_all_opt_with , $p:prop)
+    | `(prop| $p:prop $f:for_all_opt_with) => do
+          let (ids_types, w) ← of_for_all_opt_with f
+          mk_for_all ids_types (← mk_implies w (← of_prop1 p))
     | `(prop| $_:_there $_:_exists $s:some_or_no ? $ep:exists_phrase) => do
           let t ← of_exists_phrase ep
           let b ← s.elim (pure true) of_some_or_no
