@@ -178,11 +178,11 @@ Proof.
 
 Definition.  For all x, y : ℕ, x ≤ y iff x < y or x = y.
 
-Theorem.  For all x, y : ℕ, x ≤ y iff there is some z : ℕ such that x + z = y.  [ℕ.le_iff_add]
+Theorem.  Let x, y : ℕ.  x ≤ y iff there is some z : ℕ such that x + z = y.  [ℕ.le_iff_add]
 
-Proof.  Let x, y : ℕ.  Suppose that x ≤ y.  If x < y then there is some w : ℕ such that x + S(w) = y.  Otherwise x = y, so x + 0 = y.  In either case there is some z : ℕ such that x + z = y.
+Proof.  Suppose that x ≤ y.  If x < y then there is some w : ℕ such that x + S(w) = y.  Otherwise x = y, so x + 0 = y.  In either case there is some z : ℕ such that x + z = y.
 
-Let x, y : ℕ.  Suppose that there is some z : ℕ such that x + z = y.  If z = 0 then x = y, so x ≤ y.  Otherwise z ≠ 0.  Then by ℕ.is_zero_or_succ there is some w : ℕ such that z = S(w).  Then x + S(w) = y, so x < y, so x ≤ y.  In either case x ≤ y.
+Conversely, suppose that there is some z : ℕ such that x + z = y.  If z = 0 then x = y, so x ≤ y.  Otherwise z ≠ 0.  Then by ℕ.is_zero_or_succ there is some w : ℕ such that z = S(w).  Then x + S(w) = y, so x < y, so x ≤ y.  In either case x ≤ y.
 
 Theorem.  Let x, y, z : ℕ.
 

@@ -482,10 +482,14 @@ partial def translate (top: Bool) (parent_ex: Vars) (prev: Term) (concl: Option 
       let (c, child_concl) ←
         if step matches (.if_otherwise ..) || step matches (.case ..) then pure (unit, unit) else
         translate false ex_decl unit none children
+      let mk_assume (p: Term) (c: Term) : CoreM Term := do
+        let vars := (ex_vars p).map (·.1)
+        let pat ← ex_pattern vars
+        `(fun ($pat:term : $p) => $c)
       let translate_case (concl: Term) : Block → CoreM Term
         | ⟨.assume p, bs⟩ => do
             let (c, _) ← translate false [] unit (.some concl) bs
-            `(fun (_: $p) => $c)
+            mk_assume p c
         | _ => panic! "no assume"
       let (decl, prop) ← match step with
         | .assert p reason => withRef p do
@@ -509,9 +513,7 @@ partial def translate (top: Bool) (parent_ex: Vars) (prev: Term) (concl: Option 
             let decl ← `(letDecl| : _ := $t:term)
             pure (decl, child_concl)
         | .assume p =>
-            let vars := (ex_vars p).map (·.1)
-            let pat ← ex_pattern vars
-            pure (← `(letDecl| : _ := fun ($pat:term : $p) => $c),
+            pure (← `(letDecl| : _ := $(← mk_assume p c)),
                   ← `($p → _))
         | .is_some p reason => withRef p do
             let vars ← if children.isEmpty then this_term
