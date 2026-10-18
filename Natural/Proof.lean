@@ -164,6 +164,12 @@ partial def all_free_vars : List ProofStep → List Name
       (step_free_vars step ++ all_free_vars steps).removeAll (step_decl_vars step) |>.eraseDups
 end
 
+def step_conclusion : ProofStep → Option Term
+  | .assert p _ => .some p
+  | .if_otherwise _ _ _ concl => concl
+  | .case _ concl => .some concl
+  | _ => .none
+
 def fmt_chain : List Term → List String → CoreM Format
   | [t], [] => do pure f!"{← fmt_term t}"
   | t :: ts, op :: ops => do
@@ -329,30 +335,30 @@ def of_proof_label: TSyntax ``proof_label → CoreM (Name × Option Name)
   | _ => throwError "unknown proof_label"
 
 mutual
-partial def of_otherwise_intro: TSyntax `otherwise_intro → CoreM (Term × List ProofStep)
-  | `(otherwise_intro| $_:_assume $p:prop . $ts:proof_unit*) => do
+partial def of_if_otherwise_intro: TSyntax `if_otherwise_intro → CoreM (Term × List ProofStep)
+  | `(if_otherwise_intro| $_:_assume $p:prop . $ts:proof_unit*) => do
       pure (← of_prop p, ← ts.toList.flatMapM of_proof_unit)
-  | `(otherwise_intro| $pip:proof_if_prop .) => match pip with
+  | `(if_otherwise_intro| $pip:proof_if_prop .) => match pip with
     | `(proof_if_prop| $_:_if $p:prop $[,]? then $[$qs:proof_prop]/*) => do
         pure (← of_prop p, ← qs.toList.flatMapM of_proof_prop)
-    | _ => throwError "unknown otherwise_intro"
-  | _ => throwError "unknown otherwise_intro"
+    | _ => throwError "unknown if_otherwise_intro"
+  | _ => throwError "unknown if_otherwise_intro"
 
 partial def of_any_case : TSyntax ``any_case → CoreM (Term × List ProofStep)
   | `(any_case| $_:_any_case $concl:prop $[, $_:and_or_so $a:assertions]? .) => do
       pure (← of_prop concl, ← a.toList.flatMapM of_assertions)
   | _ => throwError "unknown of_any_case"
 
-partial def of_otherwise_unit: TSyntax ``otherwise_unit → CoreM (List ProofStep)
-  | `(otherwise_unit|
-        $intro:otherwise_intro $_:_otherwise $fs:proof_unit* $ac:any_case ?) => do
-      let (p, ts) ← of_otherwise_intro intro
+partial def of_if_otherwise_unit: TSyntax ``if_otherwise_unit → CoreM (List ProofStep)
+  | `(if_otherwise_unit|
+        $intro:if_otherwise_intro $_:_otherwise $fs:proof_unit* $ac:any_case ?) => do
+      let (p, ts) ← of_if_otherwise_intro intro
       let fs ← fs.toList.flatMapM of_proof_unit
       let (concl, steps) : (Option Term × List ProofStep) ← match ac with
         | .some ac => map_pair_fst Option.some <$> of_any_case ac
         | .none => pure (Option.none, [])
       pure $ ProofStep.if_otherwise p ts fs concl :: steps
-  | _ => throwError "unknown otherwise_unit"
+  | _ => throwError "unknown if_otherwise_unit"
 
 partial def of_biconditional_unit: TSyntax ``biconditional_unit → CoreM ProofStep
   | `(biconditional_unit| $_:_assume $p:prop . $fs:proof_unit* Conversely $[,]?
@@ -362,7 +368,7 @@ partial def of_biconditional_unit: TSyntax ``biconditional_unit → CoreM ProofS
   | _ => throwError "unknown biconditional_unit"
 
 partial def of_proof_unit: TSyntax `proof_unit → CoreM (List ProofStep)
-  | `(proof_unit| $o:otherwise_unit) => of_otherwise_unit o
+  | `(proof_unit| $o:if_otherwise_unit) => of_if_otherwise_unit o
   | `(proof_unit| $b:biconditional_unit) => List.singleton <$> of_biconditional_unit b
   | `(proof_unit| $s:proof_sentence) => of_proof_sentence s
   | _ => throwError "unknown proof_unit"
@@ -405,64 +411,55 @@ def append_concl (steps: List ProofStep) (concl: Term) :=
         if t == concl then steps else steps ++ concl_step
     | _ => steps ++ concl_step
 
-def conclusion_steps (ts: List ProofStep) (fs: List ProofStep) (concl: Option Term)
-      : CoreM (List ProofStep × List ProofStep × Term) := match concl with
-  | .some concl =>
-      pure (append_concl ts concl, append_concl fs concl, concl)
-  | .none => match ts.getLast?, fs.getLast? with
-      | .some (.assert p _), .some (.assert p' _) =>
-          if p == p' then pure (ts, fs, p)
-          else throwError "conclusion mismatch in if/otherwise block"
-      | _, _ => throwError "missing conclusion in if/otherwise block"
-
-partial def infer_blocks (steps: List ProofStep): CoreM (List Block) := do
+partial def infer_blocks (steps: List ProofStep): List Block :=
   let rec infer (vars: List (List Name)) (let_vars: List (List Name))
-                (steps: List ProofStep): CoreM (List Block × List ProofStep × Bool) :=
+                (steps: List ProofStep): List Block × List ProofStep × Bool :=
     match steps with
-      | [] => pure ([], [], false)
-      | (step :: rest) => do
-          if overlap (step_decl_vars step) vars.flatten then pure ([], steps, false) else
+      | [] => ([], [], false)
+      | (step :: rest) =>
+          if overlap (step_decl_vars step) vars.flatten then ([], steps, false) else
           let in_use := all_free_vars steps
           let vars_in_use := vars.head?.all (fun vs => vs.any in_use.elem)
           let let_vars_in_use := let_vars.head?.all (fun vs => vs.any in_use.elem)
           if (!is_assert_false step && !vars_in_use && !let_vars_in_use)
-            then pure ([], steps, false) else
-              let (blocks, rest, bail) : List Block × List ProofStep × Bool ← match step with
-                | .assert .. | .assert_chain .. =>
-                    -- If we are asserting false, bail out to the enclosing assumption.
-                    pure ([⟨step, []⟩], rest, is_assert_false step)
-                | .let .. | .let_def .. | .assume _ | .is_some .. => do
-                    let vars := if step matches (.assume _)
-                      then vars else step_decl_vars step :: vars
-                    let let_vars := if step matches (.let ..)
-                      then step_decl_vars step :: vars else let_vars
-                    let (children, rest, bail) ← infer vars let_vars rest
-                    let bail := bail && !(step matches (.assume _))
-                    pure ([⟨step, children⟩], rest, bail)
-                | .if_otherwise p ts fs concl => do
-                    let (ts, fs, concl) ← conclusion_steps ts fs concl
-                    let tb := ⟨.assume p, ← infer_blocks ts⟩
-                    let fb := ⟨.assume (Syntax.mkCApp ``Not #[p]), ← infer_blocks fs⟩
-                    let block := ⟨.if_otherwise p [] [] (.some concl), [tb, fb]⟩
-                    pure ([block], rest, is_const_false concl)
-                | .biconditional p fwd q rev => do
-                    let fb := ⟨.assume p, ← infer_blocks fwd⟩
-                    let rb := ⟨.assume q, ← infer_blocks rev⟩
-                    let block := ⟨.biconditional p [] q [], [fb, rb]⟩
-                    pure ([block], rest, false)
-                | .case cases concl => do
-                    let bs ← cases.mapM (fun (p, steps) => do
-                      pure ⟨.assume p, ← infer_blocks (append_concl steps concl)⟩)
-                    let ts := cases.map (fun (p, _steps) => (p, []))
-                    let block := ⟨.case ts concl, bs⟩
-                    pure ([block], rest, is_const_false concl)
-                | .group steps => pure (← infer_blocks steps, rest, false)
-              let (blocks2, rest, bail) ←
-                if bail then pure ([], rest, true) else infer vars let_vars rest
-              pure (blocks ++ blocks2, rest, bail)
-  let (blocks, rest, _bail) ← infer [] [] steps
+            then ([], steps, false)
+            else let (blocks, rest, bail) : List Block × List ProofStep × Bool := match step with
+              | .assert .. | .assert_chain .. =>
+                  -- If we are asserting false, bail out to the enclosing assumption.
+                  ([⟨step, []⟩], rest, is_assert_false step)
+              | .let .. | .let_def .. | .assume _ | .is_some .. =>
+                  let vars := if step matches (.assume _)
+                    then vars else step_decl_vars step :: vars
+                  let let_vars := if step matches (.let ..)
+                    then step_decl_vars step :: vars else let_vars
+                  let (children, rest, bail) := infer vars let_vars rest
+                  let bail := bail && !(step matches (.assume _))
+                  ([⟨step, children⟩], rest, bail)
+              | .if_otherwise p ts fs concl =>
+                  let concl := concl.getD (panic! "infer_blocks")
+                  let tb := ⟨.assume p, infer_blocks ts⟩
+                  let fb := ⟨.assume (Syntax.mkCApp ``Not #[p]),
+                             infer_blocks fs⟩
+                  let block := ⟨.if_otherwise p [] [] concl, [tb, fb]⟩
+                  ([block], rest, is_const_false concl)
+              | .biconditional p fwd q rev =>
+                  let fb := ⟨.assume p, infer_blocks fwd⟩
+                  let rb := ⟨.assume q, infer_blocks rev⟩
+                  let block := ⟨.biconditional p [] q [], [fb, rb]⟩
+                  ([block], rest, false)
+              | .case cases concl =>
+                  let bs := cases.map (fun (p, steps) =>
+                    ⟨.assume p, infer_blocks (append_concl steps concl)⟩)
+                  let ts := cases.map (fun (p, _steps) => (p, []))
+                  let block := ⟨.case ts concl, bs⟩
+                  ([block], rest, is_const_false concl)
+              | .group steps => (infer_blocks steps, rest, false)
+            let (blocks2, rest, bail) :=
+              if bail then ([], rest, true) else infer vars let_vars rest
+            (blocks ++ blocks2, rest, bail)
+  let (blocks, rest, _bail) := infer [] [] steps
   assert! (rest.isEmpty)
-  pure blocks
+  blocks
 
 partial def resolve_block : Block → TermElabM Block
   | ⟨step, children⟩ => do
@@ -622,13 +619,44 @@ def with_implicit_let (env: List Name) (steps: List ProofStep) : CoreM (List Pro
           | _ => pure [step]
         do pure $ steps ++ (← with_implicit_let (steps.flatMap step_decl_vars ++ env) rest)
 
+def find_conclusion (concl: Term) : List ProofStep → CoreM (List ProofStep × List ProofStep)
+  | [] => throwError "no matching conclusion found in if/otherwise block"
+  | step :: steps =>
+      if step_conclusion step == .some concl then pure ([step], steps)
+      else map_pair_fst (step :: ·) <$> find_conclusion concl steps
+
+partial def infer_conclusions : List ProofStep → CoreM (List ProofStep)
+  | [] => pure []
+  | step :: steps => do
+      let (step, extra) ← match step with
+        | .if_otherwise p ts fs concl => do
+            let (ts, fs) ← mapM_pair infer_conclusions (ts, fs)
+            match concl with
+              | .some concl =>
+                  let step := .if_otherwise p
+                      (append_concl ts concl) (append_concl fs concl) (.some concl)
+                  pure (step, [])
+              | .none => match ts.getLast? with
+                | .some (.assert concl _) =>
+                    let (fs, extra) ← find_conclusion concl fs
+                    pure (.if_otherwise p ts fs (.some concl), extra)
+                | _ => throwError "missing conclusion in if/otherwise block"
+        | .biconditional p fs q rs =>
+            pure (.biconditional p (← infer_conclusions fs) q (← infer_conclusions rs), [])
+        | .case cases concl =>
+            pure (.case (← mapM_snd infer_conclusions cases) concl, [])
+        | .group steps => pure (.group (← infer_conclusions steps), [])
+        | _ => pure (step, [])
+      (step :: ·) <$> infer_conclusions (extra ++ steps)
+
 def translate_proof (init_steps: List ProofStep) (thm: Term): _Proof → TermElabM Term
   | .steps steps => do
       let steps ← match steps with
           | .let .. :: _ => pure steps    -- do not insert init steps
           | _ => pure $ init_steps ++ steps
       let steps ← with_implicit_let [] steps
-      let blocks ← infer_blocks steps
+      let steps ← infer_conclusions steps
+      let blocks := infer_blocks steps
       let blocks ← blocks.mapM resolve_block
       trace[natural.tree] pretty ("\n" ++ (← show_blocks blocks))
       Prod.fst <$> translate True [] (← `(())) none blocks

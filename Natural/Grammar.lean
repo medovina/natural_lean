@@ -413,21 +413,21 @@ syntax proof_label := label ("-" label)? "."
 
 declare_syntax_cat proof_unit
 
-sdef otherwise_intro
+sdef if_otherwise_intro
   | _assume prop "." proof_unit+
   | proof_if_prop "."
 
 syntax any_case := _any_case prop ("," and_or_so assertions)? "."
 
-syntax otherwise_unit :=
-  atomic(otherwise_intro _otherwise) proof_unit+ any_case ?
+syntax if_otherwise_unit :=
+  atomic(if_otherwise_intro _otherwise) proof_unit+ any_case ?
 
 syntax biconditional_unit :=
   atomic(_assume prop "." proof_unit+ "Conversely") ","?
   _assume prop "." proof_unit+
 
 sdef_extend proof_unit
-  | otherwise_unit
+  | if_otherwise_unit
   | biconditional_unit
   | (! proof_label) proof_sentence
 
