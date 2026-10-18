@@ -139,14 +139,6 @@ def step_decl_vars : ProofStep → List Name
   | .is_some p _reason => (ex_vars p).map (TSyntax.getId ·.1)
   | _ => []
 
-partial def step_all_decl_vars (step: ProofStep): List Name :=
-  let of_steps (steps: List ProofStep) := (steps.flatMap step_all_decl_vars).eraseDups
-  match step with
-    | .if_otherwise _p t f _q => of_steps (t ++ f)
-    | .case cases _ => of_steps (cases.map Prod.snd).flatten
-    | .group steps => of_steps steps
-    | _ => step_decl_vars step
-
 mutual
 partial def step_free_vars : ProofStep → List Name
   | .assert p _ => free_vars p
@@ -400,7 +392,7 @@ partial def infer_blocks (steps: List ProofStep): List Block :=
     match steps with
       | [] => ([], [], false)
       | (step :: rest) =>
-          if overlap (step_all_decl_vars step) vars.flatten then ([], steps, false) else
+          if overlap (step_decl_vars step) vars.flatten then ([], steps, false) else
           let in_use := all_free_vars steps
           let vars_in_use := vars.head?.all (fun vs => vs.any in_use.elem)
           let let_vars_in_use := let_vars.head?.all (fun vs => vs.any in_use.elem)
