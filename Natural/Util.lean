@@ -23,9 +23,15 @@ theorem Or.elim3 {c d : Prop} (h : a ∨ b ∨ c) (ha : a → d) (hb : b → d) 
 def Option.anyM [Monad m] (f: α → m Bool) (x: Option α) : m Bool :=
   x.toList.anyM f
 
+def Option.getMD [Monad m] (x: m (Option α)) (d: α): m α :=
+  Option.elimM x (pure d) pure
+
 namespace Natural
 
 -- pairs
+
+def map_pair_fst (f : α → γ) (p : (α × β)) :=
+  match p with | (x, y) => (f x, y)
 
 def map_fst (f : α → γ) (pairs : List (α × β)) :=
   pairs.map (fun (x, y) => (f x, y))

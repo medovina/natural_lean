@@ -178,6 +178,7 @@ Proof.
 
 Definition.  For all x, y : ℕ, x ≤ y iff x < y or x = y.
 
+set_option trace.natural true in
 Theorem.  Let x, y : ℕ.  x ≤ y iff there is some z : ℕ such that x + z = y.  [ℕ.le_iff_add]
 
 Proof.  Suppose that x ≤ y.  If x < y then there is some w : ℕ such that x + S(w) = y.  Otherwise x = y, so x + 0 = y.  In either case there is some z : ℕ such that x + z = y.

@@ -297,12 +297,13 @@ sdef reference
   | assumption ("that" prop)?
 
 declare_syntax_cat reason (behavior := symbol)
-syntax "[" tactic "]" : reason
-syntax (priority := 1) reference : reason
-syntax atomic(ident ? "induction") : reason
-syntax "the" "inductive" "hypothesis" : reason
-syntax (priority := 2) &"definition" : reason
-syntax "the" &"definition" "of" ident : reason
+sdef_extend reason
+  | "[" tactic "]"
+  | (priority := 1) reference
+  | atomic(ident ? "induction")
+  | "the" "inductive" "hypothesis"
+  | (priority := 2) &"definition"
+  | "the" &"definition" "of" ident
 
 sdef eq_expr_by
   | rel_op expr ("by" reason)?
@@ -416,9 +417,10 @@ sdef otherwise_intro
   | _assume prop "." proof_unit+
   | proof_if_prop "."
 
+syntax any_case := _any_case prop ("," and_or_so assertions)? "."
+
 syntax otherwise_unit :=
-  atomic(otherwise_intro _otherwise) proof_unit+
-  _any_case prop ("," and_or_so assertions)? "."
+  atomic(otherwise_intro _otherwise) proof_unit+ any_case ?
 
 syntax biconditional_unit :=
   atomic(_assume prop "." proof_unit+ "Conversely") ","?
