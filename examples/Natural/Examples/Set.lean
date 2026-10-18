@@ -7,10 +7,6 @@ Definition.  Let S : Set(T).
   a. S is empty iff there is no x : T such that x ∈ S.
   b. S is nonempty iff there is some x : T such that x ∈ S.
 
-Lemma.  Let T be a type.  Let P : T → Prop.  { x : T | P(x) is true } is empty if and only if for all x : T, P(x) is false.  [Set.eq_empty_iff_mem_false: @simp]
-
-Proof.  Let S = { x : T | P(x) is true }.  Suppose that S is empty.  Let x : T.  Then x ∉ S, so P(x) is false.  Conversely, suppose that for all x : T, P(x) is false.  Then for all x : T, x ∉ S, so S is empty.
-
 Definition.  Let A, B : Set(T).  A ⊆ B iff x ∈ A implies x ∈ B for all x : T.
 
 Definition.  Let A : Set(T).  𝒫(A) = { X : Set(T) | X ⊆ A }.

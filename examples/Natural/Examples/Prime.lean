@@ -9,8 +9,8 @@ Proof.  Let A = { a : ℕ | if a > 1 then a has a prime divisor }.  Let b : ℕ,
 
 Case 1: b ≤ 1. Then trivially b ∈ A.
 
-Case 2: b > 1 and b is prime. Then b has a prime divisor since b | b.  So b ∈ A.
+Case 2: b > 1 and b is prime. Then b has a prime divisor since b | b.
 
-Case 3: b > 1 and b is not prime.  Then there is some natural number c such that c | b and c ≠ b and c ≠ 1.  We know that c ≠ 0, so c > 1.  Since c | b and b > 0, it follows by Nat.le_of_dvd that c ≤ b, so c < b.  By the inductive hypothesis c has some prime divisor d.  Then by Nat.dvd_trans d | b, so b ∈ A.
+Case 3: b > 1 and b is not prime.  Then there is some natural number c such that c | b and c ≠ b and c ≠ 1.  We know that c ≠ 0, so c > 1.  Since c | b and b > 0, it follows by Nat.le_of_dvd that c ≤ b, so c < b.  By the inductive hypothesis c has some prime divisor d.  Then by Nat.dvd_trans d | b.
 
 In all cases b ∈ A.  By strong induction b ∈ A for all b : ℕ.

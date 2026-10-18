@@ -48,6 +48,7 @@ inductive Reason where
   | apply (ns: List Ident)
   | induction (kind: Option Ident)
   | by_definition_of (i: Ident)
+deriving BEq
 
 def tactic : Option Reason → CoreM Term
   | .none => `(by default)
@@ -98,7 +99,7 @@ inductive ProofStep where
   | biconditional (p: Term) (forward: List ProofStep) (q: Term) (reverse: List ProofStep)
   | case (cases: List (Term × List ProofStep)) (concl: Term)
   | group (steps: List ProofStep)
-deriving Nonempty
+deriving Nonempty, Inhabited, BEq
 
 partial def step_mapM [Monad m] (f: Term → m Term) (step: ProofStep) : m ProofStep := do
   let map_steps (steps: List ProofStep) := steps.mapM (step_mapM f)
@@ -386,6 +387,13 @@ def is_assert_false : ProofStep → Bool
   | .assert t _ => is_const_false t
   | _ => false
 
+def append_concl (steps: List ProofStep) (concl: Term) :=
+  let concl_step := [ProofStep.assert concl none]
+  match steps.getLastD (panic! "append_step") with
+    | .assert t _ =>
+        if t == concl then steps else steps ++ concl_step
+    | _ => steps ++ concl_step
+
 partial def infer_blocks (steps: List ProofStep): List Block :=
   let rec infer (vars: List (List Name)) (let_vars: List (List Name))
                 (steps: List ProofStep): List Block × List ProofStep × Bool :=
@@ -410,18 +418,20 @@ partial def infer_blocks (steps: List ProofStep): List Block :=
                   let (children, rest, bail) := infer vars let_vars rest
                   let bail := bail && !(step matches (.assume _))
                   ([⟨step, children⟩], rest, bail)
-              | .if_otherwise p ts fs q =>
-                  let tb := ⟨.assume p, infer_blocks ts⟩
-                  let fb := ⟨.assume (Syntax.mkCApp ``Not #[p]), infer_blocks fs⟩
-                  let block := ⟨.if_otherwise p [] [] q, [tb, fb]⟩
-                  ([block], rest, is_const_false q)
+              | .if_otherwise p ts fs concl =>
+                  let tb := ⟨.assume p, infer_blocks (append_concl ts concl)⟩
+                  let fb := ⟨.assume (Syntax.mkCApp ``Not #[p]),
+                             infer_blocks (append_concl fs concl)⟩
+                  let block := ⟨.if_otherwise p [] [] concl, [tb, fb]⟩
+                  ([block], rest, is_const_false concl)
               | .biconditional p fwd q rev =>
                   let fb := ⟨.assume p, infer_blocks fwd⟩
                   let rb := ⟨.assume q, infer_blocks rev⟩
                   let block := ⟨.biconditional p [] q [], [fb, rb]⟩
                   ([block], rest, false)
               | .case cases concl =>
-                  let bs := cases.map (fun (p, steps) => ⟨.assume p, infer_blocks steps⟩)
+                  let bs := cases.map (fun (p, steps) =>
+                    ⟨.assume p, infer_blocks (append_concl steps concl)⟩)
                   let ts := cases.map (fun (p, _steps) => (p, []))
                   let block := ⟨.case ts concl, bs⟩
                   ([block], rest, is_const_false concl)
