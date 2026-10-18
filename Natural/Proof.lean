@@ -169,6 +169,19 @@ def fmt_chain : List Term → List String → CoreM Format
 
 def nestB := nest 4
 
+-- for debugging
+def show_step_basic : ProofStep → String
+  | .assert .. => "assert"
+  | .assert_chain .. => "assert_chain"
+  | .let .. => "let"
+  | .let_def .. => "let_def"
+  | .assume .. => "assume"
+  | .is_some .. => "is_some"
+  | .if_otherwise .. => "if_otherwise"
+  | .biconditional .. => "biconditional"
+  | .case .. => "case"
+  | .group .. => "group"
+
 def show_step : ProofStep → CoreM Format
   | .assert p _ => do pure f!"assert {← fmt_term p}"
   | .assert_chain ts ops _ => do
@@ -548,9 +561,6 @@ def trim_step (thm: Term) : ProofStep → Option ProofStep
 def trim_steps (thm: Term) (steps: List ProofStep): List ProofStep :=
   steps.filterMap (trim_step thm)
 
-def generalize (init_steps: List ProofStep) (t: Term) : CoreM Term :=
-  apply_init_steps (trim_steps t init_steps) t
-
 def is_implicit_let (env: List Name) : Term → Option Ident
   | `($x:ident ∈ $_) =>
       if x.getId ∈ env then none else some x
@@ -582,8 +592,8 @@ def with_implicit_let (env: List Name) (steps: List ProofStep) : CoreM (List Pro
 def translate_proof (init_steps: List ProofStep) (thm: Term): _Proof → TermElabM Term
   | .steps steps => do
       let steps ← match steps with
-          | .let .. :: _ => pure steps
-          | _ => pure $ trim_steps thm init_steps ++ steps
+          | .let .. :: _ => pure steps    -- do not insert init steps
+          | _ => pure $ init_steps ++ steps
       let steps ← with_implicit_let [] steps
       let blocks := infer_blocks steps
       let blocks ← blocks.mapM resolve_block
@@ -594,8 +604,7 @@ def translate_proof (init_steps: List ProofStep) (thm: Term): _Proof → TermEla
       let .some info ← global_info q | throwError s!"type not found: {q}"
       let .some val := info.value? | throwError "no value"
       unless val.isAppOf ``Quotient do throwError "not a quotient type"
-      let gthm ← generalize init_steps thm
-      let qvars := (bound_vars gthm).filterMap (fun (x, binding) =>
+      let qvars := (bound_vars thm).filterMap (fun (x, binding) =>
         binding.bind (fun (op, type) =>
           if op == ":" && Syntax.getId type == q then some (mkIdent x) else none))
       if qvars == [] then throwError "no arguments of given type"

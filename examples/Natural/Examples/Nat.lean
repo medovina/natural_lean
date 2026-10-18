@@ -3,6 +3,9 @@ import Natural.Examples.Set
 abbrev ℕ := Nat   -- use Lean's built-in natural number type
 abbrev S := Nat.succ
 
+theorem strong_induction_on {p : ℕ → Prop} (n : ℕ) (h : ∀ n, (∀ m < n, p m) → p n) : p n
+    := Nat.strongRecOn n h
+
 Definition.  Let A : Set(ℕ).  Let z : ℕ.  z is a least element of A iff z ∈ A and for all u ∈ A, z ≤ u.
 
 -- Here we prove that ℕ is well ordered using induction on ℕ.  (An alternative proof could use the fact that Nat belongs to the WellFoundedRelation type class.)

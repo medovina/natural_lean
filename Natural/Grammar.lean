@@ -317,7 +317,7 @@ kdef _so =
   "also" | "but" | "hence" | "so" | "that is" | "then" | "therefore" | "thus"
 
 kdef have1 =
-  "clearly" | "it must be that" | "observe that" |
+  "clearly" | "it must be that" | "observe that" | "trivially" |
   "we deduce that" | "we have shown that" | "we have" |
   "we know that" | "we must have" | "we see that"
 

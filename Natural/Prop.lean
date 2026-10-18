@@ -588,6 +588,7 @@ abbrev LocalEnv := List (Name × Term)    -- maps name to type
 
 mutual
 
+-- Resolve ambiguities in a term.  For example, a(b) will become either a product a · b or a function call, depending on the type of a.
 partial def resolve (s: Syntax) : TermElabM Term := withRef s do
   match s with
     | `($n:num) => pure n
