@@ -389,8 +389,8 @@ def is_assert_false : ProofStep → Bool
 
 def append_concl (steps: List ProofStep) (concl: Term) :=
   let concl_step := [ProofStep.assert concl none]
-  match steps.getLastD (panic! "append_step") with
-    | .assert t _ =>
+  match steps.getLast? with
+    | .some (.assert t _) =>
         if t == concl then steps else steps ++ concl_step
     | _ => steps ++ concl_step
 
