@@ -46,7 +46,7 @@ def of_reference: TSyntax `reference → CoreM (List Ident)
 inductive Reason where
   | tactic (t: Syntax.Tactic)
   | apply (ns: List Ident)
-  | induction
+  | induction (kind: Option Ident)
   | by_definition_of (i: Ident)
 
 def tactic : Option Reason → CoreM Term
@@ -55,13 +55,20 @@ def tactic : Option Reason → CoreM Term
     | .apply [] => `(by default)
     | .apply ns => `(by default_apply $(ns.toArray)*)
     | .tactic t => `(by { $t })
-    | .induction => `(by intro x ; induction x <;> default)
+    | .induction kind => match kind with
+      | some kind => do
+          let thm_name := kind.getId.toString ++ " induction"
+          match ← lookup_assoc name_extension thm_name with
+            | .some (.theorem, name) =>
+                `(by intro x ; induction x using $(mkIdent name) ; default)
+            | _ => throwError s!"unknown theorem '{thm_name}'"
+      | none => `(by intro x ; induction x <;> default)
     | .by_definition_of _ => `(by default)  -- ignore definition for now
 
 def of_reason: TSyntax `reason → CoreM (Option Reason)
   | `(reason| [ $t:tactic ]) => pure (Reason.tactic t)
   | `(reason| $r:reference) => .some <$> Reason.apply <$> of_reference r
-  | `(reason| induction) => pure Reason.induction
+  | `(reason| $[$k:ident]? induction) => pure (Reason.induction k)
   | `(reason| the inductive hypothesis)
   | `(reason| definition) => pure Option.none
   | `(reason| the definition of $i:ident) => pure (.some (.by_definition_of i))

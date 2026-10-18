@@ -425,24 +425,28 @@ inductive Category
   | noun
   | adjective
   | type  -- also a noun
+  | theorem
 deriving BEq, Inhabited
 
 instance: ToString Category where toString
   | .noun => "noun"
   | .adjective => "adjective"
   | .type => "type"
+  | .theorem => "theorem"
 
-syntax category := &"noun" <|> &"adjective" <|> &"type"
+syntax category := &"noun" <|> &"adjective" <|> &"type" <|> &"theorem"
 
 def of_category : TSyntax ``category → Category
   | `(category| noun) => .noun
   | `(category| adjective) => .adjective
   | `(category| type) => .type
+  | `(category| theorem) => .theorem
   | _ => panic! "of_category"
 
 def to_category: Category → CoreM (TSyntax ``category)
   | .noun => `(category| noun)
   | .adjective => `(category| adjective)
   | .type => `(category| type)
+  | .theorem => `(category| theorem)
 
 end Natural

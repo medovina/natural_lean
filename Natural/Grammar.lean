@@ -299,7 +299,7 @@ sdef reference
 declare_syntax_cat reason (behavior := symbol)
 syntax "[" tactic "]" : reason
 syntax (priority := 1) reference : reason
-syntax "induction" : reason
+syntax atomic(ident ? "induction") : reason
 syntax "the" "inductive" "hypothesis" : reason
 syntax (priority := 2) &"definition" : reason
 syntax "the" &"definition" "of" ident : reason
