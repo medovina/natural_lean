@@ -278,7 +278,8 @@ def quotient_lift (top_name: Ident) (def_name: Ident) (n: Nat) (arg_type: Term)
     | _ => throwError "unsupported lift"
   `(def $top_name : $type := $(mkIdent q) $def_name $by_thms)
 
-def generate_def (decl_fn: Option String) (env: Vars) (defeqs: List DefEq)
+def generate_def (decl_fn: Option String) (arg_type: Option Term)
+    (env: Vars) (defeqs: List DefEq)
     (justification: Option Ident) : TermElabM (List Command) := do
   let env ← env.mapM (check_no_binder_op ·)
   let defeqs ← defeqs.mapM (fun (d : DefEq) => do
@@ -303,7 +304,8 @@ def generate_def (decl_fn: Option String) (env: Vars) (defeqs: List DefEq)
           pure { d with args := ← d.args.mapM (rm_mkquot ·) })  -- remove projections
         pure (true, as_term qtype, fname ++ `aux, defeqs)
     | .none => do
-        pure (false, ← pattern_type env arg1, fname, defeqs)
+        let arg_type ← arg_type.elim (pattern_type env arg1) pure
+        pure (false, arg_type, fname, defeqs)
 
   let args_types ← match defeqs with
     | [{ args := ts, ..}] => ts.mapM (pattern_type env ·)
@@ -390,7 +392,7 @@ def of_direct_def : TSyntax `direct_def → TermElabM (List Command)
       let (defs, just) ← of_defs defs
       defs.flatMapM (fun (vars, eq) =>
         let args := lets_vars ls ++ map_fst TSyntax.getId vars
-        generate_def none args [eq] just)
+        generate_def none none args [eq] just)
   | `(direct_def| $n:num $[: $type:type]? = $e:expr .) => do
       let expr ← of_expr e >>= resolve_term []
       let type ← type.elim (infer_type e) (of_type ·)
@@ -399,11 +401,11 @@ def of_direct_def : TSyntax `direct_def → TermElabM (List Command)
 
 def of_cases_def : TSyntax ``cases_def → TermElabM (List Command)
   | `(cases_def|
-        The $_:_operator $op:op on $_type:ident is defined recursively
+        The $_:_operator $op:op on $type:ident is defined recursively
         such that $ids:for_all_ids , $[$_:label . $eqs:def_eq .]*) => do
       let args ← of_for_all_ids ids
       let eqs ← eqs.toList.mapM (of_def_eq ·)
-      generate_def (some (of_op op)) (map_fst TSyntax.getId args) eqs none
+      generate_def (some (of_op op)) (some type) (map_fst TSyntax.getId args) eqs none
   | _ => throwError "unknown cases_def"
 
 def of_definition : TSyntax `definition → TermElabM (List Command)

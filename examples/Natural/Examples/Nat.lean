@@ -17,3 +17,12 @@ Definition.  Let A : Set(ℕ).  Let z : ℕ.  z is a least element of A iff z �
 -- divisibility
 
 Lemma.  Let a : ℕ.  a | a.  [ℕ.dvd_rfl: @refl]
+
+-- factorial
+
+Notation.  "!" is a postfix operator.  [ℕ.factorial]
+
+Definition.  The unary operation ! on ℕ is defined recursively such that for all n : ℕ,
+
+  a.  0! = 1.
+  b.  (n + 1)! = (n + 1) · n!.
