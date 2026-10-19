@@ -119,7 +119,7 @@ sdef super_expr
 
 declare_syntax_cat expr
 syntax nat : expr
-syntax ident : expr
+syntax id : expr
 syntax:80 (name := super) expr:80 super_expr : expr
 syntax:80 expr:81 "^" expr:80 : expr
 syntax:75 (priority := 1) expr:75 noWs expr:76 : expr
@@ -133,7 +133,7 @@ syntax:65 expr:65 "∪" expr:66 : expr
 syntax (priority := 2) expr "(" expr ")" : expr
 syntax "(" expr ("," expr)? ")" : expr
 syntax "{" expr,* "}" : expr  -- set of values
-syntax ident "[" expr "]" : expr  -- quotient type projection
+syntax id "[" expr "]" : expr  -- quotient type projection
 
 -- relational operators
 sdef rel_op

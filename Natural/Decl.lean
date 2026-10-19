@@ -17,7 +17,7 @@ def of_notation_decl: TSyntax ``notation_decl → CoreM (List Command)
       match i.getId.components with
         | [ type, fn ] => do
             let k := of_op_kind kind
-            let s ← if k == .postfix && is_super_letter op.getString
+            let syntax_decl ← if k == .postfix && is_super_letter op.getString
               then pure []  -- looks like exponentation, so no need for syntax rule
               else .singleton <$>
                 if rel.isSome then `(syntax $op:str : rel_op)
@@ -25,12 +25,13 @@ def of_notation_decl: TSyntax ``notation_decl → CoreM (List Command)
                   | .infix => `(syntax expr $op:str expr : expr)
                   | .prefix => `(syntax $op:str expr : expr)
                   | .postfix => `(syntax expr $op:str : expr)
+            let op_decl ← `(syntax $op:str : op)
 
             let ns ← getCurrNamespace
             let prec := Syntax.mkNumLit (if rel.isSome then 50 else 100).repr
             let a ← `(attribute [natural_op $op $(mkIdent ns) $(mkIdent fn) $kind $prec]
                                 $(mkIdent type))
-            pure (s ++ [a])
+            pure (syntax_decl ++ [op_decl, a])
         | _ => throwError "notation: expected type.name"
   | _ => throwError "unknown notation_decl"
 

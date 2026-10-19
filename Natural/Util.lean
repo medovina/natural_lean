@@ -125,14 +125,15 @@ def checkStackTopEnv (p : Environment → Syntax → Bool) (msg : String) : Pars
 -- so that we can parse syntax such as "Let x = 5.", where the built-in parser
 -- would parse "5." as a scientific literal, which we don't want.
 -- Thanks to Robin Arnez for providing this implementation on the Lean Zulip.
+
 def rawNumLitNoAntiquot : Parser where
-  fn c s :=
+  fn ctx s :=
     let startPos := s.pos
     -- delegate to `numLitFn` for appropriate error messages
-    if h : c.atEnd startPos then numLitFn c s else
-    if !(c.get' startPos h).isDigit then numLitFn c s else
-    let s := takeWhileFn (·.isDigit) c (s.next' c startPos h)
-    mkNodeToken numLitKind startPos true c s
+    if h : ctx.atEnd startPos then numLitFn ctx s else
+    if !(ctx.get' startPos h).isDigit then numLitFn ctx s else
+    let s := takeWhileFn (·.isDigit) ctx (s.next' ctx startPos h)
+    mkNodeToken numLitKind startPos true ctx s
 
 attribute [combinator_formatter rawNumLitNoAntiquot] PrettyPrinter.Formatter.numLit.formatter
 attribute [combinator_parenthesizer rawNumLitNoAntiquot] PrettyPrinter.Parenthesizer.numLit.parenthesizer
@@ -140,6 +141,34 @@ attribute [combinator_parenthesizer rawNumLitNoAntiquot] PrettyPrinter.Parenthes
 @[run_parser_attribute_hooks]
 def nat : Parser :=
   withAntiquot (mkAntiquot "num" numLitKind) rawNumLitNoAntiquot
+
+def isNatIdRest c := isIdRest c && c != '!'
+
+-- An identifier parser that excludes the character '!', so that the user
+-- can write e.g. "n!" for n factorial.
+
+def rawIdNoAntiquot : Parser where
+  fn ctx s :=
+    let startPos := s.pos
+    let tk := ctx.tokens.matchPrefix ctx.inputString startPos ctx.endPos.byteIdx <| by
+      have := ctx.endPos_valid
+      rw [String.rawEndPos] at this
+      omega
+
+    -- delegate to `identFn` for appropriate error messages
+    if h : ctx.atEnd startPos then identFn ctx s else
+    if !(Lean.isIdFirst (ctx.get' startPos h)) || tk.isSome then identFn ctx s else
+
+    let s := takeWhileFn isNatIdRest ctx (s.next' ctx startPos h)
+    let r := .str .anonymous (ctx.extract startPos s.pos)
+    mkIdResult startPos .none r true ctx s
+
+attribute [combinator_formatter rawIdNoAntiquot] PrettyPrinter.Formatter.ident.formatter
+attribute [combinator_parenthesizer rawIdNoAntiquot] PrettyPrinter.Parenthesizer.ident.parenthesizer
+
+@[run_parser_attribute_hooks]
+def id : Parser :=
+  withAntiquot (mkAntiquot "ident" identKind) rawIdNoAntiquot
 
 -- syntax/term helpers
 
