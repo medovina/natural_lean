@@ -135,15 +135,17 @@ syntax "(" expr ("," expr)? ")" : expr
 syntax "{" expr,* "}" : expr  -- set of values
 syntax ident "[" expr "]" : expr  -- quotient type projection
 
--- prop helpers
-
+-- relational operators
 sdef rel_op
   | "=" | "≠" | "<" | "≮" | "≤" | ">" | "≯" | "≥"
   | "∈" | "∉" | "⊆" | "≈" | "≉"
   | "|" | "∣"    -- vertical bar, division symbol: we accept either
   | "∤"         -- does not divide
 
-kdef binary_op = "+" | "·" | "×" | "^" | "<" | "≤" | "≈"
+-- all built-in operators
+sdef op
+  | "^" | "-" | "−" | "·" | "×" | "∩" | "+" | "∪"
+  | "<" | "≤" | ">" | "≥" | "∈" | "⊆" | "≈" | "|" | "∣"
 
 sdef rel_prop
   | expr (rel_op expr)+
@@ -486,7 +488,7 @@ syntax init_sentence := sepBy1(init_step, "/", "," ? "and") "."
 
 syntax init_steps := init_sentence*
 
-syntax _operator := "binary" ? ("operation" <|> "operator")
+syntax _operator := ("unary" <|> "binary") ? ("operation" <|> "operator")
 
 syntax def_if := _iff <|> "if"
 
@@ -507,7 +509,7 @@ syntax (priority := 1) (let_step ".")* defs : direct_def
 syntax (priority := 2) num (":" type)? "=" expr "." : direct_def
 
 syntax cases_def :=
-  "The" _operator binary_op "on" ident
+  "The" _operator op "on" ident
   "is" "defined" "recursively" "such" "that" for_all_ids "," (label "." def_eq ".")+
 
 sdef definition
@@ -535,7 +537,7 @@ sdef type_class_ref
 
 sdef theorem_body
   | init_steps props_proofs
-  | atomic("The" _operator) binary_op "is" type_class_ref "on" type "." post_name
+  | atomic("The" _operator) op "is" type_class_ref "on" type "." post_name
 
 syntax _theorem := thm_name ? str ? "." theorem_body
 

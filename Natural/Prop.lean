@@ -127,7 +127,7 @@ partial def of_natural_type (ntype: TSyntax `natural_type) : CoreM Term :=
     | _ => throwError "unknown natural_type"
 
 -- Retrieve the string constant from syntax matching one of our categories
--- such as 'rel_op' or 'binary_op'.
+-- such as 'rel_op' or 'op'.
 def syntax_atom (t: TSyntax α): String := match t.raw with
   | .node _ _ #[.atom _ val]
   | .node _ _ #[.node _ _ #[.atom _ val]] => val
@@ -152,9 +152,9 @@ def op_map := [
 
 def map_op (op: String) := (op_map.lookup op).getD op
 
-def of_binary_op (op: TSyntax α): String := map_op (syntax_atom op)
+def of_op (op: TSyntax α): String := map_op (syntax_atom op)
 
-def binary_op_class := [
+def infix_op_class := [
   ("+", `add, ``Add), ("*", `mul, ``Mul), ("^", `pow, ``Pow),
   ("∪", `union, ``Union), ("∩", `inter, ``Inter),
   ("<", `lt, ``LT), ("≤", `le, ``LE), ("≈", `Equiv, ``HasEquiv),
@@ -169,7 +169,7 @@ def lookup_op_attr (op: String) : CoreM (Option OpInfo) := lookup_assoc op_exten
 
 def lookup_op (op: String) (kind: OpKind) : CoreM (Option OpInfo) :=
   let table := match kind with
-    | .infix => binary_op_class
+    | .infix => infix_op_class
     | .prefix => prefix_op_class
     | .postfix => postfix_op_class
   match table.lookup op with
@@ -255,8 +255,6 @@ partial def of_expr (expr: TSyntax `expr): CoreM Term := withRef expr do
       | `(expr| $i:ident [ $e:expr ]) => `($(id_append i `mk_quot) $(← of_expr e))
       | _ => elab_expr expr
 
--- prop helpers
-
 def of_rel_prop (prop: TSyntax `rel_prop): CoreM Term := withRef prop do
   let rec build : List Term → List String → CoreM (List Term)
     | _, [] => pure []
@@ -266,7 +264,7 @@ def of_rel_prop (prop: TSyntax `rel_prop): CoreM Term := withRef prop do
   match prop with
     | `(rel_prop| $a:expr $[$ops:rel_op $bs:expr]*) => do
           let ts ← (a :: bs.toList).mapM of_expr
-          let ops := ops.toList.map of_binary_op
+          let ops := ops.toList.map of_op
           multi_and (← build ts ops)
     | _ => throwError "unknown rel_prop"
 

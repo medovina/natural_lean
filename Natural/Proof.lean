@@ -78,7 +78,7 @@ def of_reason: TSyntax `reason → CoreM (Option Reason)
 def of_eq_expr_by1 (t: TSyntax `eq_expr_by): CoreM (String × Term × Term) := match t with
   | `(eq_expr_by| $op:rel_op $e:expr $[ by $r:reason ]?) => do
         let reason ← r.bindM of_reason
-        do pure ((of_binary_op op), (← of_expr e), (← tactic reason))
+        do pure ((of_op op), (← of_expr e), (← tactic reason))
   | _ => throwError "unknown eq_expr_by"
 
 def of_eq_expr_by (t: TSyntax `eq_expr_by): CoreM (String × Term × Term) :=

@@ -57,7 +57,7 @@ def aux_ctor_def (typ:Ident) (t: Term): CoreM Command :=
     | _ => throwError "aux_ctor_def: unknown"
 
 def op_fun (op: TSyntax α) (type: Term) : CoreM Term := do
-  let op_expr ← build_infix (← `(x)) (of_binary_op op) (← `(y))
+  let op_expr ← build_infix (← `(x)) (of_op op) (← `(y))
   `(fun x y : $type => $op_expr)
 
 def of_inductive_def (name: Ident): TSyntax ``inductive_def → CoreM (List Command)
@@ -361,7 +361,7 @@ def of_def_eq : TSyntax `def_eq → CoreM DefEq
         | _ => parse_op l <&> fun (op, kind, args) => (op, .some kind, args)
       pure { name := map_op op, kind, cat := none, args, val := ⟨r.raw⟩}
   | `(def_eq| $e:expr $op:rel_op $f:expr $_:def_if $r:prop) => do
-      pure { name := of_binary_op op, kind := OpKind.infix, cat := none,
+      pure { name := of_op op, kind := OpKind.infix, cat := none,
              args := [← of_expr e, ← of_expr f], val := ← of_prop r }
   | `(def_eq| $e:expr is $i:defined_term $_:def_if $r:prop) => do
       pure { name := ← of_defined_term i, kind := none, cat := some .adjective,
@@ -398,11 +398,11 @@ def of_direct_def : TSyntax `direct_def → TermElabM (List Command)
 
 def of_cases_def : TSyntax ``cases_def → TermElabM (List Command)
   | `(cases_def|
-        The $_:_operator $op:binary_op on $_type:ident is defined recursively
+        The $_:_operator $op:op on $_type:ident is defined recursively
         such that $ids:for_all_ids , $[$_:label . $eqs:def_eq .]*) => do
       let args ← of_for_all_ids ids
       let eqs ← eqs.toList.mapM (of_def_eq ·)
-      generate_def (some (of_binary_op op)) (map_fst TSyntax.getId args) eqs none
+      generate_def (some (of_op op)) (map_fst TSyntax.getId args) eqs none
   | _ => throwError "unknown cases_def"
 
 def of_definition : TSyntax `definition → TermElabM (List Command)
@@ -518,7 +518,7 @@ def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
             let command ← mk_decl false attr name thm proof
             pure (command, name))
         pure (commands, (names.flatMap Option.toList))
-    | `(theorem_body| The $_:_operator $op:binary_op is $kind:type_class_ref
+    | `(theorem_body| The $_:_operator $op:op is $kind:type_class_ref
                       on $type:type . $pn:post_name) => withRef body do
         let env ← getEnv
         let kind ← of_type_class_ref kind
