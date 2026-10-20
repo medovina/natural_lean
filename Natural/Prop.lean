@@ -174,7 +174,7 @@ def lookup_op (op: String) (kind: OpKind) : CoreM (Option OpInfo) :=
     | .postfix => postfix_op_class
   match table.lookup op with
     | .some (fname, cl) =>
-        pure $ .some ⟨op, kind, .some cl, .none, fname, .anonymous, 0⟩
+        pure $ .some ⟨op, .none, kind, .some cl, .none, fname, .anonymous, 0⟩
     | .none => lookup_op_attr op
 
 def build_op (kind: OpKind) (op: String) (args: List Term): CoreM Term := do

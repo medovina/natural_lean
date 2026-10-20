@@ -15,7 +15,7 @@ This directory contains a set of files that demonstrate the capabilities of Natu
 - `NatDef.lean`: definition of ℕ as an inductive type, many theorems about ℕ
 - `Nat.lean`: definition of ℕ as Lean's built-in type `Nat`
 - `NatNumGame.lean`: theorems from the [Natural Number Game](https://adam.math.hhu.de/#/g/leanprover-community/nng4)
-- `Prime.lean`: some basic definitions about prime numbers
 - `IntDef.lean`: definition of ℤ as a quotient type, many theorems about ℤ
+- `Prime.lean`: definition of prime numbers, plus a proof of the infinitude of primes
 
 The developments in `NatDef.lean` and `IntDef.lean` loosely follow the excellent textbook  _Number Systems and the Foundations of Analysis_ by Elliott Mendelson (1973).  However in Mendelson 1 is the first natural number and we begin with 0, so a number of our proofs are somewhat different.

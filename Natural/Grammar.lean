@@ -452,7 +452,8 @@ sdef proof
 syntax relational := "relational"
 
 syntax notation_decl :=
-  "Notation" "." str "is" _a op_kind relational ? "operator" "." "[" ident "]"
+  "Notation" "." str ("(" "negation" ":" str ")")? "is"
+  _a op_kind relational ? "operator" "." "[" ident "]"
 
 -- definitions
 

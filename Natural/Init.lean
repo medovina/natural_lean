@@ -38,7 +38,7 @@ initialize registerBuiltinAttribute {
 
 -- natural_op attribute
 
-syntax (name := natural_op) "natural_op " str ident ident op_kind num: attr
+syntax (name := natural_op) "natural_op " str str ? ident ident op_kind num: attr
 
 initialize op_extension : AssocExtension OpInfo ←
   registerSimpleScopedEnvExtension {
@@ -46,16 +46,22 @@ initialize op_extension : AssocExtension OpInfo ←
     addEntry | state, (key, val) => (key, val) :: state
   }
 
+-- If the user declares an operator that acts on types (e.g. "~" in
+-- Examples/Cardinality.lean) we can't use an attribute to attach it to
+-- the (Type) type, which has no definition.  So we use this dummy instead.
+def TypeDummy := Type
+
 initialize registerBuiltinAttribute {
   name := `natural_op
   descr := "Natural operation"
   add := fun (decl_name: Name) (stx: Syntax) (attr_kind: AttributeKind) =>
     match stx with
       | `(natural_op|
-            natural_op $name:str $ns:ident $id:ident $k:op_kind $prec:num) =>
+            natural_op $name:str $neg:str ? $ns:ident $id:ident $k:op_kind $prec:num) =>
+          let type_name := if decl_name == ``TypeDummy then `Type else decl_name
           let t : OpInfo := {
-            name := name.getString, kind := of_op_kind k, cls := .none,
-            type := .some decl_name, fname := id.getId, ns := ns.getId,
+            name := name.getString, neg := neg.map (·.getString), kind := of_op_kind k,
+            cls := .none, type := .some type_name, fname := id.getId, ns := ns.getId,
             prec := prec.getNat }
           op_extension.add (name.getString, t) attr_kind
       | _ => throwError "natural: unexpected"

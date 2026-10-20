@@ -68,6 +68,8 @@ def all_pairs : List α → List (α × α)
   | [] => []
   | x :: xs => xs.map (fun y => (x, y)) ++ all_pairs xs
 
+def sequence [Monad m] (xs: List (m α)) : m (List α) := xs.mapM id
+
 def foldr1M [Monad m] [Inhabited α] (f: α → α → m α) (xs: List α) : m α := match xs with
   | [x] => pure x
   | x :: xs => do
@@ -284,6 +286,7 @@ def replace_op (op: String) (name: Ident) (t: Term) : Term :=
 
 structure OpInfo where
   name: String         -- e.g. "+"
+  neg: Option String   -- e.g. "≁" (if name is "~")
   kind: OpKind
   cls: Option Name     -- type class (if any) associated with op, e.g. `Add
   type: Option Name    -- type (if any) associated with op, e.g. `Set for op "⋃"

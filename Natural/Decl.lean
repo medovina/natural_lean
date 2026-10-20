@@ -12,25 +12,32 @@ namespace Natural
 -- notation
 
 def of_notation_decl: TSyntax ``notation_decl → CoreM (List Command)
-  | `(notation_decl| Notation . $op:str is $_:_a
+  | `(notation_decl| Notation . $op:str $[(negation: $neg)]? is $_:_a
           $kind:op_kind $[$rel:relational]? operator . [ $i:ident ]) => do
       match i.getId.components with
         | [ type, fn ] => do
+            let rel := rel.isSome
+            if neg.isSome && !rel then
+              throwError "only a relational operator can have a negation"
+
             let k := of_op_kind kind
             let syntax_decl ← if k == .postfix && is_super_letter op.getString
               then pure []  -- looks like exponentation, so no need for syntax rule
-              else .singleton <$>
-                if rel.isSome then `(syntax $op:str : rel_op)
-                else match of_op_kind kind with
+              else
+                if rel then
+                  let ops := op :: neg.toList
+                  ops.mapM (fun o => `(syntax $o:str : rel_op))
+                else .singleton <$> match of_op_kind kind with
                   | .infix => `(syntax expr $op:str expr : expr)
                   | .prefix => `(syntax $op:str expr : expr)
                   | .postfix => `(syntax expr $op:str : expr)
             let op_decl ← `(syntax $op:str : op)
 
             let ns ← getCurrNamespace
-            let prec := Syntax.mkNumLit (if rel.isSome then 50 else 100).repr
-            let a ← `(attribute [natural_op $op $(mkIdent ns) $(mkIdent fn) $kind $prec]
-                                $(mkIdent type))
+            let prec := Syntax.mkNumLit (if rel then 50 else 100).repr
+            let target := if type == `Type then ``TypeDummy else type
+            let a ← `(attribute [natural_op $op $[$neg]? $(mkIdent ns) $(mkIdent fn) $kind $prec]
+                                $(mkIdent target))
             pure (syntax_decl ++ [op_decl, a])
         | _ => throwError "notation: expected type.name"
   | _ => throwError "unknown notation_decl"
@@ -157,25 +164,20 @@ partial def flat_name : Term → CoreM String
   | `($t × $u) => do pure $ (← flat_name t) ++ "_" ++ (← flat_name u)
   | _ => throwError "flat_name: can't encode"
 
-def type_name : Term → Option Name
+partial def base_name : Term → Option Name
   | `($i:ident) => some i.getId
   | `(Type) => some `Type
   | `($_ → $_) => some `Function
+  | `($t $_) => base_name t
   | _ => none
 
 partial def embed_name (type: Term) (name: Name) : CoreM Ident :=
-  if let some t := type_name type then pure $ mkIdent (t ++ name)
-  else match type with
-    | `($t $_u) => embed_name t name
-    | _ => do pure $ mkIdent $ Name.mkSimple ((← flat_name type) ++ "_" ++ name.toString)
+  if let some t := base_name type then pure $ mkIdent (t ++ name)
+  else do pure $ mkIdent $ Name.mkSimple ((← flat_name type) ++ "_" ++ name.toString)
 
 partial def subst_base (t: Term) : Term → CoreM Term
   | `($u $v) => do `($(← subst_base t u) $v)
   | _ => pure t
-
-def is_application : Term → Bool
-  | `($_ $_) => true
-  | _ => false
 
 def is_implicit_quotient (x: Term) (y: Term): Option (Ident × Term × Term) :=
   match x, y with
@@ -256,15 +258,20 @@ def def_inst_commands (op_name: Name) (type: Term) (fname: Ident) (cl: Name)
 
   pure $ [impl_cmd] ++ g.toList
 
-def declare_op (info: OpInfo): CoreM (Option Command) :=
-  info.type.mapM (fun type =>
+def declare_op (info: OpInfo): CoreM (List Command) :=
+  info.type.toList.flatMapM (fun type =>
       let name := Lean.Syntax.mkStrLit info.name
       let fn := mkIdent (type ++ info.fname)
       let prec := mkNumLit info.prec.repr
-      match info.kind with
+      let decl := match info.kind with
         | .infix => `(infix:$prec $name:str => $fn)
         | .prefix => `(prefix:$prec $name:str => $fn)
         | .postfix => `(postfix:$prec $name:str => $fn)
+      let neg_decl := info.neg.map (fun neg => do
+        let neg := Lean.Syntax.mkStrLit neg
+        let op_expr ← build_infix (← `(x)) info.name (← `(y))
+        `(infix:$prec $neg:str => fun x y => ¬ $op_expr))
+      sequence (decl :: neg_decl.toList)
   )
 
 def is_op (s: String) := !(Lean.isIdFirst s.front)
@@ -307,6 +314,9 @@ def generate_def (decl_fn: Option String) (arg_type: Option Term)
         let arg_type ← arg_type.elim (pattern_type env arg1) pure
         pure (false, arg_type, fname, defeqs)
 
+  if !(op_info.all (fun info => info.type.all (· == base_name arg_type)))
+    then throwError f!"op type mismatch: {op_info.get!.type.get!} / {base_name arg_type} "
+
   let args_types ← match defeqs with
     | [{ args := ts, ..}] => ts.mapM (pattern_type env ·)
     | { args := ts, .. } :: _ => pure $ ts.map (fun _ => arg_type)
@@ -328,7 +338,7 @@ def generate_def (decl_fn: Option String) (arg_type: Option Term)
     then .singleton <$> quotient_lift top_name def_name args.length arg_type justification
     else pure []
 
-  let op_def_command ← op_info.bindM (declare_op ·)
+  let op_def_commands ← op_info.toList.flatMapM (declare_op ·)
   let inst_commands ←
     (op_info.bind (·.cls)).toList.flatMapM
       (def_inst_commands fname arg_type top_name ·)
@@ -338,7 +348,7 @@ def generate_def (decl_fn: Option String) (arg_type: Option Term)
       let cat ← to_category cat
       `(attribute [natural $cat $(mkStrLit fn):str] $top_name))
 
-  pure ([def_cmd] ++ lift_cmd ++ op_def_command.toList ++ inst_commands ++ nat_decl.toList)
+  pure ([def_cmd] ++ lift_cmd ++ op_def_commands ++ inst_commands ++ nat_decl.toList)
 
 def infer_type : TSyntax `expr → CoreM Term
   | `(expr| $t:ident [ $_:expr ]) => pure t
@@ -551,15 +561,8 @@ def of_thm_or_def : TSyntax `thm_or_def → TermElabM (List Command × List Iden
     pure (cmds, names, true)
   | _ => throwError "unknown thm_or_def"
 
-def command_set (commands: List Command) : CoreM Command := do
-  let ctrace cmd := do
-    trace[natural] cmd
-    pure ()
-  commands.forM ctrace
-  pure $ .mk (mkNullNode commands.toArray)
-
 elab t:top : command => do
-  let cs : Command ← liftTermElabM $ (command_set ·) =<< match t with
+  let cs : List Command ← liftTermElabM $ match t with
     | `(top| $n:notation_decl) => of_notation_decl n
     | `(top| $d:thm_or_def $[Corollary $ts:_theorem]*) => do
         let (commands, names, is_thm) ← of_thm_or_def d
@@ -569,4 +572,12 @@ elab t:top : command => do
             else of_theorem names c)
         pure $ commands ++ corrs.flatten
     | _ => throwError "unknown top"
-  elabCommand cs
+  let c : Command := TSyntax.mk (mkNullNode cs.toArray)
+  elabCommand c
+
+  -- We trace only after elaborating because some commands could have syntax
+  -- that is defined in previous commands in the same group.
+  let ctrace cmd := do
+    trace[natural] cmd
+    pure ()
+  cs.forM ctrace
