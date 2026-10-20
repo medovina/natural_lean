@@ -129,6 +129,8 @@ syntax:70 expr:70 "·" expr:71 : expr
 syntax:70 expr:70 "×" expr:71 : expr
 syntax:70 expr:70 "∩" expr:71 : expr
 syntax:65 expr:65 "+" expr:66 : expr
+syntax:65 expr:65 "-" expr:66 : expr
+syntax:65 expr:65 "−" expr:66 : expr
 syntax:65 expr:65 "∪" expr:66 : expr
 syntax (priority := 2) expr "(" expr ")" : expr
 syntax "(" expr ("," expr)? ")" : expr

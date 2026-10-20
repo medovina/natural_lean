@@ -1,7 +1,6 @@
 import Natural.Examples.Set
 
 abbrev ℕ := Nat   -- use Lean's built-in natural number type
-abbrev S := Nat.succ
 
 -- strong induction principle
 
