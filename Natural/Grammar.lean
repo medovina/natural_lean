@@ -40,57 +40,52 @@ def filter_ident (f : String → Bool) (err: String): Parser :=
   atomic (ident >> checkStackTop (fun stx => stx.isIdOrAtom?.all f) err)
 
 def var : Parser := filter_ident (fun s => s.length == 1) "expected var"
-
 def non_var : Parser := filter_ident (fun s => s.length > 1) "expected non_var"
 
 def singular_name : Ident → Option Ident → String
   | i, none => singular i.getId.toString
   | i, some j => s!"{i.getId.toString} {singular j.getId.toString}"
 
-syntax simple_name_id := non_var
+-- a simple name such as "integer"
+syntax name1 := non_var
+def mk_name1 : Parser := node ``name1 non_var
 
-def mk_simple_name_id : Parser := node ``simple_name_id non_var
-
-def lookup_simple_name (env: Environment): Syntax → Option (Category × Name)
-  | `(simple_name_id| $i:ident) =>
+def lookup_name1 (env: Environment): Syntax → Option (Category × Name)
+  | `(name1| $i:ident) =>
       (lookup_assoc_in_env env name_extension (singular_name i none))
   | _ => none
 
-def check_simple_name (c: Category) (env: Environment) (s: Syntax): Bool :=
-  (lookup_simple_name env s).any (·.1 == c)
+def check_name1 (c: Category) (env: Environment) (s: Syntax): Bool :=
+  (lookup_name1 env s).any (·.1 == c)
 
-def simple_name (c: Category) (syntax_cat: String) : Parser :=
-  withAntiquot (mkAntiquot syntax_cat ``simple_name_id) $
-  atomic (mk_simple_name_id >> checkStackTopEnv (check_simple_name c) "unknown simple name")
+def name1_of_cat (c: Category) : Parser :=
+  atomic (mk_name1 >> checkStackTopEnv (check_name1 c) "unknown simple name")
 
-def simple_noun := simple_name Category.noun "simple_noun"
-def simple_adjective := simple_name Category.adjective "simple_adjective"
-def simple_type := simple_name Category.type "simple_type"
+-- a compound name such as "natural number"
+syntax name2 := non_var non_var
+def mk_name2 : Parser := node ``name2 (non_var >> non_var)
 
-syntax compound_name_ids := non_var non_var
-
-def mk_compound_name_ids : Parser := node ``compound_name_ids (non_var >> non_var)
-
-def lookup_compound_name (env: Environment) (s: Syntax): Option (Category × Name) :=
+def lookup_name2 (env: Environment) (s: Syntax): Option (Category × Name) :=
   match s with
-  | `(compound_name_ids| $i:ident $j:ident) =>
+  | `(name2| $i:ident $j:ident) =>
       lookup_assoc_in_env env name_extension (singular_name i j)
   | _ => none
 
-def check_compound_name (c: Category) (env: Environment) (s: Syntax): Bool :=
-  (lookup_compound_name env s).any (·.1 == c)
+def check_name2 (c: Category) (env: Environment) (s: Syntax): Bool :=
+  (lookup_name2 env s).any (·.1 == c)
 
-def compound_name (c: Category) (syntax_cat: String) : Parser :=
-  withAntiquot (mkAntiquot syntax_cat ``compound_name_ids) $
-  atomic (mk_compound_name_ids >> checkStackTopEnv (check_compound_name c) "unknown compound name")
+def name2_of_cat (c: Category) : Parser :=
+  atomic (mk_name2 >> checkStackTopEnv (check_name2 c) "unknown compound name")
 
-def compound_noun := compound_name Category.noun "compound_noun"
-def compound_adjective := compound_name Category.adjective "compound_adjective"
-def compound_type := compound_name Category.type "compound_type"
+def name_of_cat (c: Category): Parser := name1_of_cat c <|> name2_of_cat c
 
-syntax natural_noun := simple_noun <|> compound_noun
-syntax natural_adjective := simple_adjective <|> compound_adjective
-syntax natural_type_name := simple_type <|> compound_type
+def _noun := name_of_cat Category.noun
+def _adjective := name_of_cat Category.adjective
+def _type_name := name_of_cat Category.type
+
+syntax natural_noun := _noun
+syntax natural_adjective := _adjective
+syntax natural_type_name := _type_name
 
 declare_syntax_cat natural_type (behavior := symbol)
 syntax &"type" : natural_type

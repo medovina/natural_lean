@@ -90,40 +90,26 @@ def of_id_list : TSyntax ``id_list → CoreM (List Ident)
       pure $ [id] ++ ids.toList ++ id2.toList
   | _ => throwError "unknown id_list"
 
-def of_natural_noun (stx: TSyntax ``natural_noun) : CoreM Ident := do
-  let (_cat, name) ← match stx with
-    | `(natural_noun| $s:simple_noun) => do
-        (lookup_simple_name (← getEnv) s).getDM (throwError "unknown name")
-    | `(natural_noun| $c:compound_noun) => do
-        (lookup_compound_name (← getEnv) c).getDM (throwError "unknown name")
-    | _ => throwError "unknown natural_noun"
-  mkIdentFromRef name (canonical := true)
+def of_natural_name (stx: Syntax) : CoreM Ident := do
+  -- The name we receive here is wrapped in a syntax category such as natural_noun,
+  -- so we must look below the top-level tag.
+  let s := stx[0]
 
-def of_natural_adjective (stx: TSyntax ``natural_adjective) : CoreM Ident := do
-  let (_cat, name) ← match stx with
-    | `(natural_adjective| $s:simple_adjective) => do
-        (lookup_simple_name (← getEnv) s).getDM (throwError "unknown name")
-    | `(natural_adjective| $c:compound_adjective) => do
-        (lookup_compound_name (← getEnv) c).getDM (throwError "unknown name")
-    | _ => throwError "unknown natural_adjective"
-  mkIdentFromRef name (canonical := true)
-
-def of_natural_type_name (stx: TSyntax ``natural_type_name) : CoreM Ident := do
-  let (_cat, name) ← match stx with
-    | `(natural_type_name| $s:simple_type) => do
-        (lookup_simple_name (← getEnv) s).getDM (throwError "unknown name")
-    | `(natural_type_name| $c:compound_type) => do
-        (lookup_compound_name (← getEnv) c).getDM (throwError "unknown name")
-    | _ => throwError "unknown natural_type_name"
+  let (_cat, name) ← match s with
+    | `(name1| $_i:ident) => do
+        (lookup_name1 (← getEnv) s).getDM (throwError "unknown name1")
+    | `(name2| $_i:ident $_j:ident) => do
+        (lookup_name2 (← getEnv) s).getDM (throwError "unknown name2")
+    | _ => throwError "unknown name"
   mkIdentFromRef name (canonical := true)
 
 partial def of_natural_type (ntype: TSyntax `natural_type) : CoreM Term :=
   withRef ntype do match ntype with
     | `(natural_type| type)
     | `(natural_type| types) => `(Type)
-    | `(natural_type| $n:natural_type_name) => of_natural_type_name n
+    | `(natural_type| $n:natural_type_name) => of_natural_name n
     | `(natural_type| $n:natural_type_name of $t:natural_type) => do
-        `($(← of_natural_type_name n) $(← of_natural_type t))
+        `($(← of_natural_name n) $(← of_natural_type t))
     | _ => throwError "unknown natural_type"
 
 -- Retrieve the string constant from syntax matching one of our categories
@@ -316,7 +302,7 @@ def of_opt_not : TSyntax ``opt_not → CoreM Bool
 def of_adjective : TSyntax ``adjective → CoreM (Term → CoreM Term)
   | `(adjective| only) => pure (fun _x => pure mk_true)
   | `(adjective| $n:natural_adjective) => do
-      let a ← of_natural_adjective n
+      let a ← of_natural_name n
       pure fun e => `($a $e)
   | _ => throwError "unknown adjective"
 
@@ -324,7 +310,7 @@ def of_comp_adjective_phrase :
       TSyntax ``comp_adjective_phrase → CoreM (Term → CoreM Term)
   | `(comp_adjective_phrase| $a:adjective than $f:expr) => match a with
     | `(adjective| $n:natural_adjective) => do
-        let a ← of_natural_adjective n
+        let a ← of_natural_name n
         let f ← of_expr f
         pure fun e => `($a $e $f)
     | _ => throwError "invalid adjective"
@@ -336,7 +322,7 @@ def of_adjective_phrase : TSyntax `adjective_phrase → CoreM (Term → CoreM Te
   | _ => throwError "unknown adjective_phrase"
 
 def of_noun_e_e_t : TSyntax ``noun_e_e_t → CoreM Ident
-  | `(noun_e_e_t| $n:natural_noun) => of_natural_noun n
+  | `(noun_e_e_t| $n:natural_noun) => of_natural_name n
   | _ => throwError "unknown noun_e_e_t"
 
 partial def of_nominal_e_e_t :

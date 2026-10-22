@@ -509,8 +509,8 @@ def mk_decl (is_instance: Bool) (attr: Option Ident) (name: Option Ident)
     | Option.none => `($a:attributes ? example : $thm := $proof)
 
 def of_type_class_ref : TSyntax `type_class_ref → CoreM Ident
-  | `(type_class_ref| $a:natural_adjective) => of_natural_adjective a
-  | `(type_class_ref| $_:_a $n:natural_noun) => of_natural_noun n
+  | `(type_class_ref| $a:natural_adjective) => of_natural_name a
+  | `(type_class_ref| $_:_a $n:natural_noun) => of_natural_name n
   | _ => throwError "unknown type_class_ref"
 
 def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
