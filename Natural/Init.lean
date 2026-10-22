@@ -32,7 +32,7 @@ initialize registerBuiltinAttribute {
     match stx with
       | `(natural| natural $cat:category $name:str) =>
           let cat := of_category cat
-          name_extension.add (name.getString, (cat, decl_name)) attr_kind
+          name_extension.add (singular name.getString, (cat, decl_name)) attr_kind
       | _ => throwError "natural: unexpected"
 }
 

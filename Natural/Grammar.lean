@@ -82,12 +82,14 @@ def name_of_cat (c: Category): Parser := name1_of_cat c <|> name2_of_cat c
 def _attribute := name_of_cat Category.attribute
 def _property := name_of_cat Category.property
 def _comparative := name_of_cat Category.comparative
+def _relation := name_of_cat Category.relation
 def _type_name := name_of_cat Category.type
 def _class_name := name_of_cat Category.class
 
 syntax natural_attribute := _attribute
 syntax natural_property := _property
 syntax natural_comparative := _comparative
+syntax natural_relation := _relation
 syntax natural_type_name := _type_name
 syntax natural_class := _class_name
 
@@ -250,11 +252,14 @@ sdef predicative_e_t
   | adjective_phrase
   | noun_phrase_e_t
 
+syntax verb_e_e_t := natural_relation
+
 -- verb_phrase, type: e → t
 syntax "has" noun_phrase_e_e_t : verb_phrase
 syntax "has" noun_phrase_e_et_t : verb_phrase
 syntax &"is" opt_not predicative_e_t : verb_phrase
 syntax "are" predicative_e : verb_phrase
+syntax verb_e_e_t noun_phrase_e : verb_phrase
 
 -- prop
 

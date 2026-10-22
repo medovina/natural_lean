@@ -412,6 +412,12 @@ partial def of_predicative_e_t : TSyntax `predicative_e_t → CoreM (Term → Co
   | `(predicative_e_t| $np:noun_phrase_e_t) => of_noun_phrase_e_t np
   | _ => throwError "unknown predicative"
 
+partial def of_verb_e_e_t : TSyntax ``verb_e_e_t → CoreM (Term → Term → CoreM Term)
+| `(verb_e_e_t| $r:natural_relation) => do
+    let r ← of_natural_name r
+    pure (fun e f => `($r $e $f))
+ | _ => throwError "unknown verb"
+
 partial def of_verb_phrase : TSyntax `verb_phrase → CoreM (Term → CoreM Term)
   | `(verb_phrase| has $np:noun_phrase_e_e_t) => do
       let (np, v) ← of_noun_phrase_e_e_t np
@@ -434,6 +440,10 @@ partial def of_verb_phrase : TSyntax `verb_phrase → CoreM (Term → CoreM Term
             let p := subst_var x y.getId p
             `(∀ $x, $(⟨e⟩):term ↔ $(⟨p⟩):term)
         | _, _ => throwError "of_verb_phrase: unexpected"
+  | `(verb_phrase| $v:verb_e_e_t $n:noun_phrase_e) => do
+      let v ← of_verb_e_e_t v
+      let n ← of_noun_phrase_e n
+      pure (fun e => v e n)
   | _ => throwError "unknown verb phrase"
 end
 

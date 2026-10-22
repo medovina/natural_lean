@@ -464,6 +464,7 @@ inductive Category
   | attribute     -- noun, e.g. "divisor"
   | property      -- adjective, e.g. "negative"
   | comparative   -- adjective, e.g. "greater"
+  | relation      -- verb, e.g. "divides"
   | type          -- noun, e.g. "integer"
   | class         -- noun, e.g. "equivalence relation"
   | theorem       -- noun phrase, e.g. "strong induction"
@@ -473,17 +474,20 @@ instance: ToString Category where toString
   | .attribute => "attribute"
   | .property => "property"
   | .comparative => "comparative"
+  | .relation => "relation"
   | .type => "type"
   | .class => "class"
   | .theorem => "theorem"
 
 syntax category :=
-  &"attribute" <|> &"property" <|> &"comparative" <|> &"type" <|> &"class" <|> &"theorem"
+  &"attribute" <|> &"property" <|> &"comparative" <|> &"relation" <|>
+  &"type" <|> &"class" <|> &"theorem"
 
 def of_category : TSyntax ``category → Category
   | `(category| attribute) => .attribute
   | `(category| property) => .property
   | `(category| comparative) => .comparative
+  | `(category| relation) => .relation
   | `(category| type) => .type
   | `(category| class) => .class
   | `(category| theorem) => .theorem
@@ -493,6 +497,7 @@ def to_category: Category → CoreM (TSyntax ``category)
   | .attribute => `(category| attribute)
   | .property => `(category| property)
   | .comparative => `(category| comparative)
+  | .relation => `(category| relation)
   | .type => `(category| type)
   | .class => `(category| class)
   | .theorem => `(category| theorem)
