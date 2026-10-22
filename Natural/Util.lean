@@ -459,32 +459,42 @@ elab "rapply" e:term : tactic => do
 def singular (s: String) : String :=
   if s.back == 's' then (s.dropEnd 1).toString else s
 
+-- lexical categories of natural names
 inductive Category
-  | noun
-  | adjective
-  | type  -- also a noun
-  | theorem
+  | attribute     -- noun, e.g. "divisor"
+  | property      -- adjective, e.g. "negative"
+  | comparative   -- adjective, e.g. "greater"
+  | type          -- noun, e.g. "integer"
+  | class         -- noun, e.g. "equivalence relation"
+  | theorem       -- noun phrase, e.g. "strong induction"
 deriving BEq, Inhabited
 
 instance: ToString Category where toString
-  | .noun => "noun"
-  | .adjective => "adjective"
+  | .attribute => "attribute"
+  | .property => "property"
+  | .comparative => "comparative"
   | .type => "type"
+  | .class => "class"
   | .theorem => "theorem"
 
-syntax category := &"noun" <|> &"adjective" <|> &"type" <|> &"theorem"
+syntax category :=
+  &"attribute" <|> &"property" <|> &"comparative" <|> &"type" <|> &"class" <|> &"theorem"
 
 def of_category : TSyntax ``category → Category
-  | `(category| noun) => .noun
-  | `(category| adjective) => .adjective
+  | `(category| attribute) => .attribute
+  | `(category| property) => .property
+  | `(category| comparative) => .comparative
   | `(category| type) => .type
+  | `(category| class) => .class
   | `(category| theorem) => .theorem
   | _ => panic! "of_category"
 
 def to_category: Category → CoreM (TSyntax ``category)
-  | .noun => `(category| noun)
-  | .adjective => `(category| adjective)
+  | .attribute => `(category| attribute)
+  | .property => `(category| property)
+  | .comparative => `(category| comparative)
   | .type => `(category| type)
+  | .class => `(category| class)
   | .theorem => `(category| theorem)
 
 end Natural

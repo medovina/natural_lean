@@ -91,7 +91,7 @@ def of_id_list : TSyntax ``id_list → CoreM (List Ident)
   | _ => throwError "unknown id_list"
 
 def of_natural_name (stx: Syntax) : CoreM Ident := do
-  -- The name we receive here is wrapped in a syntax category such as natural_noun,
+  -- The name we receive here is wrapped in a syntax category such as natural_property,
   -- so we must look below the top-level tag.
   let s := stx[0]
 
@@ -301,19 +301,17 @@ def of_opt_not : TSyntax ``opt_not → CoreM Bool
 
 def of_adjective : TSyntax ``adjective → CoreM (Term → CoreM Term)
   | `(adjective| only) => pure (fun _x => pure mk_true)
-  | `(adjective| $n:natural_adjective) => do
+  | `(adjective| $n:natural_property) => do
       let a ← of_natural_name n
       pure fun e => `($a $e)
   | _ => throwError "unknown adjective"
 
 def of_comp_adjective_phrase :
       TSyntax ``comp_adjective_phrase → CoreM (Term → CoreM Term)
-  | `(comp_adjective_phrase| $a:adjective than $f:expr) => match a with
-    | `(adjective| $n:natural_adjective) => do
-        let a ← of_natural_name n
+  | `(comp_adjective_phrase| $c:natural_comparative than $f:expr) => do
+        let a ← of_natural_name c
         let f ← of_expr f
         pure fun e => `($a $e $f)
-    | _ => throwError "invalid adjective"
   | _ => throwError "unknown comp_adjective_phrase"
 
 def of_adjective_phrase : TSyntax `adjective_phrase → CoreM (Term → CoreM Term)
@@ -322,7 +320,7 @@ def of_adjective_phrase : TSyntax `adjective_phrase → CoreM (Term → CoreM Te
   | _ => throwError "unknown adjective_phrase"
 
 def of_noun_e_e_t : TSyntax ``noun_e_e_t → CoreM Ident
-  | `(noun_e_e_t| $n:natural_noun) => of_natural_name n
+  | `(noun_e_e_t| $n:natural_attribute) => of_natural_name n
   | _ => throwError "unknown noun_e_e_t"
 
 partial def of_nominal_e_e_t :

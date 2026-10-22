@@ -17,7 +17,7 @@ def lookup_assoc {α: Type} (ext: AssocExtension α) (name: String): CoreM (Opti
 
 -- natural attribute
 
-syntax (name := natural) "natural " category ? str : attr
+syntax (name := natural) "natural " category str : attr
 
 initialize name_extension : AssocExtension (Category × Name) ←
   registerSimpleScopedEnvExtension {
@@ -30,8 +30,8 @@ initialize registerBuiltinAttribute {
   descr := "Natural name"
   add := fun (decl_name: Name) (stx: Syntax) (attr_kind: AttributeKind) =>
     match stx with
-      | `(natural| natural $[$cat:category]? $name:str) =>
-          let cat := (cat.map of_category).getD Category.noun
+      | `(natural| natural $cat:category $name:str) =>
+          let cat := of_category cat
           name_extension.add (name.getString, (cat, decl_name)) attr_kind
       | _ => throwError "natural: unexpected"
 }

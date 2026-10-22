@@ -79,13 +79,17 @@ def name2_of_cat (c: Category) : Parser :=
 
 def name_of_cat (c: Category): Parser := name1_of_cat c <|> name2_of_cat c
 
-def _noun := name_of_cat Category.noun
-def _adjective := name_of_cat Category.adjective
+def _attribute := name_of_cat Category.attribute
+def _property := name_of_cat Category.property
+def _comparative := name_of_cat Category.comparative
 def _type_name := name_of_cat Category.type
+def _class_name := name_of_cat Category.class
 
-syntax natural_noun := _noun
-syntax natural_adjective := _adjective
+syntax natural_attribute := _attribute
+syntax natural_property := _property
+syntax natural_comparative := _comparative
 syntax natural_type_name := _type_name
+syntax natural_class := _class_name
 
 declare_syntax_cat natural_type (behavior := symbol)
 syntax &"type" : natural_type
@@ -187,9 +191,9 @@ syntax for_all_opt_with := for_all_ids ("with" rel_prop)?
 
 syntax opt_not := "not" ?
 
-syntax adjective := "only" <|> natural_adjective  -- type: e → t
+syntax adjective := "only" <|> natural_property  -- type: e → t
 
-syntax comp_adjective_phrase := adjective "than" expr  -- type: e → t
+syntax comp_adjective_phrase := natural_comparative "than" expr  -- type: e → t
 
 sdef adjective_phrase  -- type: e → t
   | adjective
@@ -200,7 +204,7 @@ declare_syntax_cat verb_phrase
 declare_syntax_cat noun_phrase_e_et_t
 
 -- e → e → t  (e.g. "divisor", "least element")
-syntax noun_e_e_t := natural_noun
+syntax noun_e_e_t := natural_attribute
 
 -- e → e → t (e.g. "prime divisor")
 sdef nominal_e_e_t
@@ -530,8 +534,8 @@ sdef props_proofs
   | prop_item+ (_proof_dot proof_items)?
 
 sdef type_class_ref
-  | natural_adjective
-  | _a natural_noun
+  | natural_property  -- e.g. "associative"
+  | _a natural_class  -- e.g. "an equivalence relation"
 
 sdef theorem_body
   | init_steps props_proofs

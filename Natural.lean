@@ -3,14 +3,14 @@ import Natural.Lsp
 
 open Natural
 
-attribute [natural adjective "associative"] Std.Associative
-attribute [natural adjective "commutative"] Std.Commutative
+attribute [natural property "associative"] Std.Associative
+attribute [natural property "commutative"] Std.Commutative
 
-attribute [natural "equivalence relation"] Equivalence
+attribute [natural class "equivalence relation"] Equivalence
 
-attribute [natural adjective "greater"] GT.gt
+attribute [natural comparative "greater"] GT.gt
 
 attribute [natural type "natural number"] Nat
 attribute [natural type "integer"] Int
 
-attribute [natural "divisor"] Dvd.dvd
+attribute [natural attribute "divisor"] Dvd.dvd

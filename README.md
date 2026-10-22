@@ -489,6 +489,7 @@ Unicode superscript digits and letters are supported, so you may write e.g. `x²
 ### Types
 
 At the moment any type in Natural Lean must be either a simple type such as `Nat`, a function type of the form `α → β` such as `Nat → Nat → Nat`, or a product type of the form `α × β` such as `Nat × Nat`.
+
 ### Natural names
 
 In Natural Lean, any simple type such as `Nat` or `Int` may have a __natural name__ such as "natural number" or "integer".  You may refer to a type either by its Lean name or its natural name.  For example, the following statements are equivalent:
@@ -526,13 +527,13 @@ Definition.  The type ℕ (the natural numbers) is defined inductively
 It is not possible to define a type class in Natural Lean at this time.  However, you may give a natural name to an existing type class using a `natural` attribute:
 
 ```
-attribute [natural adjective "associative"] Std.Associative
-attribute [natural adjective "commutative"] Std.Commutative
+attribute [natural property "associative"] Std.Associative
+attribute [natural property "commutative"] Std.Commutative
 ```
 
 In fact the preceding two attributes are predefined in Natural Lean.
 
-As visible above, the `natural` attribute takes an optional __category__ (`noun`, `verb`, `adjective`, or `type`) for the word that is being defined. (If you do not specify a category, the default is `noun`.)
+As visible above, the `natural` attribute takes an optional __lexical category__ (`attribute`, `property`, `comparative`, `type`, `class` or `theorem`) for the word or phrase that is being defined. 
 
 You may declare that an operator belongs to a type class, using the type class's natural name:
 

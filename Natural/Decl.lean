@@ -377,10 +377,10 @@ def of_def_eq : TSyntax `def_eq → CoreM DefEq
       pure { name := of_op op, kind := OpKind.infix, cat := none,
              args := [← of_expr e, ← of_expr f], val := ← of_prop r }
   | `(def_eq| $e:expr is $i:defined_term $_:def_if $r:prop) => do
-      pure { name := ← of_defined_term i, kind := none, cat := some .adjective,
+      pure { name := ← of_defined_term i, kind := none, cat := some .property,
              args := [← of_expr e], val := ← of_prop r }
   | `(def_eq| $e:expr is a $d:defined_term of $f:expr $_:def_if $r:prop) => do
-      pure { name := ← of_defined_term d, kind := none, cat := some .noun,
+      pure { name := ← of_defined_term d, kind := none, cat := some .attribute,
              args := [← of_expr e, ← of_expr f], val := ← of_prop r }
   | _ => throwError "unknown def_eq"
 
@@ -509,8 +509,8 @@ def mk_decl (is_instance: Bool) (attr: Option Ident) (name: Option Ident)
     | Option.none => `($a:attributes ? example : $thm := $proof)
 
 def of_type_class_ref : TSyntax `type_class_ref → CoreM Ident
-  | `(type_class_ref| $a:natural_adjective) => of_natural_name a
-  | `(type_class_ref| $_:_a $n:natural_noun) => of_natural_name n
+  | `(type_class_ref| $a:natural_property) => of_natural_name a
+  | `(type_class_ref| $_:_a $n:natural_class) => of_natural_name n
   | _ => throwError "unknown type_class_ref"
 
 def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
