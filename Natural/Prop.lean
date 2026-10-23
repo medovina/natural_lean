@@ -137,12 +137,17 @@ def map_op (op: String) := (op_map.lookup op).getD op
 
 def of_op (op: TSyntax α): String := map_op (syntax_atom op)
 
+-- A map from infix operators to their associated type classes in Lean.
+-- For example, Lean elaborates (x + y) to (Add.add x y).
 def infix_op_class := [
   ("+", `add, ``Add), ("*", `mul, ``Mul), ("^", `pow, ``Pow),
   ("∪", `union, ``Union), ("∩", `inter, ``Inter),
   ("<", `lt, ``LT), ("≤", `le, ``LE), ("≈", `Equiv, ``HasEquiv),
-  ("∈", `mem, ``Membership), ("⊆", `Subset, `HasSubset),
-  ("∣", `dvd, `Dvd) ]
+  ("∈", `mem, ``Membership), ("⊆", `Subset, ``HasSubset),
+  ("∣", `dvd, ``Dvd) ]
+
+-- Infix operators represented by functions, not type classes.
+def extra_infix := [(">", ``GT.gt), ("≥", ``GE.ge)]
 
 def prefix_op_class := [ ("-", `neg, ``Neg) ]
 
@@ -166,6 +171,12 @@ def build_op (kind: OpKind) (op: String) (args: List Term): CoreM Term := do
 
 def build_infix (t: Term) (op: String) (u: Term) : CoreM Term :=
   build_op .infix op [t, u]
+
+def fun_to_op (n: Name) : Option String :=
+  extra_infix.findSome? (fun (op, name) =>
+    if n == name then .some op else .none) <|>
+  infix_op_class.findSome? (fun (op, fn, type) =>
+    if n == type ++ fn then .some op else .none)
 
 def super_char (s: Syntax) : Char := (s.getArg 0).getAtomVal.front
 
@@ -291,6 +302,11 @@ def check_no_binder_op : α × Option (BinderOp × Term) → CoreM (α × Term)
 
 -- natural language
 
+def apply2 (r : Ident) (e f: Term) : CoreM Term :=
+    match fun_to_op r.getId with
+      | .some op => build_infix e op f
+      | .none => `($r $e $f)
+
 def of_opt_not : TSyntax ``opt_not → CoreM Bool
   | `(opt_not| not) => pure false
   | `(opt_not| ) => pure true
@@ -308,7 +324,7 @@ def of_comp_adjective_phrase :
   | `(comp_adjective_phrase| $c:natural_comparative than $f:expr) => do
         let a ← of_natural_name c
         let f ← of_expr f
-        pure fun e => `($a $e $f)
+        pure fun e => apply2 a e f
   | _ => throwError "unknown comp_adjective_phrase"
 
 def of_adjective_phrase : TSyntax `adjective_phrase → CoreM (Term → CoreM Term)
@@ -327,9 +343,11 @@ def ungroup : Term → List Term
 partial def of_nominal_e_e_t :
         TSyntax `nominal_e_e_t → CoreM (Term → Term → CoreM Term)
   | `(nominal_e_e_t| $n:noun_e_e_t) => do
-      let n ← of_noun_e_e_t n
+      let n ← of_noun_e_e_t n   -- e.g. "divisor"
       pure fun e f =>
-        pure $ Lean.Syntax.mkApp n (e :: ungroup f).toArray
+        match ungroup f with
+          | [f] => apply2 n e f
+          | fs => pure $ Lean.Syntax.mkApp n (e :: fs).toArray
   | `(nominal_e_e_t| $a:adjective $nom:nominal_e_e_t) => do
       let a ← of_adjective a
       let nom ← of_nominal_e_e_t nom
@@ -412,7 +430,7 @@ partial def of_predicative_e_t : TSyntax `predicative_e_t → CoreM (Term → Co
 partial def of_verb_e_e_t : TSyntax ``verb_e_e_t → CoreM (Term → Term → CoreM Term)
 | `(verb_e_e_t| $r:natural_relation) => do
     let r ← of_natural_name r
-    pure (fun e f => `($r $e $f))
+    pure (apply2 r)
  | _ => throwError "unknown verb"
 
 partial def of_verb_phrase : TSyntax `verb_phrase → CoreM (Term → CoreM Term)
