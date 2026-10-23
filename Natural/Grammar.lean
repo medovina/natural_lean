@@ -220,6 +220,7 @@ sdef noun_phrase_e
   | expr
   | expr "and" expr
   | _the collection  -- e.g. "the set of primes"
+  | "itself"
 
 -- e → t (e.g. "positive integer", "divisor of n")
 sdef nominal_e_t

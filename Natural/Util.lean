@@ -192,10 +192,10 @@ def map_vars (map: List (Name × Name)) (s: Syntax): Syntax := match s with
       .node info kind (args.map (map_vars map))
   | _ => s
 
-def subst_var (i: Ident) (j: Name) (s: Syntax): Syntax := match s with
-  | .ident _ _ n _ => if n == j then i else s
+def subst_term (t: Term) (j: Name) (s: Syntax): Syntax := match s with
+  | .ident _ _ n _ => if n == j then t else s
   | .node info kind args =>
-      .node info kind (args.map (subst_var i j))
+      .node info kind (args.map (subst_term t j))
   | _ => s
 
 def mk_false : Term := mkIdent ``False

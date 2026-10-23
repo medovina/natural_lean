@@ -364,47 +364,56 @@ partial def of_noun_phrase_e : TSyntax `noun_phrase_e → CoreM Term
   | `(noun_phrase_e| $e:expr and $f:expr) => do
       `(_group $(← of_expr e) $(← of_expr f))
   | `(noun_phrase_e| $_:_the $c:collection) => elab_expr c
+  | `(noun_phrase_e| itself) => pure (mkIdent `_self)
   | _ => throwError "unknown noun_phrase"
 
+def apply_self (x: Term) (t: Term) : Term :=
+  ⟨subst_term x `_self t⟩
+
 mutual
-partial def of_nominal_e_t : TSyntax `nominal_e_t → CoreM (Term → CoreM Term)
-  | `(nominal_e_t| $_t:natural_type) =>
-      pure fun _e => pure mk_true
+partial def of_nominal_e_t : TSyntax `nominal_e_t →
+        CoreM (Option Term × (Term → CoreM Term))
+  | `(nominal_e_t| $t:natural_type) => do
+      pure (.some (← of_natural_type t), fun _e => pure mk_true)
   | `(nominal_e_t| $n:nominal_e_e_t of $f:noun_phrase_e) => do
       let n ← of_nominal_e_e_t n
       let f ← of_noun_phrase_e f
-      pure fun e => n e f
+      pure (.none, fun e => n e f)
   | `(nominal_e_t| $n:nominal_e_t with $np:noun_phrase_e_et_t) => do
-      let n ← of_nominal_e_t n
+      let (type, n) ← of_nominal_e_t n
       let np ← of_noun_phrase_e_et_t np
-      pure fun e => do mk_and (← n e) (← np e (fun _x => pure mk_true))
+      pure (type, fun e => do mk_and (← n e) (← np e (fun _x => pure mk_true)))
   | `(nominal_e_t| $a:adjective $n:nominal_e_t) => do
-      pure $ and_e_t (← of_adjective a) (← of_nominal_e_t n)
+      let (type, n) ← of_nominal_e_t n
+      pure (type, and_e_t (← of_adjective a) n)
   | `(nominal_e_t| $n:nominal_e_t $ap:comp_adjective_phrase) => do
-      pure $ and_e_t (← of_nominal_e_t n) (← of_comp_adjective_phrase ap)
+      let (type, n) ← of_nominal_e_t n
+      pure (type, and_e_t n (← of_comp_adjective_phrase ap))
   | `(nominal_e_t| $n:nominal_e_t that $vp:verb_phrase) => do
-      pure $ and_e_t (← of_nominal_e_t n) (← of_verb_phrase vp)
+      let (type, n) ← of_nominal_e_t n
+      pure (type, and_e_t n (← of_verb_phrase vp))
   | _ => throwError "unknown nominal_e_t"
 
-partial def of_noun_phrase_e_e_t :
-        TSyntax `noun_phrase_e_e_t → CoreM ((Term → Term → CoreM Term) × Option Ident)
+partial def of_noun_phrase_e_e_t : TSyntax `noun_phrase_e_e_t →
+        CoreM ((Term → Term → CoreM Term) × Option Ident)
   | `(noun_phrase_e_e_t| $_:a_or_some $nom:nominal_e_e_t $v:ident ?) =>
       of_nominal_e_e_t nom <&> (·, v)
   | _ => throwError "unknown noun_phrase_e_t"
 
-partial def of_noun_phrase_e_t : TSyntax `noun_phrase_e_t → CoreM (Term → CoreM Term)
+partial def of_noun_phrase_e_t : TSyntax `noun_phrase_e_t →
+        CoreM (Option Term × (Term → CoreM Term))
   | `(noun_phrase_e_t| a $nom:nominal_e_t) => of_nominal_e_t nom
   | _ => throwError "unknown noun_phrase_e_t"
 
 partial def of_noun_phrase_et_t :
         TSyntax ``noun_phrase_et_t → CoreM ((Term → CoreM Term) → CoreM Term)
   | `(noun_phrase_et_t| $_:_every $nom:nominal_e_t) => do
-      let nom ← of_nominal_e_t nom
+      let (type, nom) ← of_nominal_e_t nom
       pure $ fun p => do
         let x ← fresh_var
         let t ← nom (← `($x))
         let u ← p (← `($x))
-        `(∀ $x, $(← mk_implies t u))
+        `(∀ $x $[: $type]?, $(← mk_implies t (apply_self x u)))
   | _ => throwError "unknown noun_phrase_et_t"
 
 partial def of_noun_phrase_e_et_t :
@@ -424,7 +433,8 @@ partial def of_predicative_e : TSyntax `predicative_e → CoreM Term
 
 partial def of_predicative_e_t : TSyntax `predicative_e_t → CoreM (Term → CoreM Term)
   | `(predicative_e_t| $ap:adjective_phrase) => of_adjective_phrase ap
-  | `(predicative_e_t| $np:noun_phrase_e_t) => of_noun_phrase_e_t np
+  | `(predicative_e_t| $np:noun_phrase_e_t) =>
+        (of_noun_phrase_e_t np) <&> (·.2)
   | _ => throwError "unknown predicative"
 
 partial def of_verb_e_e_t : TSyntax ``verb_e_e_t → CoreM (Term → Term → CoreM Term)
@@ -434,16 +444,16 @@ partial def of_verb_e_e_t : TSyntax ``verb_e_e_t → CoreM (Term → Term → Co
  | _ => throwError "unknown verb"
 
 partial def of_verb_phrase : TSyntax `verb_phrase → CoreM (Term → CoreM Term)
-  | `(verb_phrase| has $np:noun_phrase_e_e_t) => do
+  | `(verb_phrase| has $np:noun_phrase_e_e_t) => do  -- e.g. "has a prime divisor"
       let (np, v) ← of_noun_phrase_e_e_t np
       pure fun e => do
         let x ← v.getDM fresh_var
         let t ← np (← `($x)) e
         `(∃ $x:ident, $t)
-  | `(verb_phrase| has $np:noun_phrase_e_et_t) => do
+  | `(verb_phrase| has $np:noun_phrase_e_et_t) => do  -- e.g. "has no divisor"
       let np ← of_noun_phrase_e_et_t np
       pure $ fun e => np e (fun _x => pure mk_true)
-  | `(verb_phrase| is $n:opt_not $p:predicative_e_t) => do
+  | `(verb_phrase| is $n:opt_not $p:predicative_e_t) => do  -- e.g. "is even"
         let n ← of_opt_not n
         let p ← of_predicative_e_t p
         pure fun e => p e >>= apply_tf n
@@ -452,14 +462,14 @@ partial def of_verb_phrase : TSyntax `verb_phrase → CoreM (Term → CoreM Term
       pure $ fun (e : Term) =>
         match e, p with
         | `(fun $x:ident => $e), `(fun $y:ident => $p) =>
-            let p := subst_var x y.getId p
+            let p := subst_term x y.getId p
             `(∀ $x, $(⟨e⟩):term ↔ $(⟨p⟩):term)
         | _, _ => throwError "of_verb_phrase: unexpected"
-  | `(verb_phrase| $v:verb_e_e_t $n:noun_phrase_e) => do
+  | `(verb_phrase| $v:verb_e_e_t $n:noun_phrase_e) => do   -- e.g. "divides x"
       let v ← of_verb_e_e_t v
       let n ← of_noun_phrase_e n
-      pure (fun e => v e n)
-  | `(verb_phrase| $v:verb_e_e_t $n:noun_phrase_et_t) => do
+      pure (fun e => v e (apply_self e n))
+  | `(verb_phrase| $v:verb_e_e_t $n:noun_phrase_et_t) => do  -- e.g. "divides every integer"
       let v ← of_verb_e_e_t v
       let n ← of_noun_phrase_et_t n
       pure (fun e => n (v e))
@@ -479,7 +489,8 @@ mutual
 partial def of_prop1 (prop: TSyntax `prop): CoreM Term := withRef prop do
   match prop with
     | `(prop| $np:noun_phrase_e $vp:verb_phrase) => do
-          (← of_verb_phrase vp) (← of_noun_phrase_e np)
+          let n ← of_noun_phrase_e np
+          (← of_verb_phrase vp) n
     | `(prop| $np:noun_phrase_et_t $vp:verb_phrase) => do
           (← of_noun_phrase_et_t np) (← of_verb_phrase vp)
     | `(prop| $e:expr $b:is_tf) => apply_tf (← of_is_tf b) (← of_expr e)
@@ -512,10 +523,10 @@ partial def of_exists_phrase (phrase: TSyntax `exists_phrase) : CoreM Term :=
         let (vars, cond) ← of_var_list vp
         mk_exists vars (← opt_and cond (← p.mapM of_prop1))
     | `(exists_phrase| $nom:nominal_e_t) => do
-        let nom ← of_nominal_e_t nom
+        let (type, nom) ← of_nominal_e_t nom
         let x ← fresh_var
         let t ← nom (← `($x))
-        `(∃ $x:ident, $t)
+        `(∃ $x:ident $[: $type]?, $t)
     | _ => throwError "unknown exists_phrase"
 end
 
