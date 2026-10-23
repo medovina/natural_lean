@@ -1,5 +1,10 @@
 import Natural.Examples.Set
 
+-- This file contains definitions/theorems about the Nat and Int types that are
+-- built into Lean.
+
+-- Nat
+
 abbrev ℕ := Nat   -- use Lean's built-in natural number type
 abbrev S := Nat.succ
 
@@ -48,3 +53,7 @@ Definition.  The unary operation ! on ℕ is defined recursively such that for a
 
   a.  0! = 1.
   b.  (n + 1)! = (n + 1) · n!.
+
+-- Int
+
+abbrev ℤ := Int

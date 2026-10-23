@@ -32,9 +32,6 @@ def free_vars (t: Term): List Name := syntax_free_vars true (t.raw)
 
 def all_vars (t: Term): List Name := syntax_free_vars false (t.raw)
 
-
-def name_to_term (n: Name) : CoreM Term := `($(mkIdent n))
-
 def to_ident: Term → Ident
   | `($n:num) => mkIdent (Name.mkSimple s!"n{n.getNat}")
   | `($i:ident) => i
@@ -323,11 +320,16 @@ def of_noun_e_e_t : TSyntax ``noun_e_e_t → CoreM Ident
   | `(noun_e_e_t| $n:natural_attribute) => of_natural_name n
   | _ => throwError "unknown noun_e_e_t"
 
+def ungroup : Term → List Term
+  | `(_group $t $u) => [t, u]
+  | t => [t]
+
 partial def of_nominal_e_e_t :
         TSyntax `nominal_e_e_t → CoreM (Term → Term → CoreM Term)
   | `(nominal_e_e_t| $n:noun_e_e_t) => do
       let n ← of_noun_e_e_t n
-      pure fun e f => `($n $e $f)
+      pure fun e f =>
+        pure $ Lean.Syntax.mkApp n (e :: ungroup f).toArray
   | `(nominal_e_e_t| $a:adjective $nom:nominal_e_e_t) => do
       let a ← of_adjective a
       let nom ← of_nominal_e_e_t nom
@@ -339,13 +341,20 @@ def and_e_t (x y: Term → CoreM Term): Term → CoreM Term :=
 
 def fresh_var : CoreM Ident := mkIdent <$> mkFreshUserName `x
 
+partial def of_noun_phrase_e : TSyntax `noun_phrase_e → CoreM Term
+  | `(noun_phrase_e| $e:expr) => of_expr e
+  | `(noun_phrase_e| $e:expr and $f:expr) => do
+      `(_group $(← of_expr e) $(← of_expr f))
+  | `(noun_phrase_e| $_:_the $c:collection) => elab_expr c
+  | _ => throwError "unknown noun_phrase"
+
 mutual
 partial def of_nominal_e_t : TSyntax `nominal_e_t → CoreM (Term → CoreM Term)
   | `(nominal_e_t| $_t:natural_type) =>
       pure fun _e => pure mk_true
-  | `(nominal_e_t| $n:nominal_e_e_t of $f:expr) => do
+  | `(nominal_e_t| $n:nominal_e_e_t of $f:noun_phrase_e) => do
       let n ← of_nominal_e_e_t n
-      let f ← of_expr f
+      let f ← of_noun_phrase_e f
       pure fun e => n e f
   | `(nominal_e_t| $n:nominal_e_t with $np:noun_phrase_e_et_t) => do
       let n ← of_nominal_e_t n
@@ -358,18 +367,6 @@ partial def of_nominal_e_t : TSyntax `nominal_e_t → CoreM (Term → CoreM Term
   | `(nominal_e_t| $n:nominal_e_t that $vp:verb_phrase) => do
       pure $ and_e_t (← of_nominal_e_t n) (← of_verb_phrase vp)
   | _ => throwError "unknown nominal_e_t"
-
-partial def of_noun_phrase_e : TSyntax `noun_phrase_e → CoreM Term
-  | `(noun_phrase_e| $e:expr) => of_expr e
-  | `(noun_phrase_e| $e:expr and $f:expr) => do
-      let x ← fresh_var
-      `(fun $x => $x = $(← of_expr e) ∨ $x = $(← of_expr f))
-  | `(noun_phrase_e| $_:_the $nom:nominal_e_t) => do
-      let nom ← of_nominal_e_t nom
-      let x := mkIdent `x
-      `(fun $x => $(← nom x))  -- characteristic set
-  | `(noun_phrase_e| $_:_the $c:collection) => elab_expr c
-  | _ => throwError "unknown noun_phrase"
 
 partial def of_noun_phrase_e_e_t :
         TSyntax `noun_phrase_e_e_t → CoreM ((Term → Term → CoreM Term) × Option Ident)
@@ -589,8 +586,14 @@ partial def resolve (s: Syntax) : TermElabM Term := withRef s do
         if n.toString.contains "_@" then pure ⟨s⟩ else
         if (← is_declared n) then pure ⟨s⟩ else
           let vars := n.toString.toList.map (fun c => Name.mkSimple c.toString)
-          if ← vars.allM (is_declared ·)
-          then pure (← multi_prod (← vars.mapM (name_to_term ·)))
+          if ← vars.allM (is_declared ·) then
+              -- We must attach the actual SourceInfo from i (a SourceInfo.original) here.
+              -- If we generate synthetic SourceInfo, even with canonical := true, then
+              -- sometimes Lean will report that a variable "x" is unused even if we use it
+              -- in an implicit product "xy".  (It's unclear whether that is a bug in Lean.)
+              let info := i.raw.getInfo?.get!
+              let to_ident v : Term := ⟨(mkIdent v).raw.setInfo info⟩
+              pure (← multi_prod (vars.map to_ident))
           else throwErrorAt s (
             if vars.length == 1 then s!"undefined: {n}"
             else s!"{n} is neither defined nor an implicit product")

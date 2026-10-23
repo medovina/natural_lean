@@ -379,9 +379,10 @@ def of_def_eq : TSyntax `def_eq → CoreM DefEq
   | `(def_eq| $e:expr is $i:defined_term $_:def_if $r:prop) => do
       pure { name := ← of_defined_term i, kind := none, cat := some .property,
              args := [← of_expr e], val := ← of_prop r }
-  | `(def_eq| $e:expr is a $d:defined_term of $f:expr $_:def_if $r:prop) => do
+  | `(def_eq| $e:expr is a $d:defined_term of $f:id_list $_:def_if $r:prop) => do
+      let f : List Term := (← of_id_list f).map (⟨·.raw⟩)
       pure { name := ← of_defined_term d, kind := none, cat := some .attribute,
-             args := [← of_expr e, ← of_expr f], val := ← of_prop r }
+             args := (← of_expr e) :: f, val := ← of_prop r }
   | _ => throwError "unknown def_eq"
 
 def of_def1 : TSyntax ``def1 → CoreM (IdVars × DefEq)

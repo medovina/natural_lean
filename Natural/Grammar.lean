@@ -213,23 +213,22 @@ sdef nominal_e_e_t
   | noun_e_e_t
   |:50 adjective nominal_e_e_t:50
 
--- e → t (e.g. "positive integer", "divisor of n")
-sdef nominal_e_t
-  | natural_type
-  |:60 atomic(nominal_e_e_t:60 "of") expr
-  | nominal_e_t "with" noun_phrase_e_et_t
-  |adjective nominal_e_t
-  | nominal_e_t comp_adjective_phrase
-  | nominal_e_t "that" verb_phrase
-
 declare_syntax_cat collection
 syntax (name := collection) natural_type_name "of" adjective : collection
 
 sdef noun_phrase_e
   | expr
   | expr "and" expr
-  | _the nominal_e_t  -- e.g. "the divisors of p"
   | _the collection  -- e.g. "the set of primes"
+
+-- e → t (e.g. "positive integer", "divisor of n")
+sdef nominal_e_t
+  | natural_type
+  |:60 atomic(nominal_e_e_t:60 "of") noun_phrase_e
+  | nominal_e_t "with" noun_phrase_e_et_t
+  |adjective nominal_e_t
+  | nominal_e_t comp_adjective_phrase
+  | nominal_e_t "that" verb_phrase
 
 -- e → e → t (e.g. "a prime divisor p")
 declare_syntax_cat noun_phrase_e_e_t (behavior := symbol)
@@ -293,7 +292,7 @@ syntax nominal_e_t : exists_phrase
 
 -- proof steps
 
-syntax _thm := "Lemma" <|> "Theorem"
+syntax _thm := "Theorem" <|> "Lemma" <|> "Example"
 
 syntax thm_name := ident
 
@@ -503,7 +502,7 @@ sdef def_eq
   | expr "=" expr
   | expr (! "=") rel_op expr def_if prop
   | expr "is" defined_term def_if prop  -- property definition
-  | expr "is" &"a" defined_term "of" expr def_if prop  -- relation definition
+  | expr "is" &"a" defined_term "of" id_list def_if prop  -- relation definition
 
 syntax def1 := (for_all_ids ",") ? def_eq "."
 
