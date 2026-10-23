@@ -238,8 +238,10 @@ syntax a_or_some nominal_e_e_t var ? : noun_phrase_e_e_t
 declare_syntax_cat noun_phrase_e_t (behavior := symbol)
 syntax &"a" nominal_e_t : noun_phrase_e_t
 
+kdef _every = "every"
+
 -- (e → t) → t (e.g. "every positive integer")
-syntax noun_phrase_et_t := "Every" nominal_e_t
+syntax noun_phrase_et_t := _every nominal_e_t
 
 -- e → (e → t) → t (e.g. "no divisor")
 syntax "no" nominal_e_e_t : noun_phrase_e_et_t
@@ -259,6 +261,7 @@ syntax "has" noun_phrase_e_et_t : verb_phrase
 syntax &"is" opt_not predicative_e_t : verb_phrase
 syntax "are" predicative_e : verb_phrase
 syntax verb_e_e_t noun_phrase_e : verb_phrase
+syntax verb_e_e_t noun_phrase_et_t : verb_phrase
 
 -- prop
 

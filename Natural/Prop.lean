@@ -380,7 +380,7 @@ partial def of_noun_phrase_e_t : TSyntax `noun_phrase_e_t → CoreM (Term → Co
 
 partial def of_noun_phrase_et_t :
         TSyntax ``noun_phrase_et_t → CoreM ((Term → CoreM Term) → CoreM Term)
-  | `(noun_phrase_et_t| Every $nom:nominal_e_t) => do
+  | `(noun_phrase_et_t| $_:_every $nom:nominal_e_t) => do
       let nom ← of_nominal_e_t nom
       pure $ fun p => do
         let x ← fresh_var
@@ -441,6 +441,10 @@ partial def of_verb_phrase : TSyntax `verb_phrase → CoreM (Term → CoreM Term
       let v ← of_verb_e_e_t v
       let n ← of_noun_phrase_e n
       pure (fun e => v e n)
+  | `(verb_phrase| $v:verb_e_e_t $n:noun_phrase_et_t) => do
+      let v ← of_verb_e_e_t v
+      let n ← of_noun_phrase_et_t n
+      pure (fun e => n (v e))
   | _ => throwError "unknown verb phrase"
 end
 
