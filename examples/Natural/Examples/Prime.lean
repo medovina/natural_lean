@@ -34,7 +34,3 @@ Proof.  Let A = { n : ℕ | k | n! for all k : ℕ with 0 < k ≤ n }.  Clearly 
 Theorem.  Let n : ℕ.  There exists some p : ℕ such that p > n and p is prime.
 
 Proof.  By ℕ.factorial_pos n! + 1 > 1, so by ℕ.exists_prime_factor there is some p : ℕ such that p is prime and p | (n! + 1).  Suppose that p ≤ n.  We know that p > 0, so by ℕ.dvd_factorial p | n!.  Then by Nat.dvd_sub p | ((n! + 1) - n!), so p | 1, so by Nat.dvd_one p = 1.  This is a contradiction since p is prime.  So p > n and p is prime.
-
--- linear combinations
-
-Definition.  Let a, b, c : ℤ.  c is a linear combination of a and b if there exist m, n : ℤ such that c = ma + nb.
