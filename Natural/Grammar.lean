@@ -331,10 +331,11 @@ syntax (priority := 1) prop : assert_prop
 syntax (priority := 2) atomic(begin_chain eq_expr_by+) : assert_prop
 
 kdef _so =
-  "also" | "but" | "hence" | "so" | "that is" | "then" | "therefore" | "thus"
+  "also" | "but" | "consequently" | "hence" | "so" |
+  "that is" | "then" | "therefore" | "thus"
 
 kdef have1 =
-  "clearly" | "it must be that" | "observe that" | "trivially" |
+  "clearly" | "it must be that" | "observe that" | "this shows that" | "trivially" |
   "we deduce that" | "we have shown that" | "we have" |
   "we know that" | "we must have" | "we see that"
 

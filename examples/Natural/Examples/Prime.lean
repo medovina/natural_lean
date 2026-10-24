@@ -1,5 +1,5 @@
 import Natural.Examples.Cardinality
-import Natural.Examples.Num
+import Natural.Examples.Nat
 
 Definition.  Let p : ℕ.  p is prime if p > 1 and for all k : ℕ, if k | p then k = 1 or k = p.
 

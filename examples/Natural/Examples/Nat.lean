@@ -1,6 +1,6 @@
 import Natural.Examples.Set
 
--- This file contains definitions/theorems about the Nat and Int types that are
+-- This file contains definitions/theorems about the Nat type that is
 -- built into Lean.
 
 -- Nat
@@ -53,15 +53,3 @@ Definition.  The unary operation ! on ℕ is defined recursively such that for a
 
   a.  0! = 1.
   b.  (n + 1)! = (n + 1) · n!.
-
--- Int
-
-abbrev ℤ := Int
-
--- congruences
-
-Notation.  x "≡" y "(mod" z ")" is a mixfix notation.  [ℤ.mod_eq]
-
-Definition.  Let x, y, z : ℤ.  x ≡ y (mod z) if x % z = y % z.
-
-Example.  5 ≡ 7 (mod 2).
