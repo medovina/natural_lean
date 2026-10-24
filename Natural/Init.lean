@@ -38,7 +38,18 @@ initialize registerBuiltinAttribute {
 
 -- natural_op attribute
 
-syntax (name := natural_op) "natural_op " str str ? ident ident op_kind num: attr
+sdef mixfix_token
+  | str
+  | ident
+
+def of_mixfix_token : TSyntax `mixfix_token → CoreM MixfixToken
+  | `(mixfix_token| $s:str) => pure (.str s.getString)
+  | `(mixfix_token| $i:ident) => pure (.ident i.getId)
+  | _ => throwError "notation: expected mixfix_token"
+
+-- args: operator name, negated name, namespace, function name, kind, precedence, tokens
+syntax (name := natural_op) "natural_op "
+  str str ? ident ident op_kind num mixfix_token *: attr
 
 initialize op_extension : AssocExtension OpInfo ←
   registerSimpleScopedEnvExtension {
@@ -56,13 +67,14 @@ initialize registerBuiltinAttribute {
   descr := "Natural operation"
   add := fun (decl_name: Name) (stx: Syntax) (attr_kind: AttributeKind) =>
     match stx with
-      | `(natural_op|
-            natural_op $name:str $neg:str ? $ns:ident $id:ident $k:op_kind $prec:num) =>
+      | `(natural_op| natural_op
+            $name:str $neg:str ? $ns:ident $id:ident
+            $k:op_kind $prec:num $tokens:mixfix_token*) => do
           let type_name := if decl_name == ``TypeDummy then `Type else decl_name
-          let t : OpInfo := {
+          let t : OpInfo ← pure {
             name := name.getString, neg := neg.map (·.getString), kind := of_op_kind k,
             cls := .none, type := .some type_name, fname := id.getId, ns := ns.getId,
-            prec := prec.getNat }
+            prec := prec.getNat, tokens := ← tokens.toList.mapM of_mixfix_token }
           op_extension.add (name.getString, t) attr_kind
       | _ => throwError "natural: unexpected"
 }

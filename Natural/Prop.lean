@@ -140,18 +140,18 @@ def of_op (op: TSyntax α): String := map_op (syntax_atom op)
 -- A map from infix operators to their associated type classes in Lean.
 -- For example, Lean elaborates (x + y) to (Add.add x y).
 def infix_op_class := [
-  ("+", `add, ``Add), ("*", `mul, ``Mul), ("^", `pow, ``Pow),
+  ("+", `add, ``Add), ("-", `sub, ``Sub),
+  ("*", `mul, ``Mul), ("/", `div, ``Div), ("%", `mod, ``Mod),
+  ("^", `pow, ``Pow),
   ("∪", `union, ``Union), ("∩", `inter, ``Inter),
   ("<", `lt, ``LT), ("≤", `le, ``LE), ("≈", `Equiv, ``HasEquiv),
   ("∈", `mem, ``Membership), ("⊆", `Subset, ``HasSubset),
   ("∣", `dvd, ``Dvd) ]
 
--- Infix operators represented by functions, not type classes.
+-- Infix operators that are represented by functions, not type classes.
 def extra_infix := [(">", ``GT.gt), ("≥", ``GE.ge)]
 
 def prefix_op_class := [ ("-", `neg, ``Neg) ]
-
-def postfix_op_class : List α := []
 
 def lookup_op_attr (op: String) : CoreM (Option OpInfo) := lookup_assoc op_extension op
 
@@ -159,10 +159,11 @@ def lookup_op (op: String) (kind: OpKind) : CoreM (Option OpInfo) :=
   let table := match kind with
     | .infix => infix_op_class
     | .prefix => prefix_op_class
-    | .postfix => postfix_op_class
+    | .postfix
+    | .mixfix => []
   match table.lookup op with
     | .some (fname, cl) =>
-        pure $ .some ⟨op, .none, kind, .some cl, .none, fname, .anonymous, 0⟩
+        pure $ .some ⟨op, .none, kind, .some cl, .none, fname, .anonymous, 0, []⟩
     | .none => lookup_op_attr op
 
 def build_op (kind: OpKind) (op: String) (args: List Term): CoreM Term := do
@@ -261,6 +262,16 @@ def of_rel_prop (prop: TSyntax `rel_prop): CoreM Term := withRef prop do
           let ops := ops.toList.map of_op
           multi_and (← build ts ops)
     | _ => throwError "unknown rel_prop"
+
+def of_mixfix_prop (prop: TSyntax `mixfix_prop): CoreM Term := do
+  let prop := prop.raw
+  let kind := prop.getKind
+  let ns := ((← lookup_op_attr kind.toString).map (·.ns)).getD .anonymous
+  let notation_kind := "term" ++ (String.join $ prop.getArgs.toList.map (fun a =>
+    if a.isAtom then a.getAtomVal else "_"))
+  let args ← prop.getArgs.mapM (fun a => do
+    if a.isAtom then pure a else of_expr ⟨a⟩)
+  pure ⟨Syntax.node (prop.getInfo?.get!) (ns ++ .mkSimple notation_kind) args⟩
 
 def of_multi_or (prop: TSyntax `multi_or): CoreM Term := withRef prop do
   match prop with
@@ -496,6 +507,7 @@ partial def of_prop1 (prop: TSyntax `prop): CoreM Term := withRef prop do
     | `(prop| $e:expr $b:is_tf) => apply_tf (← of_is_tf b) (← of_expr e)
     | `(prop| $e:rel_prop $b:is_tf ?) =>
           apply_tf ((← b.mapM of_is_tf).getD true) (← of_rel_prop e)
+    | `(prop| $m:mixfix_prop) => of_mixfix_prop m
     | `(prop| $p:prop and $q:prop) => do `($(← of_prop1 p) ∧ $(← of_prop1 q))
     | `(prop| $_:_either ? $p:prop or $q:prop) => do `($(← of_prop1 p) ∨ $(← of_prop1 q))
     | `(prop| $p:prop implies $q:prop)

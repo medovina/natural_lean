@@ -128,6 +128,8 @@ syntax:75 "-" expr:75 : expr
 syntax:75 "−" expr:75 : expr
 syntax:70 expr:70 "·" expr:71 : expr
 syntax:70 expr:70 "×" expr:71 : expr
+syntax:70 expr:70 "/" expr:71 : expr
+syntax:70 expr:70 "%" expr:71 : expr
 syntax:70 expr:70 "∩" expr:71 : expr
 syntax:65 expr:65 "+" expr:66 : expr
 syntax:65 expr:65 "-" expr:66 : expr
@@ -147,11 +149,13 @@ sdef rel_op
 
 -- all built-in operators
 sdef op
-  | "^" | "-" | "−" | "·" | "×" | "∩" | "+" | "∪"
+  | "^" | "·" | "×" | "/" | "%" | "∩" | "+" | "-" | "−" | "∪"
   | "<" | "≤" | ">" | "≥" | "∈" | "⊆" | "≈" | "|" | "∣"
 
 sdef rel_prop
   | expr (rel_op expr)+
+
+declare_syntax_cat mixfix_prop
 
 kdef _either = "either"
 kdef _if = "if"
@@ -162,7 +166,9 @@ kdef _there = "there"
 sdef _iff
   | "iff" <|> (atomic("if" "and") "only" "if")
 
-syntax _for_all := _for ("all" <|> "any" <|> "every")
+kdef _every = "any" | "every"
+
+syntax _for_all := _for ("all" <|> _every)
 
 kdef _exists = "exist" | "exists" | "is"
 
@@ -239,8 +245,6 @@ syntax a_or_some nominal_e_e_t var ? : noun_phrase_e_e_t
 declare_syntax_cat noun_phrase_e_t (behavior := symbol)
 syntax &"a" nominal_e_t : noun_phrase_e_t
 
-kdef _every = "every"
-
 -- (e → t) → t (e.g. "every positive integer")
 syntax noun_phrase_et_t := _every nominal_e_t
 
@@ -277,6 +281,7 @@ sdef prop
   | noun_phrase_et_t verb_phrase
   | (priority := 2) atomic(expr is_tf)
   | atomic(rel_prop) is_tf ?
+  | mixfix_prop
   |:35 prop:36 "and" prop:35
   |:30 atomic(_either ? prop:31 "or") prop:30
   |:25 prop:26 "implies" prop:25
@@ -458,9 +463,12 @@ sdef proof
 
 syntax relational := "relational"
 
-syntax notation_decl :=
-  "Notation" "." str ("(" "negation" ":" str ")")? "is"
-  _a op_kind relational ? "operator" "." "[" ident "]"
+syntax op_decl :=
+  str ("(" "negation" ":" str ")")? "is" _a op_kind relational ? "operator"
+
+syntax mixfix_decl := mixfix_token+ "is" &"a" "mixfix" "notation"
+
+syntax notation_decl := (op_decl <|> mixfix_decl) "." "[" ident "]"
 
 -- definitions
 
@@ -505,6 +513,7 @@ syntax def_if := _iff <|> "if"
 sdef def_eq
   | expr "=" expr
   | expr (! "=") rel_op expr def_if prop
+  | mixfix_prop def_if prop
   | expr "is" defined_term def_if prop  -- property definition
   | expr "is" &"a" defined_term "of" id_list def_if prop  -- relation definition
 
@@ -558,5 +567,5 @@ sdef thm_or_def
   | _thm _theorem
 
 sdef top
-  | notation_decl
+  | "Notation" "." notation_decl
   | thm_or_def ("Corollary" _theorem)*

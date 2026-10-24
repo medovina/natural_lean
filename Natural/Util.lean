@@ -224,6 +224,7 @@ inductive OpKind
   | infix
   | prefix
   | postfix
+  | mixfix
 deriving BEq, Inhabited
 
 instance: ToString OpKind where
@@ -231,13 +232,15 @@ instance: ToString OpKind where
     | .infix => "infix"
     | .prefix => "prefix"
     | .postfix => "postfix"
+    | .mixfix => "mixfix"
 
-syntax op_kind := "infix" <|> "prefix" <|> "postfix"
+syntax op_kind := "infix" <|> "prefix" <|> "postfix" <|> "mixfix"
 
 def of_op_kind : TSyntax ``op_kind → OpKind
   | `(op_kind| infix) => .infix
   | `(op_kind| prefix) => .prefix
   | `(op_kind| postfix) => .postfix
+  | `(op_kind| mixfix) => .mixfix
   | _ => panic! "unknown op_kind"
 
 def parse_op_opt : Syntax → Option (OpKind × String × List Syntax)
@@ -284,6 +287,10 @@ partial def syntax_replace_op (op: String) (name: Ident) :=
 def replace_op (op: String) (name: Ident) (t: Term) : Term :=
   ⟨syntax_replace_op op name t.raw⟩
 
+inductive MixfixToken where
+  | str (s: String)
+  | ident (n: Name)
+
 structure OpInfo where
   name: String         -- e.g. "+"
   neg: Option String   -- e.g. "≁" (if name is "~")
@@ -293,6 +300,7 @@ structure OpInfo where
   fname: Name          -- function name, e.g. `add
   ns: Name             -- namespace in which op's syntax is defined
   prec: Nat            -- precedence for operator declaration
+  tokens: List MixfixToken  -- only for mixfix ops
 deriving Inhabited
 
 def binders (xs: List (Ident × Term)) : CoreM (Array (TSyntax ``bracketedBinder)) :=

@@ -70,7 +70,7 @@ meta def decodeLeanTokens (data : Array Nat) : Array SemanticTokenEntry := Id.ru
 
 meta partial def naturalTokens (text : FileMap) (stx : Syntax) : Array SemanticTokenEntry :=
   match stx with
-    | `(top| $_:notation_decl)
+    | `(top| Notation . $_:notation_decl)
     | `(top| $_:thm_or_def $[Corollary $ts:_theorem]*) => gather stx
     | _ => stx.getArgs.flatMap (naturalTokens text)
 where

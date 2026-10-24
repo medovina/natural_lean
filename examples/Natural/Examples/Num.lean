@@ -57,3 +57,11 @@ Definition.  The unary operation ! on ℕ is defined recursively such that for a
 -- Int
 
 abbrev ℤ := Int
+
+-- congruences
+
+Notation.  x "≡" y "(mod" z ")" is a mixfix notation.  [ℤ.mod_eq]
+
+Definition.  Let x, y, z : ℤ.  x ≡ y (mod z) if x % z = y % z.
+
+Example.  5 ≡ 7 (mod 2).

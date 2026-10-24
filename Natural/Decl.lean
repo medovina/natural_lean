@@ -11,35 +11,56 @@ namespace Natural
 
 -- notation
 
+def of_op_decl (op: StrLit) (neg: Option StrLit) (kind: TSyntax ``op_kind)
+               (rel: Bool) (i: Name) : CoreM (List Command) := do
+  match i.components with
+    | [ type, fn ] => do
+        if neg.isSome && !rel then
+          throwError "only a relational operator can have a negation"
+
+        let k := of_op_kind kind
+        let syntax_decl ← if k == .postfix && is_super_letter op.getString
+          then pure []  -- looks like exponentation, so no need for syntax rule
+          else
+            if rel then
+              let ops := op :: neg.toList
+              ops.mapM (fun o => `(syntax $o:str : rel_op))
+            else .singleton <$> match k with
+              | .infix => `(syntax expr $op:str expr : expr)
+              | .prefix => `(syntax $op:str expr : expr)
+              | .postfix => `(syntax expr $op:str : expr)
+              | .mixfix => throwError "of_op_decl: mixfix unexpected"
+        let op_decl ← `(syntax $op:str : op)
+
+        let ns ← getCurrNamespace
+        let prec := Syntax.mkNumLit (if rel then 50 else 100).repr
+        let target := if type == `Type then ``TypeDummy else type
+        let a ← `(attribute [natural_op $op $[$neg]? $(mkIdent ns) $(mkIdent fn) $kind $prec]
+                            $(mkIdent target))
+        pure (syntax_decl ++ [op_decl, a])
+    | _ => throwError "of_op_decl: expected type.name"
+
+def of_mixfix_decl (ts: TSyntaxArray `mixfix_token) (id: Name) : CoreM (List Command) :=
+  match id.components with
+    | [ type, fn ] => do
+        let es ← ts.mapM (of_mixfix_token >=> fun
+          | .str s => `(stx| $(Lean.Syntax.mkStrLit s):str)
+          | .ident _ => `(stx| expr))
+        let ns ← getCurrNamespace
+        let name := mkIdent fn
+        let str_name := Lean.Syntax.mkStrLit fn.toString
+        let syntax_decl ← `(syntax (name := $name) $[$es:stx]* : mixfix_prop)
+        let attr_decl ← `(attribute [natural_op
+          $str_name $(.none)? $(mkIdent ns) $name mixfix 0 $ts*] $(mkIdent type))
+        pure [syntax_decl, attr_decl]
+    | _ => throwError "of_mixfix_decl: expected type.name"
+
 def of_notation_decl: TSyntax ``notation_decl → CoreM (List Command)
-  | `(notation_decl| Notation . $op:str $[(negation: $neg)]? is $_:_a
-          $kind:op_kind $[$rel:relational]? operator . [ $i:ident ]) => do
-      match i.getId.components with
-        | [ type, fn ] => do
-            let rel := rel.isSome
-            if neg.isSome && !rel then
-              throwError "only a relational operator can have a negation"
-
-            let k := of_op_kind kind
-            let syntax_decl ← if k == .postfix && is_super_letter op.getString
-              then pure []  -- looks like exponentation, so no need for syntax rule
-              else
-                if rel then
-                  let ops := op :: neg.toList
-                  ops.mapM (fun o => `(syntax $o:str : rel_op))
-                else .singleton <$> match of_op_kind kind with
-                  | .infix => `(syntax expr $op:str expr : expr)
-                  | .prefix => `(syntax $op:str expr : expr)
-                  | .postfix => `(syntax expr $op:str : expr)
-            let op_decl ← `(syntax $op:str : op)
-
-            let ns ← getCurrNamespace
-            let prec := Syntax.mkNumLit (if rel then 50 else 100).repr
-            let target := if type == `Type then ``TypeDummy else type
-            let a ← `(attribute [natural_op $op $[$neg]? $(mkIdent ns) $(mkIdent fn) $kind $prec]
-                                $(mkIdent target))
-            pure (syntax_decl ++ [op_decl, a])
-        | _ => throwError "notation: expected type.name"
+  | `(notation_decl| $op:str $[(negation: $neg)]? is $_:_a
+          $kind:op_kind $[$rel:relational]? operator . [ $i:ident ]) =>
+      of_op_decl op neg kind rel.isSome i.getId
+  | `(notation_decl| $ts:mixfix_token* is a mixfix notation . [ $i:ident ]) => do
+      of_mixfix_decl ts i.getId
   | _ => throwError "unknown notation_decl"
 
 -- definitions
@@ -260,21 +281,28 @@ def def_inst_commands (op_name: Name) (type: Term) (fname: Ident) (cl: Name)
 
 def declare_op (info: OpInfo): CoreM (List Command) :=
   info.type.toList.flatMapM (fun type =>
-      let name := Lean.Syntax.mkStrLit info.name
-      let fn := mkIdent (type ++ info.fname)
-      let prec := mkNumLit info.prec.repr
-      let decl := match info.kind with
-        | .infix => `(infix:$prec $name:str => $fn)
-        | .prefix => `(prefix:$prec $name:str => $fn)
-        | .postfix => `(postfix:$prec $name:str => $fn)
-      let neg_decl := info.neg.map (fun neg => do
-        let neg := Lean.Syntax.mkStrLit neg
-        let op_expr ← build_infix (← `(x)) info.name (← `(y))
-        `(infix:$prec $neg:str => fun x y => ¬ $op_expr))
-      sequence (decl :: neg_decl.toList)
+    let name := Lean.Syntax.mkStrLit info.name
+    let fn := mkIdent (type ++ info.fname)
+    let prec := mkNumLit info.prec.repr
+    let decl := match info.kind with
+      | .infix => `(infix:$prec $name:str => $fn)
+      | .prefix => `(prefix:$prec $name:str => $fn)
+      | .postfix => `(postfix:$prec $name:str => $fn)
+      | .mixfix => do
+          let ts := info.tokens.toArray
+          let ns ← ts.mapM (fun
+            | .str s => `(notationItem| $(Lean.Syntax.mkStrLit s):str)
+            | .ident i => `(notationItem| $(mkIdent i):ident))
+          let args := ts.filterMap (fun
+            | .str _ => .none
+            | .ident i => .some (mkIdent i))
+          `(notation $[$ns:notationItem]* => $(Syntax.mkApp fn args))
+    let neg_decl := info.neg.map (fun neg => do
+      let neg := Lean.Syntax.mkStrLit neg
+      let op_expr ← build_infix (← `(x)) info.name (← `(y))
+      `(infix:$prec $neg:str => fun x y => ¬ $op_expr))
+    sequence (decl :: neg_decl.toList)
   )
-
-def is_op (s: String) := !(Lean.isIdFirst s.front)
 
 def quotient_lift (top_name: Ident) (def_name: Ident) (n: Nat) (arg_type: Term)
       (justification: Option Ident) : CoreM Command := do
@@ -294,9 +322,8 @@ def generate_def (decl_fn: Option String) (arg_type: Option Term)
                     val := ← resolve_term env d.val })
   let { name := fn, kind, cat, args, .. } := defeqs.head!
   if !decl_fn.all (· == fn) then throwError "declaration mismatch"
-  let op_info ← if is_op fn
-    then do pure $ some $ ← (← lookup_op fn kind.get!).getDM (throwError "unknown op")
-    else pure none
+  let op_info ← kind.mapM (fun kind => do
+    (← lookup_op fn kind).getDM (throwError "unknown op"))
   let fname := op_info.elim (Name.mkSimple (function_name fn)) (·.fname)
 
   let defeqs := if fn == "∈"
@@ -323,7 +350,7 @@ def generate_def (decl_fn: Option String) (arg_type: Option Term)
     | _ => throwError "generate_def: no arg"
 
   let (def_name, top_name) ←
-    if (is_op fn || cat.isSome)
+    if (op_info.isSome || cat.isSome)
       then mapM_pair (embed_name arg_type ·) (dname, fname)
       else pure (mkIdent dname, mkIdent fname)
 
@@ -343,7 +370,7 @@ def generate_def (decl_fn: Option String) (arg_type: Option Term)
     (op_info.bind (·.cls)).toList.flatMapM
       (def_inst_commands fname arg_type top_name ·)
 
-  let nat_decl ← if is_op fn then pure none
+  let nat_decl ← if op_info.isSome then pure none
     else cat.mapM (fun cat => do
       let cat ← to_category cat
       `(attribute [natural $cat $(mkStrLit fn):str] $top_name))
@@ -376,6 +403,12 @@ def of_def_eq : TSyntax `def_eq → CoreM DefEq
   | `(def_eq| $e:expr $op:rel_op $f:expr $_:def_if $r:prop) => do
       pure { name := of_op op, kind := OpKind.infix, cat := none,
              args := [← of_expr e, ← of_expr f], val := ← of_prop r }
+  | `(def_eq| $m:mixfix_prop $_:def_if $p:prop) => do
+      let m := m.raw
+      let stx_kind := m.getKind
+      let args ← (m.getArgs.toList.filter (! ·.isAtom)).mapM (of_expr ⟨·⟩)
+      pure { name := stx_kind.toString, kind := OpKind.mixfix, cat := none,
+             args, val := ← of_prop p }
   | `(def_eq| $e:expr is $i:defined_term $_:def_if $r:prop) => do
       pure { name := ← of_defined_term i, kind := none, cat := some .property,
              args := [← of_expr e], val := ← of_prop r }
@@ -564,7 +597,7 @@ def of_thm_or_def : TSyntax `thm_or_def → TermElabM (List Command × List Iden
 
 elab t:top : command => do
   let cs : List Command ← liftTermElabM $ match t with
-    | `(top| $n:notation_decl) => of_notation_decl n
+    | `(top| Notation . $n:notation_decl) => of_notation_decl n
     | `(top| $d:thm_or_def $[Corollary $ts:_theorem]*) => do
         let (commands, names, is_thm) ← of_thm_or_def d
         let corrs ← List.map (·.1) <$> ts.toList.mapM (fun c => withRef c.raw do
