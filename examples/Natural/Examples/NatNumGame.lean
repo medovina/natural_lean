@@ -42,21 +42,21 @@ Theorem.  Let a, b, c, and n be natural numbers.
 
 Theorem.  Let a, b, c, m, and n be natural numbers.
 
-  a. m × 1 = m.
+  a. m · 1 = m.
 
-  b. 0 × m = 0.
+  b. 0 · m = 0.
 
-  c. succ(a) × b = a × b + b.
+  c. succ(a) · b = a · b + b.
 
-  d. a × b = b × a.
+  d. a · b = b · a.
 
-  e. 1 × m = m.
+  e. 1 · m = m.
 
-  f. 2 × m = m + m.
+  f. 2 · m = m + m.
 
   g. a(b + c) = ab + ac.
 
-  h. (a + b) × c = ac + bc.
+  h. (a + b) · c = ac + bc.
 
   i. (ab)c = a(bc).
 
@@ -94,7 +94,7 @@ Theorem.  Let a, b, m, and n be natural numbers.
 
   c. a¹ = a.
 
-  d. a² = a × a.
+  d. a² = a · a.
 
   e. aᵐ⁺ⁿ = aᵐ · aⁿ.
 

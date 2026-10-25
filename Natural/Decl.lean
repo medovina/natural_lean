@@ -104,8 +104,9 @@ def of_justification : TSyntax ``justification → CoreM Ident
   | _ => throwError "unknown justification"
 
 def of_quotient_def (name: Ident): TSyntax ``quotient_def → CoreM (List Command)
-  | `(quotient_def| as the quotient $t:type / $op:rel_op . $j:justification) => do
-      let type ← of_type t
+  | `(quotient_def| as the quotient $t:simple_type / $op:rel_op .
+                    $j:justification) => do
+      let type ← of_simple_type t
       let inst_name := id_append name `Setoid
       let inst_cmd ← `(instance $inst_name:ident : Setoid ($type) where
         r := $(← op_fun op type)

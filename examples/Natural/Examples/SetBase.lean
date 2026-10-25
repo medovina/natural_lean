@@ -2,7 +2,7 @@ import Natural
 
 open Lean
 open Lean.Core
-open Lean.Parser.Term
+open Lean.Parser.Term hiding type
 open Lean.Syntax
 open Natural
 

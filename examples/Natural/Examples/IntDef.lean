@@ -83,11 +83,11 @@ Proof.
 
 Lemma. Let n, j, k, i, n₁, j₁, k₁, i₁ : Nat.  If (n, j) ≈ (n₁, j₁) and (k, i) ≈ (k₁, i₁) then
 
-  (n × k + j × i, j × k + n × i) ≈ (n₁ × k₁ + j₁ × i₁, j₁ × k₁ + n₁ × i₁).  [ℤ.mul_equiv]
+  (n · k + j · i, j · k + n · i) ≈ (n₁ · k₁ + j₁ · i₁, j₁ · k₁ + n₁ · i₁).  [ℤ.mul_equiv]
 
 Definition.  For all n, j, k, i : Nat,
 
-  ℤ[(n, j)] × ℤ[(k, i)] = ℤ[(n × k + j × i, j × k + n × i)].
+  ℤ[(n, j)] · ℤ[(k, i)] = ℤ[(n · k + j · i, j · k + n · i)].
 
 Justification.  By ℤ.mul_equiv.
 
@@ -95,19 +95,19 @@ Justification.  By ℤ.mul_equiv.
 
 Theorem. Let a, b, c : ℤ.
 
-  a. a × b = b × a.  [ℤ.mul_comm]
-  b. a × (b × c) = (a × b) × c.  [ℤ.mul_assoc]
-  c. a × (b + c) = a × b + a × c.  [ℤ.mul_add]
-  d. (a + b) × c = a × c + b × c.  [ℤ.add_mul]
-  e. a × 1 = a.  [ℤ.mul_one: @simp]
+  a. a · b = b · a.  [ℤ.mul_comm]
+  b. a · (b · c) = (a · b) · c.  [ℤ.mul_assoc]
+  c. a · (b + c) = a · b + a · c.  [ℤ.mul_add]
+  d. (a + b) · c = a · c + b · c.  [ℤ.add_mul]
+  e. a · 1 = a.  [ℤ.mul_one: @simp]
 
 Proof.
 
   a - e. By the definition of ℤ.
 
-Corollary.  The operator × is commutative on ℤ.
+Corollary.  The operator · is commutative on ℤ.
 
-Corollary.  The operator × is associative on ℤ.
+Corollary.  The operator · is associative on ℤ.
 
 Theorem.  Let a, b : ℤ.  If a ≠ 0 and b ≠ 0, then a · b ≠ 0.
 

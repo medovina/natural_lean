@@ -74,14 +74,6 @@ def of_const : TSyntax `const → CoreM Term
   | `(const| $n:num) => `($n)
   | _ => throwError "unknown const"
 
-partial def of_type : TSyntax `type → CoreM Term
-  | `(type| $i:ident) => `($i)
-  | `(type| Prop) => `(Prop)
-  | `(type| $t:type ( $u:type ) ) => do `($(← of_type t) $(← of_type u))
-  | `(type| $t:type × $u:type) => do `($(← of_type t) × $(← of_type u))
-  | `(type| $t:type → $u:type) => do `($(← of_type t) → $(← of_type u))
-  | _ => throwError "unknown multi_specifier"
-
 def of_id_list : TSyntax ``id_list → CoreM (List Ident)
   | `(id_list| $id:ident $[, $ids:ident $_:comma_ahead]* $[$[,]? and $id2:ident]?) => do
       pure $ [id] ++ ids.toList ++ id2.toList
@@ -116,11 +108,6 @@ def syntax_atom (t: TSyntax α): String := match t.raw with
   | .node _ _ #[.node _ _ #[.atom _ val]] => val
   | _ => panic! "syntax_atom"
 
-def of_ids_type : TSyntax ``ids_type → CoreM (List Ident × BinderOp × Term)
-  | `(ids_type| $xs:ident,* $op:binder_op $t:type) => do
-    pure (xs.getElems.toList, syntax_atom op, ← of_type t)
-  | _ => throwError "unknown ids_type"
-
 def of_multi_specifier : TSyntax `multi_specifier → List Term → CoreM (List Term)
   | `(multi_specifier| $_:_at_least) => fun ts => List.singleton <$> multi_or ts
   | `(multi_specifier| $_:_at_most) => at_most
@@ -128,7 +115,7 @@ def of_multi_specifier : TSyntax `multi_specifier → List Term → CoreM (List 
   | _ => fun _ => throwError "unknown multi_specifier"
 
 def op_map := [
-  ("·", "*"), ("×", "*"),
+  ("·", "*"),
   ("−", "-"), -- map minus sign to hyphen
   ("|", "∣")  -- map vertical bar to division symbol
   ]
@@ -207,6 +194,17 @@ def of_is_tf : TSyntax ``is_tf → CoreM Bool
   | `(is_tf| is false) => pure false
   | _ => throwError "unknown is_tf"
 
+partial def resolve_left (s: Syntax): CoreM Term := withRef s do
+  match s with
+    | `(_app_or_mul $t:term $u:term) => do
+       let (t, u) ← mapM_pair resolve_left (t, u)
+       `($t $u)
+    | _ => match s with
+      | .node info kind args => do
+          let args ← args.mapM resolve_left
+          pure ⟨.node info kind args⟩
+      | _ => pure ⟨s⟩
+
 def try_elab [Monad m] [MonadExcept Exception m] {α: Type u}
         (fns: List (α → m β)) (expr: α): m (Option β) := match fns with
   | [] => pure none
@@ -228,27 +226,44 @@ def elab_expr (expr: Syntax): CoreM Term := do
     | _ => `(bind $bound:ident*, $type:term, $stx:term)
 
 partial def of_expr (expr: TSyntax `expr): CoreM Term := withRef expr do
-  match parse_op_opt expr with
-    | .some (kind, op, ts) =>
-        build_op kind (map_op op) (← ts.mapM (fun e => of_expr ⟨e⟩))
-    | _ => match expr with
-      | `(expr| $n:num) => pure n
-      | `(expr| $i:ident) => pure i
-      | `(expr| $e:expr $s:super_expr) =>
-           let (e, se) ← pairM (of_expr e) (of_super_expr s)
-           match super_id s with
-            | .some id =>  -- could be either exponentiation or postfix op, e.g. Sᶜ
-                `(_super $e $se $id)  -- resolve ambiguity later
-            | .none => `($e ^ $se)
-      | `(expr| $e:expr$f:expr)
-      | `(expr| $e:expr ( $f:expr )) => `(_app_or_mul $(← of_expr e) $(← of_expr f))
-      | `(expr| ( $e:expr )) => of_expr e
-      | `(expr| ( $e:expr , $f:expr)) => `( ($(← of_expr e), $(← of_expr f)) )
-      | `(expr| { $es:expr,* }) => do
-          let es ← es.getElems.mapM of_expr
-          `({ $es:term,* })
-      | `(expr| $i:ident [ $e:expr ]) => `($(id_append i `mk_quot) $(← of_expr e))
+  match expr with
+    | `(expr| $n:num) => pure n
+    | `(expr| $i:ident) => pure i
+    | `(expr| Prop) => `(Prop)
+    | `(expr| $e:expr $s:super_expr) =>
+          let (e, se) ← pairM (of_expr e) (of_super_expr s)
+          match super_id s with
+          | .some id =>  -- could be either exponentiation or postfix op, e.g. Sᶜ
+              `(_super $e $se $id)  -- resolve ambiguity later
+          | .none => `($e ^ $se)
+    | `(expr| $e:expr → $f:expr) => `($(← of_expr e) → $(← of_expr f))
+    | `(expr| $e:expr$f:expr)
+    | `(expr| $e:expr ( $f:expr )) => `(_app_or_mul $(← of_expr e) $(← of_expr f))
+    | `(expr| ( $e:expr )) => of_expr e
+    | `(expr| ( $e:expr , $f:expr)) => `( ($(← of_expr e), $(← of_expr f)) )
+    | `(expr| { $es:expr,* }) => do
+        let es ← es.getElems.mapM of_expr
+        `({ $es:term,* })
+    | `(expr| $i:ident [ $e:expr ]) => `($(id_append i `mk_quot) $(← of_expr e))
+    | _ => match parse_op_opt expr with
+      | .some (kind, op, ts) =>
+          build_op kind (map_op op) (← ts.mapM (fun e => of_expr ⟨e⟩))
       | _ => elab_expr expr
+
+partial def of_type : TSyntax ``type → CoreM Term
+  | `(type| $e:expr) => of_expr e >>= (resolve_left ·.raw)
+  | _ => throwError "unknown type"
+
+partial def of_simple_type : TSyntax `simple_type → CoreM Term
+  | `(simple_type| $i:ident) => `($i)
+  | `(simple_type| $t:simple_type × $u:simple_type) => do
+      `($(← of_simple_type t) × $(← of_simple_type u))
+  | _ => throwError "unknown simple_type"
+
+def of_ids_type : TSyntax ``ids_type → CoreM (List Ident × BinderOp × Term)
+  | `(ids_type| $xs:ident,* $op:binder_op $t:type) => do
+    pure (xs.getElems.toList, syntax_atom op, ← of_type t)
+  | _ => throwError "unknown ids_type"
 
 def of_rel_prop (prop: TSyntax `rel_prop): CoreM Term := withRef prop do
   let rec build : List Term → List String → CoreM (List Term)
@@ -622,7 +637,8 @@ abbrev LocalEnv := List (Name × Term)    -- maps name to type
 
 mutual
 
--- Resolve ambiguities in a term.  For example, a(b) will become either a product a · b or a function call, depending on the type of a.
+-- Resolve ambiguities in a term.  For example, a(b) will become either
+-- a product a · b or a function call, depending on the type of a.
 partial def resolve (s: Syntax) : TermElabM Term := withRef s do
   match s with
     | `($n:num) => pure n
@@ -674,14 +690,3 @@ partial def resolve_term (le: LocalEnv) (t: Term) : TermElabM Term :=
   resolve_term1 (le.map (fun (x, type) => (x, ":", type))) t
 
 end
-
-partial def resolve_left (s: Syntax): CoreM Term := withRef s do
-  match s with
-    | `(_app_or_mul $t:term $u:term) => do
-       let (t, u) ← mapM_pair resolve_left (t, u)
-       `($t $u)
-    | _ => match s with
-      | .node info kind args => do
-          let args ← args.mapM resolve_left
-          pure ⟨.node info kind args⟩
-      | _ => pure ⟨s⟩

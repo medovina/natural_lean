@@ -459,7 +459,7 @@ def rapply (goal : MVarId) (e : Expr) : MetaM (List MVarId) := do
     return newGoals.toList
 
 elab "rapply" e:term : tactic => do
-  let e ← Term.elabTerm e none
+  let e ← elabTerm e none
   Tactic.liftMetaTactic (rapply · e)
 
 -- natural language

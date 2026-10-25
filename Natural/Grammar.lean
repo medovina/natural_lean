@@ -24,13 +24,6 @@ syntax super_letter :=
   unicode("ᵘ", "^u") <|> unicode("ᵛ", "^v") <|> unicode("ʷ", "^w") <|> unicode("ˣ", "^x") <|>
   unicode("ʸ", "^y") <|> unicode("ᶻ", "^z")
 
-declare_syntax_cat type
-syntax ident : type
-syntax "Prop" : type
-syntax type "(" type ")" : type
-syntax:70 type:70 "×" type:71 : type
-syntax:25 type:26 "→" type:25 : type
-
 syntax comma_ahead := lookahead("," <|> "and")
 
 syntax id_list :=
@@ -100,8 +93,6 @@ syntax natural_type_name ("of" natural_type)? : natural_type
 
 syntax binder_op := ":" <|> "∈"
 
-syntax ids_type := atomic(ident,+ binder_op) type
-
 kdef _at_least = "at least"
 kdef _at_most = "at most"
 kdef _exactly = "exactly"
@@ -121,6 +112,7 @@ sdef super_expr
 declare_syntax_cat expr
 syntax nat : expr
 syntax id : expr
+syntax "Prop" : expr
 syntax:80 (name := super) expr:80 super_expr : expr
 syntax:80 expr:81 "^" expr:80 : expr
 syntax:75 (priority := 1) expr:75 noWs expr:76 : expr
@@ -135,10 +127,19 @@ syntax:65 expr:65 "+" expr:66 : expr
 syntax:65 expr:65 "-" expr:66 : expr
 syntax:65 expr:65 "−" expr:66 : expr
 syntax:65 expr:65 "∪" expr:66 : expr
+syntax:25 expr:26 "→" expr:25 : expr
 syntax (priority := 2) expr "(" expr ")" : expr
 syntax "(" expr ("," expr)? ")" : expr
 syntax "{" expr,* "}" : expr  -- set of values
 syntax id "[" expr "]" : expr  -- quotient type projection
+
+syntax type := expr
+
+sdef simple_type
+  | id
+  | simple_type "×" simple_type
+
+syntax ids_type := atomic(ident,+ binder_op) type
 
 -- relational operators
 sdef rel_op
@@ -483,7 +484,7 @@ syntax inductive_def :=
 
 syntax justification := "Justification" "." "By" thm_name "."
 
-syntax quotient_def := "as" "the" "quotient" type "/" rel_op "." justification
+syntax quotient_def := "as" "the" "quotient" simple_type "/" rel_op "." justification
 
 sdef type_spec
   | "as" type "." -- direct type definition
