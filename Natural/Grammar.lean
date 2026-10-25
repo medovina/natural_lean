@@ -277,6 +277,9 @@ sdef var_list
 
 declare_syntax_cat exists_phrase  -- forward declaration
 
+syntax thm_holds :=
+  "the" ("lemma" <|> "theorem" <|> "result") ("holds" <|> ("is" &"true"))
+
 sdef prop
   | (priority := 1) noun_phrase_e verb_phrase
   | noun_phrase_et_t verb_phrase
@@ -296,6 +299,7 @@ sdef prop
   | _there _exists some_or_no ? exists_phrase
   | multi_or
   | have_contradiction
+  | thm_holds atomic("for" id)?
 
 syntax var_list ("such" "that" prop)? : exists_phrase
 syntax nominal_e_t : exists_phrase

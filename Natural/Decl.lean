@@ -548,6 +548,23 @@ def of_type_class_ref : TSyntax `type_class_ref → CoreM Ident
   | `(type_class_ref| $_:_a $n:natural_class) => of_natural_name n
   | _ => throwError "unknown type_class_ref"
 
+partial def has_holds : Syntax → Bool
+  | `(_holds $_) => true
+  | s => match s with
+    | .node _ _ args => args.any has_holds
+    | _ => false
+
+partial def subst_holds (aux: Ident) : Syntax → CoreM Syntax
+  | `(_holds $x) => `($aux $x)
+  | s => do match s with
+    | .node info kind args => pure $ .node info kind (← args.mapM (subst_holds aux))
+    | _ => pure s
+
+def aux_abbrev (aux: Ident) (thm: Term) : CoreM Command := match match_binder thm.raw with
+  | .some (.all, (x, .some (":", type)) :: vars, t) => do
+      `(abbrev $aux ($x : $type) := $(← mk_for_all vars t))
+  | _ => throwError "self-referntial theorem must have universal quantifier"
+
 def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
           (body: TSyntax `theorem_body) : TermElabM (List Command × List Ident) := do
   let by_default : Option Ident := match corollary_of with
@@ -558,13 +575,19 @@ def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
         let iss ← of_init_steps iss
         let iss ← with_implicit_let [] iss
         let thms_proofs : List (ThmDecl × Option Term) ← of_props_proofs iss ps
-        let (commands, names) := List.unzip $ ← thms_proofs.mapM
+        let (commands, names) := List.unzip $ ← thms_proofs.flatMapM
           (fun (⟨label, _init_steps, thm, thm_name, attr⟩, proof) => withRef thm do
             let proof := proof.getD (← proof_by by_default)
             let name := thm_name <|> name.map (fun name =>
               label.elim name (mkIdent $ name.getId ++ ·))
+            let (aux_cmd, proof) ← if has_holds proof then
+              let name ← name.getDM (throwError "self-referential theorem must have a name")
+              let aux := mkIdent (name.getId.appendBefore "_")
+              let c ← aux_abbrev aux thm
+              pure ([c], (⟨← subst_holds aux proof⟩ : Term))
+            else pure ([], proof)
             let command ← mk_decl false attr name thm proof
-            pure (command, name))
+            pure (aux_cmd.map (·, .none) ++ [(command, name)]))
         pure (commands, (names.flatMap Option.toList))
     | `(theorem_body| The $_:_operator $op:op is $kind:type_class_ref
                       on $type:type . $pn:post_name) => withRef body do

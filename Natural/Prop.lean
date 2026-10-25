@@ -511,6 +511,13 @@ def of_var_list : TSyntax `var_list → CoreM (IdVars × Option Term)
             some $ ← (← of_adjective a) f)
   | _ => throwError "unknown var_list"
 
+def apply_holds (ids_types: IdVars) : Term → CoreM Term
+  | `(_holds _) => match ids_types with
+      | [(x, _)] => `(_holds $x)
+      | _ => throwError "multiple variables unexpected"
+  | `(_holds $_) => throwError "extra holds clause"
+  | t => pure t
+
 mutual
 partial def of_prop1 (prop: TSyntax `prop): CoreM Term := withRef prop do
   match prop with
@@ -531,17 +538,22 @@ partial def of_prop1 (prop: TSyntax `prop): CoreM Term := withRef prop do
     | `(prop| $f:for_all_opt_with , $p:prop)
     | `(prop| $p:prop $f:for_all_opt_with) => do
           let (ids_types, w) ← of_for_all_opt_with f
-          mk_for_all ids_types (← mk_implies w (← of_prop1 p))
+          let p ← of_prop1 p >>= apply_holds ids_types
+          mk_for_all ids_types (← mk_implies w p)
     | `(prop| $_:_there $_:_exists $s:some_or_no ? $ep:exists_phrase) => do
           let t ← of_exists_phrase ep
           let b ← s.elim (pure true) of_some_or_no
           apply_tf b t
-    | `(prop| $p:prop $_:_for some $ids_type:ids_types) => do
-          mk_exists (← of_ids_types ids_type) (← of_prop1 p)
+    | `(prop| $p:prop $_:_for some $ids_types:ids_types) => do
+          let ids_types ← of_ids_types ids_types
+          let p ← of_prop1 p >>= apply_holds ids_types
+          mk_exists ids_types p
     | `(prop| $p:prop , and $q:prop) => do `($(← of_prop1 p) ∧ $(← of_prop1 q))
     | `(prop| $_:_either ? $p:prop , or $q:prop) => do `($(← of_prop1 p) ∨ $(← of_prop1 q))
     | `(prop| $m:multi_or) => of_multi_or m
     | `(prop| $_:have_contradiction) => pure mk_false
+    | `(prop| $_:thm_holds) => `(_holds _)
+    | `(prop| $_:thm_holds for $x:ident) => `(_holds $x)
     | stx => throwError s!"unknown prop: {stx}"
 
 partial def of_exists_phrase (phrase: TSyntax `exists_phrase) : CoreM Term :=
