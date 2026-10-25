@@ -548,22 +548,26 @@ def of_type_class_ref : TSyntax `type_class_ref → CoreM Ident
   | `(type_class_ref| $_:_a $n:natural_class) => of_natural_name n
   | _ => throwError "unknown type_class_ref"
 
-partial def has_holds : Syntax → Bool
-  | `(_holds $_) => true
-  | s => match s with
-    | .node _ _ args => args.any has_holds
-    | _ => false
+partial def has_holds (s: Syntax): Option Syntax := match s with
+  | `(_holds $_ $_) => .some s
+  | _ => match s with
+    | .node _ _ args => args.findSome? has_holds
+    | _ => .none
 
-partial def subst_holds (aux: Ident) : Syntax → CoreM Syntax
-  | `(_holds $x) => `($aux $x)
+partial def subst_holds (x: Ident) (aux: Ident) : Syntax → CoreM Syntax
+  | `(_holds _ $z) => `($aux $z)
+  | s@`(_holds $y:ident $z) => if x.getId == y.getId then `($aux $z)
+      else throwErrorAt s
+        f!"theorem is parameterized with '{id_str x}', so cannot hold for '{id_str y}'"
   | s => do match s with
-    | .node info kind args => pure $ .node info kind (← args.mapM (subst_holds aux))
+    | .node info kind args => pure $ .node info kind (← args.mapM (subst_holds x aux))
     | _ => pure s
 
-def aux_abbrev (aux: Ident) (thm: Term) : CoreM Command := match match_binder thm.raw with
-  | .some (.all, (x, .some (":", type)) :: vars, t) => do
-      `(abbrev $aux ($x : $type) := $(← mk_for_all vars t))
-  | _ => throwError "self-referntial theorem must have universal quantifier"
+def aux_abbrev (aux: Ident) (thm: Term) : CoreM (Ident × Command) :=
+  match match_binder thm.raw with
+    | .some (.all, (x, .some (":", type)) :: vars, t) => do
+        pure (x, ← `(abbrev $aux ($x : $type) := $(← mk_for_all vars t)))
+    | _ => throwError "self-referential theorem must have universal quantifier"
 
 def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
           (body: TSyntax `theorem_body) : TermElabM (List Command × List Ident) := do
@@ -580,12 +584,14 @@ def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
             let proof := proof.getD (← proof_by by_default)
             let name := thm_name <|> name.map (fun name =>
               label.elim name (mkIdent $ name.getId ++ ·))
-            let (aux_cmd, proof) ← if has_holds proof then
-              let name ← name.getDM (throwError "self-referential theorem must have a name")
-              let aux := mkIdent (name.getId.appendBefore "_")
-              let c ← aux_abbrev aux thm
-              pure ([c], (⟨← subst_holds aux proof⟩ : Term))
-            else pure ([], proof)
+            let (aux_cmd, proof) ← match has_holds proof with
+              | .some h =>
+                let name ← name.getDM (throwErrorAt h
+                  "self-referential theorem must have a name")
+                let aux := mkIdent (name.getId.appendBefore "_")
+                let (x, c) ← aux_abbrev aux thm
+                pure ([c], (⟨← subst_holds x aux proof⟩ : Term))
+              | .none => pure ([], proof)
             let command ← mk_decl false attr name thm proof
             pure (aux_cmd.map (·, .none) ++ [(command, name)]))
         pure (commands, (names.flatMap Option.toList))

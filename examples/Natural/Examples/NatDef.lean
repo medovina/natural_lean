@@ -17,10 +17,9 @@ Theorem.  For all x : ℕ, x = 0 or there exists some y : ℕ such that x = S(y)
 
 Proof.  By induction.
 
-set_option trace.natural true in
 Theorem.  For all x : ℕ, S(x) ≠ x.  [ℕ.succ_ne_self]
 
-Proof.  Clearly S(0) ≠ 0.  Let x : ℕ, and suppose that the theorem holds for x.  Then S(S(x)) ≠ S(x).  Hence by induction the theorem holds for all x : ℕ.
+Proof.  Clearly the theorem holds for x = 0.  Suppose that the theorem holds for some x : ℕ.  So S(x) ≠ x.  Then S(S(x)) ≠ S(x).  Hence by induction the theorem holds for all x : ℕ.
 
 -- addition: definition
 

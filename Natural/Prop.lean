@@ -512,10 +512,10 @@ def of_var_list : TSyntax `var_list → CoreM (IdVars × Option Term)
   | _ => throwError "unknown var_list"
 
 def apply_holds (ids_types: IdVars) : Term → CoreM Term
-  | `(_holds _) => match ids_types with
-      | [(x, _)] => `(_holds $x)
+  | `(_holds _ _) => match ids_types with
+      | [(x, _)] => `(_holds _ $x)
       | _ => throwError "multiple variables unexpected"
-  | `(_holds $_) => throwError "extra holds clause"
+  | `(_holds $_ $_) => throwError "extra holds clause"
   | t => pure t
 
 mutual
@@ -552,8 +552,9 @@ partial def of_prop1 (prop: TSyntax `prop): CoreM Term := withRef prop do
     | `(prop| $_:_either ? $p:prop , or $q:prop) => do `($(← of_prop1 p) ∨ $(← of_prop1 q))
     | `(prop| $m:multi_or) => of_multi_or m
     | `(prop| $_:have_contradiction) => pure mk_false
-    | `(prop| $_:thm_holds) => `(_holds _)
-    | `(prop| $_:thm_holds for $x:ident) => `(_holds $x)
+    | `(prop| $_:thm_holds) => `(_holds _ _)
+    | `(prop| $_:thm_holds for $e:expr) => `(_holds _ $(← of_expr e))
+    | `(prop| $_:thm_holds for $x:ident = $e:expr) => `(_holds $x $(← of_expr e))
     | stx => throwError s!"unknown prop: {stx}"
 
 partial def of_exists_phrase (phrase: TSyntax `exists_phrase) : CoreM Term :=
@@ -679,6 +680,7 @@ partial def resolve (s: Syntax) : TermElabM Term := withRef s do
          if ← (← lookup_op id .postfix).anyM (matches_op .postfix t)
            then build_op .postfix id [t]
            else `($t ^ $(← resolve u))
+    | `(_holds $x $e) => `(_holds $x $(← resolve e))
     | _ => match match_binder s with
       | .some (bt, vars, t) => do
           let names := map_fst TSyntax.getId vars

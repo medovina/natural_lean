@@ -299,7 +299,7 @@ sdef prop
   | _there _exists some_or_no ? exists_phrase
   | multi_or
   | have_contradiction
-  | thm_holds atomic("for" id)?
+  | thm_holds atomic("for" (! &"some") (id "=")? expr)?
 
 syntax var_list ("such" "that" prop)? : exists_phrase
 syntax nominal_e_t : exists_phrase
