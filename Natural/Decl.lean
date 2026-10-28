@@ -40,16 +40,28 @@ def of_op_decl (op: StrLit) (neg: Option StrLit) (kind: TSyntax ``op_kind)
         pure (syntax_decl ++ [op_decl, a])
     | _ => throwError "of_op_decl: expected type.name"
 
-def of_mixfix_decl (ts: TSyntaxArray `mixfix_token) (id: Name) : CoreM (List Command) :=
+def of_mixfix_decl (ts: TSyntaxArray `mixfix_token) (cat: Ident) (id: Name)
+        : CoreM (List Command) :=
   match id.components with
     | [ type, fn ] => do
-        let es ← ts.mapM (of_mixfix_token >=> fun
+        let tokens ← ts.toList.mapM of_mixfix_token
+        let es ← tokens.mapM (fun
           | .str s => `(stx| $(Lean.Syntax.mkStrLit s):str)
           | .ident _ => `(stx| expr))
+        let es ← (·.toArray) <$> match tokens.head?, tokens.getLast? with
+          | .some (.str first), .some (.str last) => do
+              if first == last then
+                -- If the first and last tokens are the same string, wrap the first
+                -- two syntax items in 'atomic'.  This is helpful e.g. if the user
+                -- defines the absolute value notation |x|.
+                let (init, rest) := es.splitAt 2
+                `(stx| atomic($[$(init.toArray):stx]*)) <&> (· :: rest)
+              else pure es
+          | _, _ => pure es
         let ns ← getCurrNamespace
         let name := mkIdent fn
         let str_name := Lean.Syntax.mkStrLit fn.toString
-        let syntax_decl ← `(syntax (name := $name) $[$es:stx]* : mixfix_prop)
+        let syntax_decl ← `(syntax (name := $name) $[$es:stx]* : $cat)
         let attr_decl ← `(attribute [natural_op
           $str_name $(.none)? $(mkIdent ns) $name mixfix 0 $ts*] $(mkIdent type))
         pure [syntax_decl, attr_decl]
@@ -59,8 +71,10 @@ def of_notation_decl: TSyntax ``notation_decl → CoreM (List Command)
   | `(notation_decl| $op:str $[(negation: $neg)]? is $_:_a
           $kind:op_kind $[$rel:relational]? operator . [ $i:ident ]) =>
       of_op_decl op neg kind rel.isSome i.getId
-  | `(notation_decl| $ts:mixfix_token* is a mixfix notation . [ $i:ident ]) => do
-      of_mixfix_decl ts i.getId
+  | `(notation_decl| $ts:mixfix_token* is a $p:_propositional ?
+                     mixfix notation . [ $i:ident ]) => do
+      let cat := mkIdent (if p.isSome then `mixfix_prop else `mixfix_expr)
+      of_mixfix_decl ts cat i.getId
   | _ => throwError "unknown notation_decl"
 
 -- definitions
@@ -221,7 +235,7 @@ def rm_mkquot (t: Term): CoreM Term := match is_mkquot t with
   | .none => throwError "expected quotient projection"
 
 structure DefEq where
-  name: String    -- operator (e.g. "+") or natural-language name
+  name: String    -- operator (e.g. "+"), mixfix kind or natural-language name
   kind: Option OpKind
   cat: Option Category
   args: List Term
@@ -390,6 +404,12 @@ def elab_commands (commands: List Command) : CommandElabM Unit := do
   let command : Command := Lean.TSyntax.mk (mkNullNode commands.toArray)
   elabCommand command
 
+def mixfix_defeq (mix: Syntax) (r: Term): CoreM DefEq := do
+  let stx_kind := mix.getKind
+  let args ← (mix.getArgs.toList.filter (! ·.isAtom)).mapM (of_expr ⟨·⟩)
+  pure { name := stx_kind.toString, kind := OpKind.mixfix, cat := none,
+          args, val := r }
+
 def of_def_eq : TSyntax `def_eq → CoreM DefEq
   | `(def_eq| $l:expr = $r:expr) => do
       let (l, r) ← mapM_pair of_expr (l, r)
@@ -404,12 +424,10 @@ def of_def_eq : TSyntax `def_eq → CoreM DefEq
   | `(def_eq| $e:expr $op:rel_op $f:expr $_:def_if $r:prop) => do
       pure { name := of_op op, kind := OpKind.infix, cat := none,
              args := [← of_expr e, ← of_expr f], val := ← of_prop r }
-  | `(def_eq| $m:mixfix_prop $_:def_if $p:prop) => do
-      let m := m.raw
-      let stx_kind := m.getKind
-      let args ← (m.getArgs.toList.filter (! ·.isAtom)).mapM (of_expr ⟨·⟩)
-      pure { name := stx_kind.toString, kind := OpKind.mixfix, cat := none,
-             args, val := ← of_prop p }
+  | `(def_eq| $m:mixfix_expr = $e:expr) =>
+        of_expr e >>= mixfix_defeq m
+  | `(def_eq| $m:mixfix_prop $_:def_if $p:prop) =>
+        of_prop p >>= mixfix_defeq m
   | `(def_eq| $e:expr is $i:defined_term $_:def_if $r:prop) => do
       pure { name := ← of_defined_term i, kind := none, cat := some .property,
              args := [← of_expr e], val := ← of_prop r }

@@ -2,9 +2,20 @@ import Natural
 
 abbrev ℤ := Int
 
-attribute [grind] Int.dvd_def
-attribute [grind] Int.dvd_mul_of_dvd_left
-attribute [grind] Int.dvd_mul_of_dvd_right
+attribute [grind =] Int.dvd_def
+attribute [grind .] Int.dvd_mul_of_dvd_left
+attribute [grind .] Int.dvd_mul_of_dvd_right
+
+-- absolute value
+
+Notation.  "|" x "|" is a mixfix notation.  [ℤ.abs]
+
+Definition.  Let n : ℤ.
+
+  |n| = { n   if n ≥ 0
+        | −n  otherwise }.
+
+Example.  |−5| = 5.
 
 -- linear combinations
 
@@ -12,7 +23,7 @@ Definition.  Let a, b, c : ℤ.  c is a linear combination of a and b if there e
 
 -- congruences
 
-Notation.  a "≡" b "(mod" m ")" is a mixfix notation.  [ℤ.mod_eq]
+Notation.  a "≡" b "(mod" m ")" is a propositional mixfix notation.  [ℤ.mod_eq]
 
 Definition.  Let a, b, m : ℤ.  a ≡ b (mod m) if m | (a - b).
 

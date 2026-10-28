@@ -102,12 +102,27 @@ sdef multi_specifier
   | _at_most
   | _exactly
 
+syntax _a := &"a" <|> "an"
+
+syntax a_or_some := _a <|> &"some"
+
+syntax some_or_no := a_or_some <|> "no"
+
+syntax opt_not := "not" ?
+
 -- expr
 
 sdef super_expr
   | super_digit+
   | super_letter+
   | super_expr "⁺" super_expr
+
+declare_syntax_cat if_case
+declare_syntax_cat prop
+
+-- Mixfix notation declarations add syntax rules to these categories.
+declare_syntax_cat mixfix_expr
+declare_syntax_cat mixfix_prop
 
 declare_syntax_cat expr
 syntax nat : expr
@@ -128,10 +143,14 @@ syntax:65 expr:65 "-" expr:66 : expr
 syntax:65 expr:65 "−" expr:66 : expr
 syntax:65 expr:65 "∪" expr:66 : expr
 syntax:25 expr:26 "→" expr:25 : expr
+syntax mixfix_expr : expr
 syntax (priority := 2) expr "(" expr ")" : expr
 syntax "(" expr ("," expr)? ")" : expr
 syntax "{" expr,* "}" : expr  -- set of values
+syntax "{" if_case+ expr "otherwise" "}" : expr
 syntax id "[" expr "]" : expr  -- quotient type projection
+
+syntax atomic(expr "if") prop "|" : if_case
 
 syntax type := expr
 
@@ -154,9 +173,9 @@ sdef op
   | "<" | "≤" | ">" | "≥" | "∈" | "⊆" | "≈" | "|" | "∣"
 
 sdef rel_prop
-  | expr (rel_op expr)+
-
-declare_syntax_cat mixfix_prop
+  -- We exclude "|" from chaining since that can cause problems when
+  -- parsing if/otherwise expressions, which use "|" to separate cases.
+  | expr rel_op expr ((! "|") rel_op expr)*
 
 kdef _either = "either"
 kdef _if = "if"
@@ -176,12 +195,6 @@ kdef _exists = "exist" | "exists" | "is"
 sdef multi_or
   | multi_specifier "one" "of" rel_prop,+ "is" &"true"
 
-syntax _a := &"a" <|> "an"
-
-syntax a_or_some := _a <|> &"some"
-
-syntax some_or_no := a_or_some <|> "no"
-
 kdef _is_have = "this is" | "we have"
 
 syntax have_contradiction := _is_have &"a" "contradiction"
@@ -197,8 +210,6 @@ syntax for_all_ids := _for_all ids_types
 syntax for_all_opt_with := for_all_ids ("with" rel_prop)?
 
 -- natural language
-
-syntax opt_not := "not" ?
 
 syntax adjective := "only" <|> natural_property  -- type: e → t
 
@@ -280,7 +291,7 @@ declare_syntax_cat exists_phrase  -- forward declaration
 syntax thm_holds :=
   "the" ("lemma" <|> "theorem" <|> "result") ("holds" <|> ("is" &"true"))
 
-sdef prop
+sdef_extend prop
   | (priority := 1) noun_phrase_e verb_phrase
   | noun_phrase_et_t verb_phrase
   | (priority := 2) atomic(expr is_tf)
@@ -471,9 +482,12 @@ sdef proof
 syntax relational := "relational"
 
 syntax op_decl :=
-  str ("(" "negation" ":" str ")")? "is" _a op_kind relational ? "operator"
+  atomic(str ("(" "negation" ":" str ")")? "is") _a op_kind relational ? "operator"
 
-syntax mixfix_decl := mixfix_token+ "is" &"a" "mixfix" "notation"
+syntax _propositional := "propositional"
+
+syntax mixfix_decl :=
+  mixfix_token+ "is" &"a" _propositional ? "mixfix" "notation"
 
 syntax notation_decl := (op_decl <|> mixfix_decl) "." "[" ident "]"
 
@@ -520,6 +534,7 @@ syntax def_if := _iff <|> "if"
 sdef def_eq
   | expr "=" expr
   | expr (! "=") rel_op expr def_if prop
+  | mixfix_expr "=" expr
   | mixfix_prop def_if prop
   | expr "is" defined_term def_if prop  -- property definition
   | expr "is" &"a" defined_term "of" id_list def_if prop  -- relation definition

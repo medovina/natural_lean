@@ -172,6 +172,14 @@ def super_string (table: List (Char × Char)) (a: TSyntaxArray α) : String :=
   let chars := a.map (fun s => (table.lookup (super_char s)).get!)
   String.ofList chars.toList
 
+def of_some_or_no : TSyntax ``some_or_no → CoreM Bool
+  | `(some_or_no| some)
+  | `(some_or_no| $_:_a) => pure true
+  | `(some_or_no| no) => pure false
+  | _ => throwError "unknown some_or_no"
+
+-- expr
+
 partial def of_super_expr : TSyntax `super_expr → CoreM Term
   | `(super_expr| $ds:super_digit*) =>
       pure $ mkNatLit (super_string super_digits ds).toNat!
@@ -225,6 +233,40 @@ def elab_expr (expr: Syntax): CoreM Term := do
     | #[] => pure stx
     | _ => `(bind $bound:ident*, $type:term, $stx:term)
 
+def function_name (s: String) : String := s.replace " " "_"
+
+def check_no_binder_op : α × Option (BinderOp × Term) → CoreM (α × Term)
+  | (id, some (":", t)) => pure (id, t)
+  | _ => throwError "unexpected binder op"
+
+def apply2 (r : Ident) (e f: Term) : CoreM Term :=
+    match fun_to_op r.getId with
+      | .some op => build_infix e op f
+      | .none => `($r $e $f)
+
+def of_opt_not : TSyntax ``opt_not → CoreM Bool
+  | `(opt_not| not) => pure false
+  | `(opt_not| ) => pure true
+  | _ => throwError "unknown opt_not"
+
+def ungroup : Term → List Term
+  | `(_group $t $u) => [t, u]
+  | t => [t]
+
+def and_e_t (x y: Term → CoreM Term): Term → CoreM Term :=
+  fun e => do mk_and (← x e) (← y e)
+
+def fresh_var : CoreM Ident := mkIdent <$> mkFreshUserName `x
+
+def apply_self (x: Term) (t: Term) : Term :=
+  ⟨subst_term x `_self t⟩
+
+mutual
+
+partial def of_if_case : TSyntax `if_case → CoreM (Term × Term)
+  | `(if_case| $e:expr if $p:prop |) => pairM (of_expr e) (of_prop1 p)
+  | _ => throwError "unknown if_case"
+
 partial def of_expr (expr: TSyntax `expr): CoreM Term := withRef expr do
   match expr with
     | `(expr| $n:num) => pure n
@@ -237,6 +279,7 @@ partial def of_expr (expr: TSyntax `expr): CoreM Term := withRef expr do
               `(_super $e $se $id)  -- resolve ambiguity later
           | .none => `($e ^ $se)
     | `(expr| $e:expr → $f:expr) => `($(← of_expr e) → $(← of_expr f))
+    | `(expr| $e:mixfix_expr) => of_mixfix e
     | `(expr| $e:expr$f:expr)
     | `(expr| $e:expr ( $f:expr )) => `(_app_or_mul $(← of_expr e) $(← of_expr f))
     | `(expr| ( $e:expr )) => of_expr e
@@ -244,6 +287,10 @@ partial def of_expr (expr: TSyntax `expr): CoreM Term := withRef expr do
     | `(expr| { $es:expr,* }) => do
         let es ← es.getElems.mapM of_expr
         `({ $es:term,* })
+    | `(expr| { $cs:if_case* $last:expr otherwise }) => do
+        let cs ← cs.mapM of_if_case
+        let last ← of_expr last
+        cs.foldrM (fun (e, p) rest => `(if $p then $e else $rest)) last
     | `(expr| $i:ident [ $e:expr ]) => `($(id_append i `mk_quot) $(← of_expr e))
     | _ => match parse_op_opt expr with
       | .some (kind, op, ts) =>
@@ -260,47 +307,40 @@ partial def of_simple_type : TSyntax `simple_type → CoreM Term
       `($(← of_simple_type t) × $(← of_simple_type u))
   | _ => throwError "unknown simple_type"
 
-def of_ids_type : TSyntax ``ids_type → CoreM (List Ident × BinderOp × Term)
+partial def of_ids_type : TSyntax ``ids_type → CoreM (List Ident × BinderOp × Term)
   | `(ids_type| $xs:ident,* $op:binder_op $t:type) => do
     pure (xs.getElems.toList, syntax_atom op, ← of_type t)
   | _ => throwError "unknown ids_type"
 
-def of_rel_prop (prop: TSyntax `rel_prop): CoreM Term := withRef prop do
+partial def of_rel_prop (prop: TSyntax `rel_prop): CoreM Term := withRef prop do
   let rec build : List Term → List String → CoreM (List Term)
     | _, [] => pure []
     | t :: u :: ts, op :: ops =>
         .cons <$> build_infix t op u <*> build (u :: ts) ops
     | _, _ => panic! "of_rel_prop"
   match prop with
-    | `(rel_prop| $a:expr $[$ops:rel_op $bs:expr]*) => do
-          let ts ← (a :: bs.toList).mapM of_expr
-          let ops := ops.toList.map of_op
+    | `(rel_prop| $a:expr $op:rel_op $b:expr $[$ops:rel_op $cs:expr]*) => do
+          let ts ← (a :: b :: cs.toList).mapM of_expr
+          let ops := (op :: ops.toList).map of_op
           multi_and (← build ts ops)
     | _ => throwError "unknown rel_prop"
 
-def of_mixfix_prop (prop: TSyntax `mixfix_prop): CoreM Term := do
-  let prop := prop.raw
-  let kind := prop.getKind
+partial def of_mixfix (stx: Syntax): CoreM Term := do
+  let kind := stx.getKind
   let ns := ((← lookup_op_attr kind.toString).map (·.ns)).getD .anonymous
-  let notation_kind := "term" ++ (String.join $ prop.getArgs.toList.map (fun a =>
+  let notation_kind := "term" ++ (String.join $ stx.getArgs.toList.map (fun a =>
     if a.isAtom then a.getAtomVal else "_"))
-  let args ← prop.getArgs.mapM (fun a => do
+  let args ← stx.getArgs.mapM (fun a => do
     if a.isAtom then pure a else of_expr ⟨a⟩)
-  pure ⟨Syntax.node (prop.getInfo?.get!) (ns ++ .mkSimple notation_kind) args⟩
+  pure ⟨Syntax.node (stx.getInfo?.get!) (ns ++ .mkSimple notation_kind) args⟩
 
-def of_multi_or (prop: TSyntax `multi_or): CoreM Term := withRef prop do
+partial def of_multi_or (prop: TSyntax `multi_or): CoreM Term := withRef prop do
   match prop with
     | `(multi_or| $s:multi_specifier one of $es,* is true) => do
           of_multi_specifier s (← es.getElems.toList.mapM of_rel_prop) >>= multi_and
     | _ => throwError "unknown multi_or"
 
-def of_some_or_no : TSyntax ``some_or_no → CoreM Bool
-  | `(some_or_no| some)
-  | `(some_or_no| $_:_a) => pure true
-  | `(some_or_no| no) => pure false
-  | _ => throwError "unknown some_or_no"
-
-def of_ids_types : TSyntax `ids_types → CoreM IdVars
+partial def of_ids_types : TSyntax `ids_types → CoreM IdVars
   | `(ids_types| $[$ids:ids_type] and*) => do
       ids.toList.flatMapM (fun i => do
         let (xs, type) ← of_ids_type i
@@ -311,41 +351,25 @@ def of_ids_types : TSyntax `ids_types → CoreM IdVars
       pure $ xs.map (·, ":", type)
   | _ => throwError "unknown ids_types"
 
-def of_for_all_ids : TSyntax ``for_all_ids → CoreM IdVars
+partial def of_for_all_ids : TSyntax ``for_all_ids → CoreM IdVars
   | `(for_all_ids| $_:_for_all $ids_type:ids_types) => of_ids_types ids_type
   | _ => throwError "unknown for_all_ids"
 
-def of_for_all_opt_with : TSyntax ``for_all_opt_with → CoreM (IdVars × Term)
+partial def of_for_all_opt_with : TSyntax ``for_all_opt_with → CoreM (IdVars × Term)
   | `(for_all_opt_with| $f:for_all_ids $[with $p:rel_prop]?) => do
     pure (← of_for_all_ids f, (← p.mapM of_rel_prop).getD mk_true)
   | _ => throwError "unknown for_all_opt_with"
 
-def function_name (s: String) : String := s.replace " " "_"
-
-def check_no_binder_op : α × Option (BinderOp × Term) → CoreM (α × Term)
-  | (id, some (":", t)) => pure (id, t)
-  | _ => throwError "unexpected binder op"
-
 -- natural language
 
-def apply2 (r : Ident) (e f: Term) : CoreM Term :=
-    match fun_to_op r.getId with
-      | .some op => build_infix e op f
-      | .none => `($r $e $f)
-
-def of_opt_not : TSyntax ``opt_not → CoreM Bool
-  | `(opt_not| not) => pure false
-  | `(opt_not| ) => pure true
-  | _ => throwError "unknown opt_not"
-
-def of_adjective : TSyntax ``adjective → CoreM (Term → CoreM Term)
+partial def of_adjective : TSyntax ``adjective → CoreM (Term → CoreM Term)
   | `(adjective| only) => pure (fun _x => pure mk_true)
   | `(adjective| $n:natural_property) => do
       let a ← of_natural_name n
       pure fun e => `($a $e)
   | _ => throwError "unknown adjective"
 
-def of_comp_adjective_phrase :
+partial def of_comp_adjective_phrase :
       TSyntax ``comp_adjective_phrase → CoreM (Term → CoreM Term)
   | `(comp_adjective_phrase| $c:natural_comparative than $f:expr) => do
         let a ← of_natural_name c
@@ -353,18 +377,14 @@ def of_comp_adjective_phrase :
         pure fun e => apply2 a e f
   | _ => throwError "unknown comp_adjective_phrase"
 
-def of_adjective_phrase : TSyntax `adjective_phrase → CoreM (Term → CoreM Term)
+partial def of_adjective_phrase : TSyntax `adjective_phrase → CoreM (Term → CoreM Term)
   | `(adjective_phrase| $a:adjective) => of_adjective a
   | `(adjective_phrase| $cp:comp_adjective_phrase) => of_comp_adjective_phrase cp
   | _ => throwError "unknown adjective_phrase"
 
-def of_noun_e_e_t : TSyntax ``noun_e_e_t → CoreM Ident
+partial def of_noun_e_e_t : TSyntax ``noun_e_e_t → CoreM Ident
   | `(noun_e_e_t| $n:natural_attribute) => of_natural_name n
   | _ => throwError "unknown noun_e_e_t"
-
-def ungroup : Term → List Term
-  | `(_group $t $u) => [t, u]
-  | t => [t]
 
 partial def of_nominal_e_e_t :
         TSyntax `nominal_e_e_t → CoreM (Term → Term → CoreM Term)
@@ -380,11 +400,6 @@ partial def of_nominal_e_e_t :
       pure fun e f => do mk_and  (← a e) (← nom e f)
   | _ => throwError "unknown nominal_e_e_t"
 
-def and_e_t (x y: Term → CoreM Term): Term → CoreM Term :=
-  fun e => do mk_and (← x e) (← y e)
-
-def fresh_var : CoreM Ident := mkIdent <$> mkFreshUserName `x
-
 partial def of_noun_phrase_e : TSyntax `noun_phrase_e → CoreM Term
   | `(noun_phrase_e| $e:expr) => of_expr e
   | `(noun_phrase_e| $e:expr and $f:expr) => do
@@ -393,10 +408,6 @@ partial def of_noun_phrase_e : TSyntax `noun_phrase_e → CoreM Term
   | `(noun_phrase_e| itself) => pure (mkIdent `_self)
   | _ => throwError "unknown noun_phrase"
 
-def apply_self (x: Term) (t: Term) : Term :=
-  ⟨subst_term x `_self t⟩
-
-mutual
 partial def of_nominal_e_t : TSyntax `nominal_e_t →
         CoreM (Option Term × (Term → CoreM Term))
   | `(nominal_e_t| $t:natural_type) => do
@@ -500,25 +511,23 @@ partial def of_verb_phrase : TSyntax `verb_phrase → CoreM (Term → CoreM Term
       let n ← of_noun_phrase_et_t n
       pure (fun e => n (v e))
   | _ => throwError "unknown verb phrase"
-end
 
 -- prop
 
-def of_var_list : TSyntax `var_list → CoreM (IdVars × Option Term)
+partial def of_var_list : TSyntax `var_list → CoreM (IdVars × Option Term)
   | `(var_list| $i:ids_types) => of_ids_types i <&> (·, none)
   | `(var_list| $a:adjective function $f:ident : $type:type) => do
       pure ([(f, ":", ← of_type type)],
             some $ ← (← of_adjective a) f)
   | _ => throwError "unknown var_list"
 
-def apply_holds (ids_types: IdVars) : Term → CoreM Term
+partial def apply_holds (ids_types: IdVars) : Term → CoreM Term
   | `(_holds _ _) => match ids_types with
       | [(x, _)] => `(_holds _ $x)
       | _ => throwError "multiple variables unexpected"
   | `(_holds $_ $_) => throwError "extra holds clause"
   | t => pure t
 
-mutual
 partial def of_prop1 (prop: TSyntax `prop): CoreM Term := withRef prop do
   match prop with
     | `(prop| $np:noun_phrase_e $vp:verb_phrase) => do
@@ -529,7 +538,7 @@ partial def of_prop1 (prop: TSyntax `prop): CoreM Term := withRef prop do
     | `(prop| $e:expr $b:is_tf) => apply_tf (← of_is_tf b) (← of_expr e)
     | `(prop| $e:rel_prop $b:is_tf ?) =>
           apply_tf ((← b.mapM of_is_tf).getD true) (← of_rel_prop e)
-    | `(prop| $m:mixfix_prop) => of_mixfix_prop m
+    | `(prop| $m:mixfix_prop) => of_mixfix m
     | `(prop| $p:prop and $q:prop) => do `($(← of_prop1 p) ∧ $(← of_prop1 q))
     | `(prop| $_:_either ? $p:prop or $q:prop) => do `($(← of_prop1 p) ∨ $(← of_prop1 q))
     | `(prop| $p:prop implies $q:prop)
@@ -568,6 +577,7 @@ partial def of_exists_phrase (phrase: TSyntax `exists_phrase) : CoreM Term :=
         let t ← nom (← `($x))
         `(∃ $x:ident $[: $type]?, $t)
     | _ => throwError "unknown exists_phrase"
+
 end
 
 def nice_names :=
