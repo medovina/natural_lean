@@ -51,7 +51,7 @@ def set_comp_elab : NaturalElab
 
 -- Define notation for a range of natural numbers.
 
-notation "{" x "," "..." "," y "}" => { n : Nat // x <= n ∧ n <= y }
+notation "{" x "," "..." "," y "}" => { n : Nat | x <= n ∧ n <= y }
 
 -- Expose the range syntax to Natural Lean.
 

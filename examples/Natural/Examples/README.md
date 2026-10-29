@@ -8,7 +8,7 @@ This directory contains a set of files that demonstrate the capabilities of Natu
 - `Set.lean`: set operations, theorems about sets
 - `SetTheoryGame.lean`: theorems from the [Set Theory Game](https://adam.math.hhu.de/#/g/djvelleman/stg4)
 - `Function.lean`: basic notions about functions
-- `Cardinality.lean`: basic notions about cardinality, including a proof of Cantor's Theorem
+- `Cardinality.lean`: basic notions about cardinality
 
 ### Number systems
 

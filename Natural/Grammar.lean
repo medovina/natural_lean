@@ -164,14 +164,14 @@ syntax ids_type := atomic(ident,+ binder_op) type
 -- relational operators
 sdef rel_op
   | "=" | "≠" | "<" | "≮" | "≤" | ">" | "≯" | "≥"
-  | "∈" | "∉" | "⊆" | "≈" | "≉"
+  | "∈" | "∉" | "⊆" | "⊂" | "≈" | "≉"
   | "|" | "∣"    -- vertical bar, division symbol: we accept either
   | "∤"         -- does not divide
 
 -- all built-in operators
 sdef op
   | "^" | "·" | "×" | "/" | "%" | "∩" | "+" | "-" | "−" | "∪"
-  | "<" | "≤" | ">" | "≥" | "∈" | "⊆" | "≈" | "|" | "∣"
+  | "<" | "≤" | ">" | "≥" | "∈" | "⊆" | "⊂" | "≈" | "|" | "∣"
 
 sdef rel_prop
   -- We exclude "|" from chaining since that can cause problems when
@@ -290,7 +290,7 @@ sdef var_list
 declare_syntax_cat exists_phrase  -- forward declaration
 
 syntax thm_holds :=
-  "the" ("lemma" <|> "theorem" <|> "result") ("holds" <|> ("is" &"true"))
+  "the" ("assertion" <|> "lemma" <|> "theorem" <|> "result") ("holds" <|> ("is" &"true"))
 
 sdef_extend prop
   | (priority := 1) noun_phrase_e verb_phrase
@@ -437,6 +437,7 @@ syntax assertions := sepBy1(assert_step, "/", "," and_or_so)
 
 sdef proof_sentence1
   | sepBy1(let_or_assume, "/", "," ? "and")
+  | "Define" expr "=" expr for_all_ids
   | assertions
 
 sdef proof_sentence

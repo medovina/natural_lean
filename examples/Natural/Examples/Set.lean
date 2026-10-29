@@ -11,7 +11,10 @@ Lemma.  Let T be a type.  Let P : T → Prop.  { x : T | P(x) is true } is empty
 
 Proof.  Let S = { x : T | P(x) is true }.  Suppose that S is empty.  Let x : T.  Then x ∉ S, so P(x) is false.  Conversely, suppose that for all x : T, P(x) is false.  Then for all x : T, x ∉ S, so S is empty.
 
-Definition.  Let A, B : Set(T).  A ⊆ B iff x ∈ A implies x ∈ B for all x : T.
+Definition.  Let A, B : Set(T).
+
+  a. A ⊆ B if x ∈ B for all x ∈ A.
+  b. A ⊂ B if A ⊆ B and A ≠ B.
 
 Definition.  Let A : Set(T).  𝒫(A) = { X : Set(T) | X ⊆ A }.
 

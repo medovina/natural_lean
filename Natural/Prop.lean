@@ -37,10 +37,6 @@ def to_ident: Term → Ident
   | `($i:ident) => i
   | _ => panic! "to_ident: unknown"
 
-def is_fun_type : Term → Bool
-  | `(_ → _) => true
-  | _ => false
-
 def multi_and : List Term → CoreM Term := foldr1M (fun t a => `($t ∧ $a))
 
 def multi_or : List Term → CoreM Term := foldr1M (fun t a => `($t ∨ $a))
@@ -132,7 +128,7 @@ def infix_op_class := [
   ("^", `pow, ``Pow),
   ("∪", `union, ``Union), ("∩", `inter, ``Inter),
   ("<", `lt, ``LT), ("≤", `le, ``LE), ("≈", `Equiv, ``HasEquiv),
-  ("∈", `mem, ``Membership), ("⊆", `Subset, ``HasSubset),
+  ("∈", `mem, ``Membership), ("⊆", `Subset, ``HasSubset), ("⊂", `SSubset, ``HasSSubset),
   ("∣", `dvd, ``Dvd) ]
 
 -- Infix operators that are represented by functions, not type classes.
@@ -657,6 +653,17 @@ def with_vars (le: Vars) (f: TermElabM α) : TermElabM α := match le with
   | _ => throwError "resolve_term1: unknown binder op"
 
 abbrev LocalEnv := List (Name × Term)    -- maps name to type
+
+-- Infer the type of a term in an environment with the given local variables,
+-- whose types may have implicit parameters.
+def infer_fun_type (args: LocalEnv) (t: Term): TermElabM Expr := match args with
+  | [] => elab_to_type t
+  | (x, type) :: rest =>
+      withAutoBoundImplicit $ do
+        let type ← elabType type
+        let u ← withLocalDecl x .default type (fun _var =>
+          withoutAutoBoundImplicit (infer_fun_type rest t))
+        mkArrow type u
 
 mutual
 

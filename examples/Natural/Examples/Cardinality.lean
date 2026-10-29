@@ -1,16 +1,19 @@
 import Natural.Examples.Set
 import Natural.Examples.Function
+import Natural.Examples.Nat
 
-Notation.  "~" (negation: "≁") is an infix relational operator.  [Type.equiv]
+Notation.  "~" (negation: "≁") is an infix relational operator.  [Set.equiv]
 
-Definition.  Let A and B be types.  A ~ B iff there is a bijective function f : A → B.
+Definition.  Let A : Set(T).  Let B : Set(U).  A ~ B iff there is a bijective function f : A → B.
 
--- Cantor's Theorem, Wiedijk #63
+Theorem.  Let A : Set(T).
 
-Theorem.  Let A be a type.  A ≁ Set(A).
+  a. A ~ A.
 
-Proof.  Suppose that A ~ Set(A). Then there is a bijective function f : A → Set(A). Let D = {a : A | a ∉ f(a)}.  Because f is surjective, there is some d : A such that f(d) = D.  Suppose that d ∈ D. Then by the definition of D we see that d ∉ f(d), so d ∉ D. Otherwise d ∉ D. Then d ∈ f(d), so d ∈ D. In either case we have a contradiction, so A ≁ Set(A).
+Proof.
 
-Definition.  Let T be a type.  T is finite if there is some n : Nat such that T ~ { 1, ..., n }.
+  a. Define f(x) = x for all x : A.  f is bijective, so A ~ A.
 
-Definition.  Let T be a type.  T is infinite if T is not finite.
+Definition.  Let A : Set(T).  A is finite if there is some n : Nat such that A ~ { 1, ..., n }.
+
+Definition.  Let A : Set(T).  A is infinite if A is not finite.
