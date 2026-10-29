@@ -3,6 +3,7 @@ import Natural.Init
 
 open Lean
 open Lean.Parser
+open Lean.Parser.Term (attributes)
 
 namespace Natural
 
@@ -517,7 +518,7 @@ syntax type_def :=
   "The" &"type" id_sig ("(" a_or_the defined_term ")")?
   "is" "defined" type_spec
 
-syntax attrib := "@" ident
+syntax attrib := atomic("@" ident) <|> attributes
 
 syntax post_name := ("[" thm_name (":" attrib)? "]")?
 

@@ -164,16 +164,19 @@ def of_type_def : TSyntax ``type_def → CoreM (List Command)
       pure $ commands ++ att.toList
   | _ => throwError "unknown definition"
 
-def of_attrib: TSyntax ``attrib → CoreM Ident
-  | `(attrib| @ $i:ident) => pure i
+def of_attrib: TSyntax ``attrib → CoreM (TSyntax ``attributes)
+  | `(attrib| $a:attributes) => pure a
+  | `(attrib| @ $i:ident) => `(attributes| @[$i:ident])
   | _ => throwError "unknown attrib"
 
-def of_post_name : TSyntax ``post_name → CoreM (Option Ident × Option Ident)
+def of_post_name : TSyntax ``post_name →
+        CoreM (Option Ident × Option (TSyntax ``attributes))
   | `(post_name| $[ [ $i:thm_name $[ : $a:attrib ]? ] ]? ) => do
       pure (← i.mapM of_thm_name, ← a.join.mapM of_attrib)
   | _ => throwError "unknown post_name"
 
-def of_top_sentence : TSyntax ``top_sentence → CoreM (Term × Option Ident × Option Ident)
+def of_top_sentence : TSyntax ``top_sentence →
+        CoreM (Term × Option Ident × Option (TSyntax ``attributes))
   | `(top_sentence| $[Then]? $p:prop . $pn:post_name) => do
       pure (← of_prop p, ← of_post_name pn)
   | _ => throwError "unknown top_sentence"
@@ -486,7 +489,7 @@ structure ThmDecl where
   init_steps: List ProofStep
   thm: Term
   name: Option Ident
-  attr: Option Ident
+  attr: Option (TSyntax ``attributes)
 
 def of_prop_item (env: Vars) : TSyntax ``prop_item → CoreM ThmDecl
   | `(prop_item| $i:label . $iss:init_steps $s:top_sentence) => withRef s do
@@ -553,13 +556,12 @@ def of_props_proofs (outer_steps: List ProofStep) (ps: TSyntax `props_proofs) :
         translate_proofs outer_steps thms_proofs
     | _ => throwError "unknown prop_or_items"
 
-def mk_decl (is_instance: Bool) (attr: Option Ident) (name: Option Ident)
+def mk_decl (is_instance: Bool) (attr: Option (TSyntax ``attributes)) (name: Option Ident)
             (thm proof: Term) : CoreM Command := do
-  let a ← attr.mapM (fun a => `(attributes| @[$a:ident]))
-  if is_instance then `($a:attributes ? instance $[$name:ident]? : $thm := $proof)
+  if is_instance then `($attr:attributes ? instance $[$name:ident]? : $thm := $proof)
   else match name with
-    | Option.some name => `($a:attributes ? theorem $name : $thm := $proof)
-    | Option.none => `($a:attributes ? example : $thm := $proof)
+    | Option.some name => `($attr:attributes ? theorem $name : $thm := $proof)
+    | Option.none => `($attr:attributes ? example : $thm := $proof)
 
 def of_type_class_ref : TSyntax `type_class_ref → CoreM Ident
   | `(type_class_ref| $a:natural_property) => of_natural_name a

@@ -101,7 +101,8 @@ where
     | _ => stx.getArgs.flatMap gather_kw
 
   gather (stx: Syntax) := match stx with
-    | `(attrib| @ $_:ident) => gather_kw stx
+    | `(attrib| @ $_:ident)
+    | `(attrib| $_:attributes) => gather_kw stx
     | `(defined_term| $_:ident $_:ident ?) => mkTok .property stx
     | `(thm_name| $i:ident)
     | `(label| $i:ident) => mkTok .function i

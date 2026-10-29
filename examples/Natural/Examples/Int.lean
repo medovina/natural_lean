@@ -33,7 +33,7 @@ Theorem.  Let a, b, c, m : ℤ.
 
   a. a ≡ a (mod m).  [ℤ.mod_eq_refl: @simp]
   b. If a ≡ b (mod m) then b ≡ a (mod m).  [ℤ.mod_eq_symm: @symm]
-  c. If a ≡ b (mod m) and b ≡ c (mod m) then a ≡ c (mod m).  [ℤ.mod_eq_trans: @grind]
+  c. If a ≡ b (mod m) and b ≡ c (mod m) then a ≡ c (mod m).  [ℤ.mod_eq_trans: @[grind .]]
 
 Proof.
 
@@ -43,14 +43,15 @@ Proof.
 
   c. Suppose that a ≡ b (mod m) and b ≡ c (mod m).  Then m | (a − b) and m | (b − c).  Hence there exist k, l : ℤ such that mk = a − b and ml = b − c.  Therefore a − c = (a − b) + (b − c) = mk + ml = m(k + l).  It follows that m | (a − c), so a ≡ c (mod m).
 
-Theorem.  Let a, b, c, m : ℤ.  If a ≡ b (mod m) then ac ≡ bc (mod m).  [ℤ.mod_eq_mul_right: @grind]
+Theorem.  Let a, b, c, m : ℤ.  If a ≡ b (mod m) then ac ≡ bc (mod m).  [ℤ.mod_eq_mul_right: @[grind .]]
 
 Proof.  Suppose that a ≡ b (mod m).  Then m | (a − b), so m | c(a − b), so m | (ac − bc), so ac ≡ bc (mod m).
 
+set_option trace.natural true in
 Theorem.  Let a, b, c, d, m : ℤ.  Suppose that a ≡ b (mod m) and c ≡ d (mod m).
 
-  a. a + c ≡ b + d (mod m).  [ℤ.mod_eq_add: @grind]
-  b. ac ≡ bd (mod m).  [ℤ.mod_eq_mul: @grind]
+  a. a + c ≡ b + d (mod m).  [ℤ.mod_eq_add: @[grind .]]
+  b. ac ≡ bd (mod m).  [ℤ.mod_eq_mul: @[grind .]]
 
 Proof.
 
