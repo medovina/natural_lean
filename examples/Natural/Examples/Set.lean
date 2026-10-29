@@ -16,6 +16,8 @@ Definition.  Let A, B : Set(T).
   a. A ⊆ B if x ∈ B for all x ∈ A.
   b. A ⊂ B if A ⊆ B and A ≠ B.
 
+-- power set
+
 Definition.  Let A : Set(T).  𝒫(A) = { X : Set(T) | X ⊆ A }.
 
 -- set operations

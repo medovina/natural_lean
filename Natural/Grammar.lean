@@ -129,6 +129,7 @@ declare_syntax_cat expr
 syntax nat : expr
 syntax id : expr
 syntax "Prop" : expr
+syntax:90 expr:91 "∘" expr:90 : expr
 syntax:80 (name := super) expr:80 super_expr : expr
 syntax:80 expr:81 "^" expr:80 : expr
 syntax:75 (priority := 1) expr:75 noWs expr:76 : expr
@@ -170,7 +171,7 @@ sdef rel_op
 
 -- all built-in operators
 sdef op
-  | "^" | "·" | "×" | "/" | "%" | "∩" | "+" | "-" | "−" | "∪"
+  | "∘" | "^" | "·" | "×" | "/" | "%" | "∩" | "+" | "-" | "−" | "∪"
   | "<" | "≤" | ">" | "≥" | "∈" | "⊆" | "⊂" | "≈" | "|" | "∣"
 
 sdef rel_prop
@@ -235,9 +236,11 @@ sdef nominal_e_e_t
 declare_syntax_cat collection
 syntax (name := collection) natural_type_name "of" adjective : collection
 
+syntax _and := atomic("and" (! "also"))
+
 sdef noun_phrase_e
   | expr
-  | expr "and" expr
+  | expr _and expr
   | _the collection  -- e.g. "the set of primes"
   | "itself"
 
@@ -298,7 +301,7 @@ sdef_extend prop
   | (priority := 2) atomic(expr is_tf)
   | atomic(rel_prop) is_tf ?
   | mixfix_prop
-  |:35 prop:36 "and" prop:35
+  |:35 prop:36 _and prop:35
   |:30 atomic(_either ? prop:31 "or") prop:30
   |:25 prop:26 "implies" prop:25
   | for_all_opt_with "," prop
@@ -306,6 +309,7 @@ sdef_extend prop
   |:23 prop:23 _for &"some" ids_types
   |:20 prop:21 _iff prop:21
   |:18 prop:19 atomic("," "and") prop:18
+  |:18 prop:19 atomic("and" "also") prop:18
   |:16 atomic(_either ? prop:17 "," "or") prop:16
   | _if prop atomic("," ? "then") prop
   | _there _exists some_or_no ? exists_phrase
@@ -420,10 +424,10 @@ kdef _otherwise = "otherwise"
 kdef _any_case =
   "in all cases" | "in any case" | "in both cases" | "in either case" | "in every case"
 
-kdef _and = "and"
+kdef _And = "and"
 
 sdef and_or_so
-  | (_and _so) <|> _so
+  | (_And _so) <|> _so
 
 declare_syntax_cat assert_step
 syntax (priority := 1) and_or_so ? proof_prop : assert_step
@@ -539,7 +543,7 @@ sdef def_eq
   | mixfix_expr "=" expr
   | mixfix_prop def_if prop
   | expr "is" defined_term def_if prop  -- property definition
-  | expr "is" &"a" defined_term "of" id_list def_if prop  -- relation definition
+  | expr "is" _a defined_term "of" id_list def_if prop  -- relation definition
 
 syntax def1 := (for_all_ids ",") ? def_eq "."
 

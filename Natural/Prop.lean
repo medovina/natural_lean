@@ -132,7 +132,7 @@ def infix_op_class := [
   ("∣", `dvd, ``Dvd) ]
 
 -- Infix operators that are represented by functions, not type classes.
-def extra_infix := [(">", ``GT.gt), ("≥", ``GE.ge)]
+def extra_infix := [("∘", ``Function.comp), (">", ``GT.gt), ("≥", ``GE.ge)]
 
 def prefix_op_class := [ ("-", `neg, ``Neg) ]
 
@@ -398,7 +398,7 @@ partial def of_nominal_e_e_t :
 
 partial def of_noun_phrase_e : TSyntax `noun_phrase_e → CoreM Term
   | `(noun_phrase_e| $e:expr) => of_expr e
-  | `(noun_phrase_e| $e:expr and $f:expr) => do
+  | `(noun_phrase_e| $e:expr $_:_and $f:expr) => do
       `(_group $(← of_expr e) $(← of_expr f))
   | `(noun_phrase_e| $_:_the $c:collection) => elab_expr c
   | `(noun_phrase_e| itself) => pure (mkIdent `_self)
@@ -535,7 +535,9 @@ partial def of_prop1 (prop: TSyntax `prop): CoreM Term := withRef prop do
     | `(prop| $e:rel_prop $b:is_tf ?) =>
           apply_tf ((← b.mapM of_is_tf).getD true) (← of_rel_prop e)
     | `(prop| $m:mixfix_prop) => of_mixfix m
-    | `(prop| $p:prop and $q:prop) => do `($(← of_prop1 p) ∧ $(← of_prop1 q))
+    | `(prop| $p:prop $_:_and $q:prop)
+    | `(prop| $p:prop , and $q:prop)
+    | `(prop| $p:prop and also $q:prop) => do `($(← of_prop1 p) ∧ $(← of_prop1 q))
     | `(prop| $_:_either ? $p:prop or $q:prop) => do `($(← of_prop1 p) ∨ $(← of_prop1 q))
     | `(prop| $p:prop implies $q:prop)
     | `(prop| $_:_if $p:prop $[,]? then $q:prop) => do `($(← of_prop1 p) → $(← of_prop1 q))
@@ -553,7 +555,6 @@ partial def of_prop1 (prop: TSyntax `prop): CoreM Term := withRef prop do
           let ids_types ← of_ids_types ids_types
           let p ← of_prop1 p >>= apply_holds ids_types
           mk_exists ids_types p
-    | `(prop| $p:prop , and $q:prop) => do `($(← of_prop1 p) ∧ $(← of_prop1 q))
     | `(prop| $_:_either ? $p:prop , or $q:prop) => do `($(← of_prop1 p) ∨ $(← of_prop1 q))
     | `(prop| $m:multi_or) => of_multi_or m
     | `(prop| $_:have_contradiction) => pure mk_false
