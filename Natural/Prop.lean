@@ -286,7 +286,7 @@ partial def of_expr (expr: TSyntax `expr): CoreM Term := withRef expr do
     | `(expr| { $cs:if_case* $last:expr otherwise }) => do
         let cs ← cs.mapM of_if_case
         let last ← of_expr last
-        cs.foldrM (fun (e, p) rest => `(if $p then $e else $rest)) last
+        cs.foldrM (fun (e, p) rest => `(if _ : $p then $e else $rest)) last
     | `(expr| $i:ident [ $e:expr ]) => `($(id_append i `mk_quot) $(← of_expr e))
     | `(expr| some $i:ident : $type:expr such that $p:prop) => do
         let type ← of_expr type

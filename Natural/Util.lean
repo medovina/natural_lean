@@ -221,7 +221,7 @@ def opt_and : Option Term → Option Term → CoreM Term
   | none, some p => pure p
   | some p, none => pure p
   | some p, some q => mk_and p q
-  | _, _ => throwError "opt_and: no term"
+  | none, none => pure mk_true
 
 inductive OpKind
   | infix
