@@ -542,7 +542,7 @@ partial def of_prop1 (prop: TSyntax `prop): CoreM Term := withRef prop do
     | `(prop| $p:prop implies $q:prop)
     | `(prop| $_:_if $p:prop $[,]? then $q:prop) => do `($(← of_prop1 p) → $(← of_prop1 q))
     | `(prop| $p:prop $_:_iff $q:prop) => do `($(← of_prop1 p) ↔ $(← of_prop1 q))
-    | `(prop| $f:for_all_opt_with , $p:prop)
+    | `(prop| $f:for_all_opt_with $[,]? $p:prop)
     | `(prop| $p:prop $f:for_all_opt_with) => do
           let (ids_types, w) ← of_for_all_opt_with f
           let p ← of_prop1 p >>= apply_holds ids_types
@@ -610,6 +610,7 @@ def type_matches_name (type: Expr) (n: Name) :=
   (type.getAppFnArgs).1 == n
 
 def is_type_in_class (type: Expr) (cl: Name): MetaM Bool := do
+  if type.isArrow then pure false else
   let inst ← mkAppM cl #[type]
   match (← trySynthInstance inst) with
     | LOption.some _ => pure true

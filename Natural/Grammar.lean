@@ -304,7 +304,7 @@ sdef_extend prop
   |:35 prop:36 _and prop:35
   |:30 atomic(_either ? prop:31 "or") prop:30
   |:25 prop:26 "implies" prop:25
-  | for_all_opt_with "," prop
+  | for_all_opt_with "," ? prop
   |:23 prop:23 for_all_opt_with
   |:23 prop:23 _for &"some" ids_types
   |:20 prop:21 _iff prop:21
@@ -439,9 +439,12 @@ sdef clause_intro
 
 syntax assertions := sepBy1(assert_step, "/", "," and_or_so)
 
+kdef _define = "define"
+
 sdef proof_sentence1
   | sepBy1(let_or_assume, "/", "," ? "and")
-  | "Define" expr "=" expr for_all_ids
+  | atomic(for_all_ids "," _define) expr "=" expr
+  | _define expr "=" expr for_all_ids
   | assertions
 
 sdef proof_sentence

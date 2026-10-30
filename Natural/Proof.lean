@@ -322,7 +322,8 @@ def of_assertions: TSyntax ``assertions → CoreM (List ProofStep)
 def of_proof_sentence1: TSyntax `proof_sentence1 → CoreM (List ProofStep)
   | `(proof_sentence1| $ls:let_or_assume /*) =>
       ls.getElems.toList.mapM of_let_or_assume
-  | `(proof_sentence1| Define $l:expr = $r:expr $args:for_all_ids) => do
+  | `(proof_sentence1| $args:for_all_ids , $_:_define $l:expr = $r:expr)
+  | `(proof_sentence1| $_:_define $l:expr = $r:expr $args:for_all_ids) => do
       let (l, r) ← mapM_pair of_expr (l, r)
       let args ← map_fst (·.getId) <$> of_for_all_ids args
       match ← resolve_left l with
