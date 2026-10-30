@@ -75,17 +75,17 @@ def name_of_cat (c: Category): Parser := name1_of_cat c <|> name2_of_cat c
 
 def _attribute := name_of_cat Category.attribute
 def _property := name_of_cat Category.property
+def _property_noun := name_of_cat Category.property_noun
 def _comparative := name_of_cat Category.comparative
 def _relation := name_of_cat Category.relation
 def _type_name := name_of_cat Category.type
-def _class_name := name_of_cat Category.class
 
 syntax natural_attribute := _attribute
 syntax natural_property := _property
+syntax natural_property_noun := _property_noun
 syntax natural_comparative := _comparative
 syntax natural_relation := _relation
 syntax natural_type_name := _type_name
-syntax natural_class := _class_name
 
 declare_syntax_cat natural_type (behavior := symbol)
 syntax &"type" : natural_type
@@ -584,7 +584,7 @@ sdef props_proofs
 
 sdef type_class_ref
   | natural_property  -- e.g. "associative"
-  | _a natural_class  -- e.g. "an equivalence relation"
+  | _a natural_property_noun  -- e.g. "an equivalence relation"
 
 sdef theorem_body
   | init_steps props_proofs

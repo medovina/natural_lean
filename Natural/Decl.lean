@@ -565,7 +565,7 @@ def mk_decl (is_instance: Bool) (attr: Option (TSyntax ``attributes)) (name: Opt
 
 def of_type_class_ref : TSyntax `type_class_ref → CoreM Ident
   | `(type_class_ref| $a:natural_property) => of_natural_name a
-  | `(type_class_ref| $_:_a $n:natural_class) => of_natural_name n
+  | `(type_class_ref| $_:_a $n:natural_property_noun) => of_natural_name n
   | _ => throwError "unknown type_class_ref"
 
 partial def has_holds (s: Syntax): Option Syntax := match s with

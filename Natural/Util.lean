@@ -495,44 +495,44 @@ def singular (s: String) : String :=
 -- lexical categories of natural names
 inductive Category
   | attribute     -- noun, e.g. "divisor"
-  | property      -- adjective, e.g. "negative"
+  | property      -- adjective, e.g. "negative", "associative"
+  | property_noun -- e.g. "equivalence relation"
   | comparative   -- adjective, e.g. "greater"
   | relation      -- verb, e.g. "divides"
   | type          -- noun, e.g. "integer"
-  | class         -- noun, e.g. "equivalence relation"
   | theorem       -- noun phrase, e.g. "strong induction"
 deriving BEq, Inhabited
 
 instance: ToString Category where toString
   | .attribute => "attribute"
   | .property => "property"
+  | .property_noun => "property_noun"
   | .comparative => "comparative"
   | .relation => "relation"
   | .type => "type"
-  | .class => "class"
   | .theorem => "theorem"
 
 syntax category :=
-  &"attribute" <|> &"property" <|> &"comparative" <|> &"relation" <|>
-  &"type" <|> &"class" <|> &"theorem"
+  &"attribute" <|> &"property" <|> &"property_noun" <|> &"comparative" <|>
+  &"relation" <|> &"type" <|> &"theorem"
 
 def of_category : TSyntax ``category → Category
   | `(category| attribute) => .attribute
   | `(category| property) => .property
+  | `(category| property_noun) => .property_noun
   | `(category| comparative) => .comparative
   | `(category| relation) => .relation
   | `(category| type) => .type
-  | `(category| class) => .class
   | `(category| theorem) => .theorem
   | _ => panic! "of_category"
 
 def to_category: Category → CoreM (TSyntax ``category)
   | .attribute => `(category| attribute)
   | .property => `(category| property)
+  | .property_noun => `(category| property_noun)
   | .comparative => `(category| comparative)
   | .relation => `(category| relation)
   | .type => `(category| type)
-  | .class => `(category| class)
   | .theorem => `(category| theorem)
 
 end Natural

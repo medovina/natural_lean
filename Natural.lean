@@ -6,7 +6,7 @@ open Natural
 attribute [natural property "associative"] Std.Associative
 attribute [natural property "commutative"] Std.Commutative
 
-attribute [natural class "equivalence relation"] Equivalence
+attribute [natural property_noun "equivalence relation"] Equivalence
 
 attribute [natural comparative "greater"] GT.gt
 
