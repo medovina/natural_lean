@@ -3,6 +3,8 @@ import Natural.Lsp
 
 open Natural
 
+attribute [natural class "nonempty"] Nonempty
+
 attribute [natural property "associative"] Std.Associative
 attribute [natural property "commutative"] Std.Commutative
 

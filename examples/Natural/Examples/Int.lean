@@ -47,7 +47,6 @@ Theorem.  Let a, b, c, m : ℤ.  If a ≡ b (mod m) then ac ≡ bc (mod m).  [�
 
 Proof.  Suppose that a ≡ b (mod m).  Then m | (a − b), so m | c(a − b), so m | (ac − bc), so ac ≡ bc (mod m).
 
-set_option trace.natural true in
 Theorem.  Let a, b, c, d, m : ℤ.  Suppose that a ≡ b (mod m) and c ≡ d (mod m).
 
   a. a + c ≡ b + d (mod m).  [ℤ.mod_eq_add: @[grind .]]

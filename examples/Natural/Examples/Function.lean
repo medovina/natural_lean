@@ -28,10 +28,14 @@ Definition.  Let A and B be types.  Let f : A → B.
 
 Definition.  Let A and B be types.  Let f : A → B.  f is bijective iff f is injective and f is surjective.
 
-Theorem.  Let A and B be types.  Let f : A → B.  If f is surjective then f has a right inverse.
+Theorem.  Let A and B be nonempty types.  Let f : A → B.
 
-Proof.  Suppose that f is surjective.  For every b : B, define
+  a. If f is surjective then f has a right inverse.
 
-  h(b) = some a : A such that f(a) = b.
+Proof.
 
-Then f(h(b)) = b for all b : B, so f has a right inverse.
+  a. Suppose that f is surjective.  For every b : B, define
+
+    h(b) = some a : A such that f(a) = b.
+
+  Then f(h(b)) = b for all b : B, so f has a right inverse.

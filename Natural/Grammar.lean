@@ -79,6 +79,7 @@ def _property_noun := name_of_cat Category.property_noun
 def _comparative := name_of_cat Category.comparative
 def _relation := name_of_cat Category.relation
 def _type_name := name_of_cat Category.type
+def _class := name_of_cat Category.class
 
 syntax natural_attribute := _attribute
 syntax natural_property := _property
@@ -86,6 +87,7 @@ syntax natural_property_noun := _property_noun
 syntax natural_comparative := _comparative
 syntax natural_relation := _relation
 syntax natural_type_name := _type_name
+syntax natural_class := _class
 
 declare_syntax_cat natural_type (behavior := symbol)
 syntax &"type" : natural_type
@@ -404,7 +406,7 @@ sdef _assume
 
 sdef let_step
   | atomic(_let ident,+ ":") type
-  | atomic(_let id_list "be") _a ? natural_type
+  | atomic(_let id_list "be") _a ? natural_class ? natural_type
 
 sdef init_step
   | let_step

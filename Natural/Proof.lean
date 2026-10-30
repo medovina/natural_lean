@@ -253,22 +253,28 @@ def of_proof_prop: TSyntax `proof_prop → CoreM (List ProofStep)
         pure (because ++ [s] ++ contra)
   | _ => throwError "unknown proof_prop"
 
-def of_let_step: TSyntax `let_step → CoreM ProofStep
+def of_let_step: TSyntax `let_step → CoreM (List ProofStep)
   | `(let_step| $_:_let $xs:ident,* : $type:type) => do
-        pure $ .let (xs.getElems.toList.map TSyntax.getId) (← of_type type)
-  | `(let_step| $_:_let $xs:id_list be $_:_a ? $type:natural_type) => do
-        pure $ .let ((← of_id_list xs).map TSyntax.getId) (← of_natural_type type)
+        pure [.let (xs.getElems.toList.map TSyntax.getId) (← of_type type)]
+  | `(let_step| $_:_let $xs:id_list be $_:_a ?
+                $[$c:natural_class]? $type:natural_type) => do
+        let xs ← of_id_list xs
+        let c ← c.mapM of_natural_name
+        let type ← of_natural_type type
+        let inst_decls ← c.toList.flatMapM (fun c =>
+          xs.mapM (fun x => ProofStep.assume <$> `(_inst $c:ident $x:ident)))
+        pure (.let (xs.map TSyntax.getId) type :: inst_decls)
   | _ => throwError "unknown let_step"
 
-def of_init_step: TSyntax `init_step → CoreM ProofStep
+def of_init_step: TSyntax `init_step → CoreM (List ProofStep)
   | `(init_step| $ls:let_step) => of_let_step ls
-  | `(init_step| $_:_assume $p:prop) => do pure $ .assume (← of_prop p)
+  | `(init_step| $_:_assume $p:prop) => do pure [.assume (← of_prop p)]
   | s => throwError s!"unknown init_step: {s}"
 
-def of_let_or_assume: TSyntax `let_or_assume → CoreM ProofStep
+def of_let_or_assume: TSyntax `let_or_assume → CoreM (List ProofStep)
   | `(let_or_assume| $i:init_step) => of_init_step i
   | `(let_or_assume| $_:_let $id = $e) =>
-        do pure $ .let_def id.getId [] (← of_expr e)
+        do pure [.let_def id.getId [] (← of_expr e)]
   | `(let_or_assume| $_:_let $id = $e for some $vars:ids_types) =>
         match e with
           | `(expr| $_q:ident [ $_:expr ]) => do
@@ -276,7 +282,7 @@ def of_let_or_assume: TSyntax `let_or_assume → CoreM ProofStep
                 `(tactic| (cases $id:ident using Quotient.ind; grind))
               let vars ← of_ids_types vars
               let p ← mk_exists vars (← `($id = $(← of_expr e)))
-              (pure $ ProofStep.is_some p (.some (.tactic tac)))
+              (pure [ProofStep.is_some p (.some (.tactic tac))])
           | _ => withRef e do throwError "expected quotient projection"
   | _ => throwError "unknown let_or_assume"
 
@@ -297,7 +303,7 @@ def of_assertions: TSyntax ``assertions → CoreM (List ProofStep)
 
 def of_proof_sentence1: TSyntax `proof_sentence1 → CoreM (List ProofStep)
   | `(proof_sentence1| $ls:let_or_assume /*) =>
-      ls.getElems.toList.mapM of_let_or_assume
+      ls.getElems.toList.flatMapM of_let_or_assume
   | `(proof_sentence1| $args:for_all_ids , $_:_define $l:expr = $r:expr)
   | `(proof_sentence1| $_:_define $l:expr = $r:expr $args:for_all_ids) => do
       let (l, r) ← mapM_pair of_expr (l, r)
@@ -575,11 +581,20 @@ def lets_vars (lets: List ProofStep) : Vars := lets.flatMap step_vars_types
 
 def apply_init_step (step: ProofStep) (thm: Term): CoreM Term := match step with
   | .let .. => for_all (step_vars_types step) thm
-  | .assume a => `($a → $thm)
+  | .assume a => match a with
+    | `(_inst $cl $x) => `([$cl $x] → $thm)
+    | _ => `($a → $thm)
   | _ => throwError "apply_init_step"
 
 def apply_init_steps (steps: List ProofStep) (thm: Term): CoreM Term :=
   steps.foldrM apply_init_step thm
+
+def trim_constraints : List ProofStep → List ProofStep :=
+  List.filter (fun
+    | .assume a => match a with
+      | `(_inst $_ $_) => false
+      | _ => true
+    | _ => true)
 
 def trim_step (thm: Term) : ProofStep → Option ProofStep
   | .let ids type =>
@@ -656,6 +671,7 @@ def translate_proof (init_steps: List ProofStep) (thm: Term): _Proof → TermEla
       let steps ← with_implicit_let [] steps
       let steps ← infer_conclusions steps
       let blocks := infer_blocks steps
+      trace[natural.tree] pretty ("\n" ++ (← show_blocks blocks))
       let blocks ← blocks.mapM resolve_block
       trace[natural.tree] pretty ("\n" ++ (← show_blocks blocks))
       Prod.fst <$> translate True [] (← `(())) none blocks

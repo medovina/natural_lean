@@ -500,6 +500,7 @@ inductive Category
   | comparative   -- adjective, e.g. "greater"
   | relation      -- verb, e.g. "divides"
   | type          -- noun, e.g. "integer"
+  | class         -- adjective, e.g. "nonempty"
   | theorem       -- noun phrase, e.g. "strong induction"
 deriving BEq, Inhabited
 
@@ -510,11 +511,12 @@ instance: ToString Category where toString
   | .comparative => "comparative"
   | .relation => "relation"
   | .type => "type"
+  | .class => "class"
   | .theorem => "theorem"
 
 syntax category :=
   &"attribute" <|> &"property" <|> &"property_noun" <|> &"comparative" <|>
-  &"relation" <|> &"type" <|> &"theorem"
+  &"relation" <|> &"type" <|> &"class" <|> &"theorem"
 
 def of_category : TSyntax ``category → Category
   | `(category| attribute) => .attribute
@@ -523,6 +525,7 @@ def of_category : TSyntax ``category → Category
   | `(category| comparative) => .comparative
   | `(category| relation) => .relation
   | `(category| type) => .type
+  | `(category| class) => .class
   | `(category| theorem) => .theorem
   | _ => panic! "of_category"
 
@@ -533,6 +536,7 @@ def to_category: Category → CoreM (TSyntax ``category)
   | .comparative => `(category| comparative)
   | .relation => `(category| relation)
   | .type => `(category| type)
+  | .class => `(category| class)
   | .theorem => `(category| theorem)
 
 end Natural

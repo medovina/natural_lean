@@ -704,6 +704,8 @@ partial def resolve (s: Syntax) : TermElabM Term := withRef s do
            then build_op .postfix id [t]
            else `($t ^ $(← resolve u))
     | `(_holds $x $e) => `(_holds $x $(← resolve e))
+    | `($b:instBinder → $t) =>  -- an instance parameter, e.g. "[Nonempty T] -> ..."
+        `($b:instBinder → $(← resolve t))
     | _ => match match_binder s with
       | .some (bt, vars, t) => do
           let names := map_fst TSyntax.getId vars

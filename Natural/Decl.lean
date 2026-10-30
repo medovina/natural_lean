@@ -183,7 +183,7 @@ def of_top_sentence : TSyntax ``top_sentence →
 
 def of_init_sentence : TSyntax ``init_sentence → CoreM (List ProofStep)
   | `(init_sentence| $iss:init_step /* .) =>
-      iss.getElems.toList.mapM of_init_step
+      iss.getElems.toList.flatMapM of_init_step
   | _ => throwError "unknown init_sentence"
 
 def of_init_steps : TSyntax ``init_steps → CoreM (List ProofStep)
@@ -454,7 +454,7 @@ def of_defs : TSyntax `defs → CoreM (List (IdVars × DefEq) × Option Ident)
 
 def of_direct_def : TSyntax `direct_def → TermElabM (List Command)
   | `(direct_def| $[$ls:let_step .]* $defs:defs) => do
-      let ls ← ls.toList.mapM (of_let_step ·)
+      let ls ← ls.toList.flatMapM (of_let_step ·)
       let (defs, just) ← of_defs defs
       defs.flatMapM (fun (vars, eq) =>
         let args := lets_vars ls ++ map_fst TSyntax.getId vars
@@ -496,7 +496,7 @@ def of_prop_item (env: Vars) : TSyntax ``prop_item → CoreM ThmDecl
       let iss ← of_init_steps iss
       let iss ← with_implicit_let (env.map (·.1)) iss
       let (thm, name, attr) ← of_top_sentence s
-      pure ⟨← of_label i, iss, ← apply_init_steps iss thm, name, attr⟩
+      pure ⟨← of_label i, trim_constraints iss, ← apply_init_steps iss thm, name, attr⟩
   | _ => throwError "unknown prop_item"
 
 def label_range (i j: Name) : CoreM (List Name) :=
@@ -537,6 +537,7 @@ def translate_proofs (outer_steps: List ProofStep) (thms_proofs: List (ThmDecl �
     -- Apply the trimmed steps, then resolve the entire theorem because the
     -- the steps themselves may contain assumptions that need resolution.
     let thm ← apply_init_steps outer_steps decl.thm >>= resolve_term1 []
+    let outer_steps := trim_constraints outer_steps
 
     pure ({decl with thm},
           ← proof.mapM (translate_proof (outer_steps ++ decl.init_steps) thm)))
