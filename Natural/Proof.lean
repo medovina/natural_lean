@@ -1,5 +1,3 @@
-import Aesop
-
 import Natural.Prop
 
 open Lean
@@ -8,28 +6,6 @@ open Lean.Meta
 open Std.Format
 
 namespace Natural
-
--- Here we reduce the default extent of an Aesop search so that it will succeed or fail
--- more quickly.
-def aesop_config : Aesop.Options :=
-  { maxRuleApplicationDepth := 10, maxRuleApplications := 50, maxNormIterations := 20,
-    terminal := true, warnOnNonterminal := false }
-
-macro "default" : tactic =>
-  `(tactic| first | trivial | grind | aesop (config := aesop_config) |
-            (intros; solve_by_elim) |
-            fail "default tactic could not prove goal")
-
-macro "default_apply" ts:ident+ : tactic => do
-  let aesop_rules ← ts.mapM (fun i => `(Aesop.rule_expr| safe (by rapply $i)))
-  let t : Ident := ts[0]?.getD (panic! "default_apply")
-  `(tactic| first
-      | (apply $t; done)
-      | (apply_rules [$[$ts:ident],*] ; done)
-      | grind [$[$ts:ident],*]
-      | aesop (config := aesop_config) (add $aesop_rules,*)
-      | solve_by_elim [$[$ts:ident],*]
-      | fail "default_apply could not prove goal")
 
 -- proof steps
 
@@ -479,9 +455,7 @@ partial def infer_blocks (steps: List ProofStep): List Block :=
 
 partial def resolve_step : ProofStep → TermElabM ProofStep
   | .let_def id args t =>
-      if args == [] then do pure $ .let_def id args (← resolve_term args t)
-      else pure $ .let_def id args t
-      -- do pure $ .let_def id args (← resolve_term args t)
+      do pure $ .let_def id args (← resolve_term args t)
   | step => step_mapM (resolve ·.raw) resolve_step step
 
 partial def resolve_block : Block → TermElabM Block

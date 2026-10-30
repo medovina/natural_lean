@@ -288,6 +288,10 @@ partial def of_expr (expr: TSyntax `expr): CoreM Term := withRef expr do
         let last ← of_expr last
         cs.foldrM (fun (e, p) rest => `(if $p then $e else $rest)) last
     | `(expr| $i:ident [ $e:expr ]) => `($(id_append i `mk_quot) $(← of_expr e))
+    | `(expr| some $i:ident : $type:expr such that $p:prop) => do
+        let type ← of_expr type
+        let p ← of_prop1 p
+        `(Classical.choose (show ∃ $i:ident : $type, $p from by default))
     | _ => match parse_op_opt expr with
       | .some (kind, op, ts) =>
           build_op kind (map_op op) (← ts.mapM (fun e => of_expr ⟨e⟩))

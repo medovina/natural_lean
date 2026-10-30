@@ -27,3 +27,11 @@ Definition.  Let A and B be types.  Let f : A → B.
   b. f is surjective iff for every b : B, there exists some a : A such that f(a) = b.
 
 Definition.  Let A and B be types.  Let f : A → B.  f is bijective iff f is injective and f is surjective.
+
+Theorem.  Let A and B be types.  Let f : A → B.  If f is surjective then f has a right inverse.
+
+Proof.  Suppose that f is surjective.  For every b : B, define
+
+  h(b) = some a : A such that f(a) = b.
+
+Then f(h(b)) = b for all b : B, so f has a right inverse.
