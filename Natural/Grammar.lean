@@ -298,6 +298,8 @@ declare_syntax_cat exists_phrase  -- forward declaration
 syntax thm_holds :=
   "the" ("assertion" <|> "lemma" <|> "theorem" <|> "result") ("holds" <|> ("is" &"true"))
 
+syntax _unique := &"unique"
+
 sdef_extend prop
   | (priority := 1) noun_phrase_e verb_phrase
   | noun_phrase_et_t verb_phrase
@@ -315,7 +317,7 @@ sdef_extend prop
   |:18 prop:19 atomic("and" "also") prop:18
   |:16 atomic(_either ? prop:17 "," "or") prop:16
   | _if prop atomic("," ? "then") prop
-  | _there _exists some_or_no ? exists_phrase
+  | _there _exists some_or_no ? _unique ? exists_phrase
   | multi_or
   | have_contradiction
   | thm_holds atomic("for" (! &"some") (id "=")? expr)?

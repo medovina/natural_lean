@@ -9,7 +9,7 @@ open Lean.Syntax
 
 namespace Natural
 
-syntax "bind" ident+ "," term "," term : term
+syntax "_bind" ident+ "," term "," term : term
 
 partial def syntax_free_vars (only_free: Bool) : Syntax → List Name :=
   let rec find (s: Syntax) : List Name :=
@@ -19,7 +19,7 @@ partial def syntax_free_vars (only_free: Bool) : Syntax → List Name :=
     match match_binder s with
       | .some (_bt, xs, t) => combine (xs.map (·.1.getId)) (find t)
       | _ => match s with
-        | `(bind $xs:ident*, $_:term, $t:term) =>
+        | `(_bind $xs:ident*, $_:term, $t:term) =>
             combine (xs.toList.map TSyntax.getId) (find t)
         | _ => match s with
           | .missing => []
@@ -227,7 +227,7 @@ def elab_expr (expr: Syntax): CoreM Term := do
   let (stx, bound, type) ← (← try_elab fns expr).getDM (throwError "unknown expr")
   match bound with
     | #[] => pure stx
-    | _ => `(bind $bound:ident*, $type:term, $stx:term)
+    | _ => `(_bind $bound:ident*, $type:term, $stx:term)
 
 def function_name (s: String) : String := s.replace " " "_"
 
@@ -551,8 +551,8 @@ partial def of_prop1 (prop: TSyntax `prop): CoreM Term := withRef prop do
           let (ids_types, w) ← of_for_all_opt_with f
           let p ← of_prop1 p >>= apply_holds ids_types
           mk_for_all ids_types (← mk_implies w p)
-    | `(prop| $_:_there $_:_exists $s:some_or_no ? $ep:exists_phrase) => do
-          let t ← of_exists_phrase ep
+    | `(prop| $_:_there $_:_exists $s:some_or_no ? $[$u:_unique]? $ep:exists_phrase) => do
+          let t ← of_exists_phrase u.isSome ep
           let b ← s.elim (pure true) of_some_or_no
           apply_tf b t
     | `(prop| $p:prop $_:_for some $ids_types:ids_types) => do
@@ -567,16 +567,17 @@ partial def of_prop1 (prop: TSyntax `prop): CoreM Term := withRef prop do
     | `(prop| $_:thm_holds for $x:ident = $e:expr) => `(_holds $x $(← of_expr e))
     | stx => throwError s!"unknown prop: {stx}"
 
-partial def of_exists_phrase (phrase: TSyntax `exists_phrase) : CoreM Term :=
+partial def of_exists_phrase (unique: Bool) (phrase: TSyntax `exists_phrase) : CoreM Term :=
   withRef phrase do match phrase with
     | `(exists_phrase| $vp:var_list $[such that $p:prop]?) => do
         let (vars, cond) ← of_var_list vp
-        mk_exists vars (← opt_and cond (← p.mapM of_prop1))
+        mk_exists_or_unique unique vars (← opt_and cond (← p.mapM of_prop1))
     | `(exists_phrase| $nom:nominal_e_t) => do
         let (type, nom) ← of_nominal_e_t nom
         let x ← fresh_var
         let t ← nom (← `($x))
-        `(∃ $x:ident $[: $type]?, $t)
+        let vars := [(x, type.map (":", ·))]
+        mk_exists_or_unique unique vars t
     | _ => throwError "unknown exists_phrase"
 
 end
@@ -724,7 +725,7 @@ partial def resolve (s: Syntax) : TermElabM Term := withRef s do
           let names := map_fst TSyntax.getId vars
           pure $ (← mk_binder bt vars (← resolve_term1 names t))
       | .none => match s with
-        | `(bind $xs:ident*, $type, $t) =>
+        | `(_bind $xs:ident*, $type, $t) =>
             let vars := xs.toList.map (·.getId, type)
             -- Also declare the type in the environment, which allows it to be implicit.
             let type_decl := (as_ident type).toList.map (·.getId, ← `(Type))

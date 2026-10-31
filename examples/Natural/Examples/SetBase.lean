@@ -1,4 +1,5 @@
 import Natural
+import Natural.Examples.Base
 
 open Lean
 open Lean.Core
@@ -46,7 +47,7 @@ syntax (name := set_comp) "{" ident ":" type "|" prop "}" : expr
 def set_comp_elab : NaturalElab
   | `(expr| { $x:ident : $type:type  | $p:prop }) => do
       let type ← of_type type
-      (·, #[x], type) <$> `({ $x:ident : $type | $(← of_prop p)})
+      `({ $x:ident : $type | $(← of_prop p)}) <&> (·, #[x], type)
   | _ => Lean.Elab.throwUnsupportedSyntax
 
 -- Define notation for a range of natural numbers.

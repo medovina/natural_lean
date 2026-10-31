@@ -652,6 +652,16 @@ def of_theorem (corollary_of: List Ident)
         of_theorem_body name corollary_of b
     | _ => throwError "unknown theorem"
 
+partial def final_elab (s: Syntax): CoreM Syntax := do
+  let s ← if s.getKind == ``exists_unique then elab_expr s <&> (·.raw) else pure s
+  match s with
+    | Syntax.node info kind args =>
+        Syntax.node info kind <$> args.mapM final_elab
+    | _ => pure s
+
+def final_elab_command (c: Command): CoreM Command :=
+  TSyntax.mk <$> final_elab c
+
 def of_thm_or_def : TSyntax `thm_or_def → TermElabM (List Command × List Ident × Bool)
   | `(thm_or_def| Definition . $d) => (·, [], false) <$> of_definition d
   | `(thm_or_def| $_:_thm $t:_theorem) => do
@@ -672,6 +682,7 @@ elab t:top : command => do
       | `(top| Notation . $n:notation_decl) => of_notation_decl n
       | `(top| $d:thm_or_def $[Corollary $ts:_theorem]*) => do
           let (commands, names, is_thm) ← of_thm_or_def d
+          let commands ← commands.mapM (final_elab_command ·)
           let corrs ← List.map (·.1) <$> ts.toList.mapM (fun c => withRef c.raw do
             if is_thm && names == []
               then throwError "unnamed theorem may not have a corollary"

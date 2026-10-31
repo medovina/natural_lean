@@ -306,6 +306,11 @@ structure OpInfo where
   tokens: List MixfixToken  -- only for mixfix ops
 deriving Inhabited
 
+-- ∃! is defined in Mathlib, not core Lean.  We don't depend on Mathlib, so we define our
+-- own syntax here and replace it with the external syntax when generating code.
+syntax (name := exists_unique)
+  "*∃!" ident ((":" <|> "∈") term)? "," term : term
+
 def binders (xs: List (Ident × Term)) : CoreM (Array (TSyntax ``bracketedBinder)) :=
   xs.toArray.mapM (fun | (x, t) => `(bracketedBinder| ($x : $t)))
 
@@ -315,6 +320,7 @@ def ex_binders (xs: List (Ident × Term)) : CoreM (Array (TSyntax ``bracketedExp
 inductive BinderType
   | all
   | exists
+  | exists_unique
 deriving BEq
 
 abbrev BinderOp := String
@@ -346,6 +352,9 @@ def match_binder (s: Syntax) : Option (BinderType × IdVars × Term) :=
     | `(∃ $xs:bracketedExplicitBinders*, $t) =>
         .some (.exists, xs.toList.map of_bracketed_ex_binder, t)
     | `(∃ $x:ident ∈ $s, $t) => .some (.exists, [(x, "∈", s)], t)
+    | `(*∃! $x:ident, $t) => .some (.exists_unique, [(x, none)], t)
+    | `(*∃! $x:ident : $type, $t) => .some (.exists_unique, [(x, ":", type)], t)
+    | `(*∃! $x:ident ∈ $s, $t) => .some (.exists_unique, [(x, "∈", s)], t)
     | _ => Option.none
 
 partial def match_binders (s: Syntax): Option (BinderType × IdVars × Term) :=
@@ -373,11 +382,21 @@ def mk_exists (vars: IdVars) (t: Term) : CoreM Term :=
     | (x, some ("∈", t)), a => `(∃ $x:ident ∈ $t, $a)
     | _, _ => throwError "mk_for_all: unknown op") t
 
+def mk_exists_unique (vars: IdVars) (t: Term) : CoreM Term := match vars with
+  | [(x, none)] => `(*∃! $x:ident, $t)
+  | [(x, some (":", type))] => `(*∃! $x:ident : $type, $t)
+  | [(x, some ("∈", s))] => `(*∃! $x:ident ∈ $s, $t)
+  | _ => throwError "mk_exists_unique: expected exactly 1 variable"
+
+def mk_exists_or_unique (unique: Bool) (vars: IdVars) (t: Term) : CoreM Term :=
+  (if unique then mk_exists_unique else mk_exists) vars t
+
 def mk_binder (bt: BinderType) (xs: IdVars) (t: Term)
     : CoreM Term :=
-  match bt with
-    | .all => mk_for_all xs t
-    | .exists => mk_exists xs t
+  (match bt with
+    | .all => mk_for_all
+    | .exists => mk_exists
+    | .exists_unique => mk_exists_unique) xs t
 
 def for_all (xs: Vars) (t: Term) : CoreM Term :=
   if xs == [] then pure t else mk_for_all (map_fst mkIdent xs) t
