@@ -620,9 +620,21 @@ def is_type_in_class (type: Expr) (cl: Name): MetaM Bool := do
     | LOption.some _ => pure true
     | _ => pure false
 
+def trap_errors (name: String) (f: TermElabM α) : TermElabM α := do
+  if ← MonadLog.hasErrors then
+    throwError "trap_errors: preexisting error in {name}"
+  let x ← f
+  if ← MonadLog.hasErrors then
+    throwError s!"trapped error in {name}, aborting"
+  pure x
+
+def elab_term (stx: Syntax): TermElabM Expr := trap_errors "elab_term" (elabTerm stx none)
+
+def elab_type (stx: Syntax): TermElabM Expr := trap_errors "elab_type" (elabType stx)
+
 def elab_to_type (t: Term): TermElabM Expr := do
-  let e ← elabTerm t none
-  let type ← inferType e
+  let e ← elab_term t
+  let type ← trap_errors "elab_to_type" (inferType e)
   instantiateMVars type
 
 def has_type_in_class (t: Term) (cl: Name): TermElabM Bool := do
@@ -641,8 +653,9 @@ def matches_op (kind: OpKind) (t: Term) (info: OpInfo): TermElabM Bool :=
 
 -- Bind a name to a type, allowing implicit parameters in the type, then run f.
 def with_local (name: Name) (type: Term) (f: TermElabM α) : TermElabM α :=
-  withAutoBoundImplicit $ do withLocalDecl name .default (← elabType type) (fun _var =>
-    withoutAutoBoundImplicit f)
+  withAutoBoundImplicit $ do
+    withLocalDecl name .default (← elab_type type) (fun _var =>
+      withoutAutoBoundImplicit f)
 
 -- Bind the given variables with their types, then run f.
 def with_vars (le: Vars) (f: TermElabM α) : TermElabM α := match le with
@@ -666,7 +679,7 @@ def infer_fun_type (args: LocalEnv) (t: Term): TermElabM Expr := match args with
   | [] => elab_to_type t
   | (x, type) :: rest =>
       withAutoBoundImplicit $ do
-        let type ← elabType type
+        let type ← elab_type type
         let u ← withLocalDecl x .default type (fun _var =>
           withoutAutoBoundImplicit (infer_fun_type rest t))
         mkArrow type u

@@ -557,12 +557,25 @@ def of_props_proofs (outer_steps: List ProofStep) (ps: TSyntax `props_proofs) :
         translate_proofs outer_steps thms_proofs
     | _ => throwError "unknown prop_or_items"
 
+partial def has_if (s: Syntax): Bool := match s with
+  | `(if $_ : $_ then $_ else $_) => true
+  | _ => match s with
+    | .node _ _ args => args.any has_if
+    | _ => false
+
 def mk_decl (is_instance: Bool) (attr: Option (TSyntax ``attributes)) (name: Option Ident)
             (thm proof: Term) : CoreM Command := do
   if is_instance then `($attr:attributes ? instance $[$name:ident]? : $thm := $proof)
-  else match name with
-    | Option.some name => `($attr:attributes ? theorem $name : $thm := $proof)
-    | Option.none => `($attr:attributes ? example : $thm := $proof)
+  else do
+    let c ← match name with
+      | Option.some name => `($attr:attributes ? theorem $name : $thm := $proof)
+      | Option.none => `($attr:attributes ? example : $thm := $proof)
+
+    -- Add "open Classical in" if the proof uses if/then/else.  This is actually unnecessary
+    -- since we open Classical locally in the top-level elaborator.  However we want to include
+    -- this statement in the proof output by 'set_option trace.natural true', so it will
+    -- work if the user pastes it somewhere else.
+    if has_if proof.raw then `(command| open Classical in $c) else pure c
 
 def of_type_class_ref : TSyntax `type_class_ref → CoreM Ident
   | `(type_class_ref| $a:natural_property) => of_natural_name a
@@ -647,22 +660,33 @@ def of_thm_or_def : TSyntax `thm_or_def → TermElabM (List Command × List Iden
   | _ => throwError "unknown thm_or_def"
 
 elab t:top : command => do
-  let cs : List Command ← liftTermElabM $ match t with
-    | `(top| Notation . $n:notation_decl) => of_notation_decl n
-    | `(top| $d:thm_or_def $[Corollary $ts:_theorem]*) => do
-        let (commands, names, is_thm) ← of_thm_or_def d
-        let corrs ← List.map (·.1) <$> ts.toList.mapM (fun c => withRef c.raw do
-          if is_thm && names == []
-            then throwError "unnamed theorem may not have a corollary"
-            else of_theorem names c)
-        pure $ commands ++ corrs.flatten
-    | _ => throwError "unknown top"
-  let c : Command := TSyntax.mk (mkNullNode cs.toArray)
-  elabCommand c
+  try
+    -- Open the Classical namespace because elaborating if/then/else expressions requires
+    -- propositions to be decidable.  We don't want to make the user explicitly open Classical
+    -- for this purpose since these expressions would not necessary require the Axiom of Choice
+    -- in e.g. ZFC set theory.
+    pushScope
+    elabCommand (← `(open Classical))
 
-  -- We trace only after elaborating because some commands could have syntax
-  -- that is defined in previous commands in the same group.
-  let ctrace cmd := do
-    trace[natural] cmd
-    pure ()
-  cs.forM ctrace
+    let cs : List Command ← liftTermElabM $ match t with
+      | `(top| Notation . $n:notation_decl) => of_notation_decl n
+      | `(top| $d:thm_or_def $[Corollary $ts:_theorem]*) => do
+          let (commands, names, is_thm) ← of_thm_or_def d
+          let corrs ← List.map (·.1) <$> ts.toList.mapM (fun c => withRef c.raw do
+            if is_thm && names == []
+              then throwError "unnamed theorem may not have a corollary"
+              else of_theorem names c)
+          pure $ commands ++ corrs.flatten
+      | _ => throwError "unknown top"
+    let c : Command := TSyntax.mk (mkNullNode cs.toArray)
+    elabCommand c
+
+    -- We trace only after elaborating because some commands could have syntax
+    -- that is defined in previous commands in the same group.
+    let ctrace cmd := do
+      trace[natural] cmd
+      pure ()
+    cs.forM ctrace
+
+  finally
+    popScope
