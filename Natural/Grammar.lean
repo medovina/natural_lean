@@ -127,6 +127,8 @@ declare_syntax_cat prop
 declare_syntax_cat mixfix_expr
 declare_syntax_cat mixfix_prop
 
+kdef _some_or_unique = "some" | "the unique"
+
 declare_syntax_cat expr (behavior := symbol)
 syntax nat : expr
 syntax id : expr
@@ -153,7 +155,7 @@ syntax "(" expr ("," expr)? ")" : expr
 syntax "{" expr,* "}" : expr  -- set of values
 syntax "{" if_case+ expr "otherwise" "}" : expr
 syntax id "[" expr "]" : expr  -- quotient type projection
-syntax &"some" id ":" expr "such" "that" prop : expr
+syntax _some_or_unique id ":" expr "such" "that" prop : expr
 
 syntax atomic(expr "if") prop "|" : if_case
 

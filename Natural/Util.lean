@@ -307,9 +307,10 @@ structure OpInfo where
 deriving Inhabited
 
 -- ∃! is defined in Mathlib, not core Lean.  We don't depend on Mathlib, so we define our
--- own syntax here and replace it with the external syntax when generating code.
-syntax (name := exists_unique)
-  "*∃!" ident ((":" <|> "∈") term)? "," term : term
+-- own dummy syntax here and replace it with the external syntax via an elaborator
+-- when generating code.
+macro (name := exists_unique)
+  "*∃!" ident ((":" <|> "∈") term)? "," term : term => `(_)
 
 def binders (xs: List (Ident × Term)) : CoreM (Array (TSyntax ``bracketedBinder)) :=
   xs.toArray.mapM (fun | (x, t) => `(bracketedBinder| ($x : $t)))
@@ -409,7 +410,7 @@ def bound_vars (t: Term): Vars := match match_binders t with
 
 def non_keywords :=
   ["because", "case", "cases", "least", "now",
-   "otherwise", "some", "this", "true", "type"]
+   "otherwise", "some", "this", "true", "type", "unique"]
 
 macro "kdef" name:ident "=" ks:sepBy1(str, "|") : command => do
   let rec mk_or : List (TSyntax `stx) → MacroM (TSyntax `stx)

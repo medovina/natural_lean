@@ -224,7 +224,8 @@ def try_elab [Monad m] [MonadExcept Exception m] {α: Type u}
 def elab_expr (expr: Syntax): CoreM Term := do
   let fns : List NaturalElab :=
     (naturalElabAttribute.getEntries (← getEnv) expr.getKind).map (·.value)
-  let (stx, bound, type) ← (← try_elab fns expr).getDM (throwError "unknown expr")
+  let (stx, bound, type) ← (← try_elab fns expr).getDM
+    (throwError s!"unknown expr: {expr}")
   match bound with
     | #[] => pure stx
     | _ => `(_bind $bound:ident*, $type:term, $stx:term)
@@ -257,6 +258,11 @@ def fresh_var : CoreM Ident := mkIdent <$> mkFreshUserName `x
 def apply_self (x: Term) (t: Term) : Term :=
   ⟨subst_term x `_self t⟩
 
+def of_some_or_unique : TSyntax ``_some_or_unique → CoreM Bool
+  | `(_some_or_unique| some) => pure false
+  | `(_some_or_unique| the unique) => pure true
+  | _ => throwError "unknown _some_or_unique"
+
 mutual
 
 partial def of_if_case : TSyntax `if_case → CoreM (Term × Term)
@@ -288,10 +294,12 @@ partial def of_expr (expr: TSyntax `expr): CoreM Term := withRef expr do
         let last ← of_expr last
         cs.foldrM (fun (e, p) rest => `(if _ : $p then $e else $rest)) last
     | `(expr| $i:ident [ $e:expr ]) => `($(id_append i `mk_quot) $(← of_expr e))
-    | `(expr| some $i:ident : $type:expr such that $p:prop) => do
+    | `(expr| $s:_some_or_unique $i:ident : $type:expr such that $p:prop) => do
+        let unique ← of_some_or_unique s
         let type ← of_expr type
         let p ← of_prop1 p
-        `(Classical.choose (show ∃ $i:ident : $type, $p from by default))
+        let e ← mk_exists_or_unique unique [(i, .some (":", type))] p
+        `(Classical.choose (show $e from by default))
     | _ => match parse_op_opt expr with
       | .some (kind, op, ts) =>
           build_op kind (map_op op) (← ts.mapM (fun e => of_expr ⟨e⟩))

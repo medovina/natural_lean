@@ -1,4 +1,4 @@
-import Natural
+import Natural.Examples.Base
 
 Lemma.  Let A, B, C and D be types.  Let f : A → B.  Let g : B → C.  Let h : C → D.
 
@@ -31,6 +31,7 @@ Definition.  Let A and B be types.  Let f : A → B.  f is bijective iff f is in
 Theorem.  Let A and B be nonempty types.  Let f : A → B.
 
   a. If f is surjective then f has a right inverse.
+  b. If f is injective then f has a left inverse.
 
 Proof.
 
@@ -39,3 +40,10 @@ Proof.
     h(b) = some a : A such that f(a) = b.
 
   Then f(h(b)) = b for all b : B, so f has a right inverse.
+
+  b. Assume that f is injective.  There is some a' : A.  For all b : B, define
+
+      h(b) = { the unique x : A such that f(x) = b  if there is some x : A such that f(x) = b
+             | a'  otherwise }.
+
+    Let a : A.  Then h(f(a)) = the unique x : A such that f(x) = f(a), so h(f(a)) = a.  So f has a left inverse.
