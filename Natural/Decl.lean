@@ -603,6 +603,23 @@ def aux_abbrev (aux: Ident) (thm: Term) : CoreM (Ident × Command) :=
         pure (x, ← `(abbrev $aux ($x : $type) := $(← mk_for_all vars t)))
     | _ => throwError "self-referential theorem must have universal quantifier"
 
+def thm_commands (name: Option Ident) (by_default : Option Ident)
+        : (ThmDecl × Option Term) → CoreM (List (Command × Option Ident))
+  | (⟨label, _init_steps, thm, thm_name, attr⟩, proof) => withRef thm do
+    let proof := proof.getD (← proof_by by_default)
+    let name := thm_name <|> name.map (fun name =>
+      label.elim name (mkIdent $ name.getId ++ ·))
+    let (aux_cmd, proof) ← match has_holds proof with
+      | .some h =>
+        let name ← name.getDM (throwErrorAt h
+          "self-referential theorem must have a name")
+        let aux := mkIdent (name.getId.appendBefore "_")
+        let (x, c) ← aux_abbrev aux thm
+        pure ([c], (⟨← subst_holds x aux proof⟩ : Term))
+      | .none => pure ([], proof)
+    let command ← mk_decl false attr name thm proof
+    pure (aux_cmd.map (·, .none) ++ [(command, name)])
+
 def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
           (body: TSyntax `theorem_body) : TermElabM (List Command × List Ident) := do
   let by_default : Option Ident := match corollary_of with
@@ -613,21 +630,8 @@ def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
         let iss ← of_init_steps iss
         let iss ← with_implicit_let [] iss
         let thms_proofs : List (ThmDecl × Option Term) ← of_props_proofs iss ps
-        let (commands, names) := List.unzip $ ← thms_proofs.flatMapM
-          (fun (⟨label, _init_steps, thm, thm_name, attr⟩, proof) => withRef thm do
-            let proof := proof.getD (← proof_by by_default)
-            let name := thm_name <|> name.map (fun name =>
-              label.elim name (mkIdent $ name.getId ++ ·))
-            let (aux_cmd, proof) ← match has_holds proof with
-              | .some h =>
-                let name ← name.getDM (throwErrorAt h
-                  "self-referential theorem must have a name")
-                let aux := mkIdent (name.getId.appendBefore "_")
-                let (x, c) ← aux_abbrev aux thm
-                pure ([c], (⟨← subst_holds x aux proof⟩ : Term))
-              | .none => pure ([], proof)
-            let command ← mk_decl false attr name thm proof
-            pure (aux_cmd.map (·, .none) ++ [(command, name)]))
+        let (commands, names) := List.unzip $
+          ← thms_proofs.flatMapM (thm_commands name by_default ·)
         pure (commands, (names.flatMap Option.toList))
     | `(theorem_body| The $_:_operator $op:op is $kind:type_class_ref
                       on $type:type . $pn:post_name) => withRef body do

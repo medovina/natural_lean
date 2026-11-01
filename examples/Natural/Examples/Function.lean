@@ -16,7 +16,7 @@ Definition.  Let A and B be types.  Let f : A → B.  Let g : B → A.
 
 Definition.  Let A and B be types.  Let f : A → B.  Let g : B → A.  g is an inverse of f if g is a right inverse of f and also g is a left inverse of f.
 
-Lemma.  Let A and B be types.  Let f : A → B.  If f has a right inverse and f has a left inverse then f has an inverse.
+Lemma.  Let A and B be types.  Let f : A → B.  If f has a right inverse and f has a left inverse then f has an inverse.  [Function.inverse_of_left_right]
 
 Proof.  Suppose that f has a right inverse g.  Also suppose that f has a left inverse h.  Then g = h, so g is a left inverse of f.  So f has an inverse.
 
@@ -30,8 +30,9 @@ Definition.  Let A and B be types.  Let f : A → B.  f is bijective iff f is in
 
 Theorem.  Let A and B be nonempty types.  Let f : A → B.
 
-  a. If f is surjective then f has a right inverse.
-  b. If f is injective then f has a left inverse.
+  a. If f is surjective then f has a right inverse.  [Function.surjective_right_inverse]
+  b. If f is injective then f has a left inverse.  [Function.injective_left_inverse]
+  c. If f is bijective then f has an inverse.  [Function.bijective_inverse]
 
 Proof.
 
@@ -41,9 +42,12 @@ Proof.
 
   Then f(h(b)) = b for all b : B, so f has a right inverse.
 
-  b. Assume that f is injective.  There is some a' : A.  For all b : B, define
+  b. Suppose that f is injective.  There is some a' : A.  For all b : B, define
 
       h(b) = { the unique x : A such that f(x) = b  if there is some x : A such that f(x) = b
              | a'  otherwise }.
 
     Let a : A.  Then h(f(a)) = the unique x : A such that f(x) = f(a), so h(f(a)) = a.  So f has a left inverse.
+
+  c. Suppose that f is bijective.  Then by Function.injective_left_inverse f has a left inverse.  Also by Function.surjective_right_inverse f has a right inverse.  Then by
+  Function.inverse_of_left_right f has an inverse.
