@@ -333,10 +333,16 @@ syntax _thm := "Theorem" <|> "Lemma" <|> "Example"
 
 syntax thm_name := ident
 
+syntax label := ident
+
+sdef thm_ref
+  | thm_name
+  | "part" "(" label ")"
+
 syntax assumption := ("our" <|> "the") "assumption"
 
 sdef reference
-  | sepBy1(thm_name, "and")
+  | sepBy1(thm_ref, "and")
   | atomic("the" "fact") "that" prop
   | assumption ("that" prop)?
 
@@ -456,8 +462,6 @@ sdef proof_sentence1
 
 sdef proof_sentence
   | clause_intro ? proof_sentence1 "."
-
-syntax label := ident
 
 syntax proof_label := label ("-" label)? "."
 

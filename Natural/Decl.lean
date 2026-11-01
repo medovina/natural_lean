@@ -604,7 +604,7 @@ def aux_abbrev (aux: Ident) (thm: Term) : CoreM (Ident × Command) :=
     | _ => throwError "self-referential theorem must have universal quantifier"
 
 def thm_commands (name: Option Ident) (by_default : Option Ident)
-        : (ThmDecl × Option Term) → CoreM (List (Command × Option Ident))
+        : (ThmDecl × Option Term) → CoreM (List (Command × Option Label × Option Ident))
   | (⟨label, _init_steps, thm, thm_name, attr⟩, proof) => withRef thm do
     let proof := proof.getD (← proof_by by_default)
     let name := thm_name <|> name.map (fun name =>
@@ -618,7 +618,25 @@ def thm_commands (name: Option Ident) (by_default : Option Ident)
         pure ([c], (⟨← subst_holds x aux proof⟩ : Term))
       | .none => pure ([], proof)
     let command ← mk_decl false attr name thm proof
-    pure (aux_cmd.map (·, .none) ++ [(command, name)])
+    pure (aux_cmd.map (·, .none, .none) ++ [(command, label, name)])
+
+partial def fill_part_references (label_map: List (Option Label × Option Ident)) (c: Command)
+        : CoreM Command :=
+  let map_ref (i: Ident): CoreM Ident := match i.getId.components with
+    | `_part :: rest =>
+        let p := from_components rest
+        match label_map.lookup (.some p) with
+          | .some (.some name) => pure name
+          | _ => throwError s!"theorem has no part ({p})"
+    | _ => pure i
+  let rec fill : Syntax → CoreM Syntax
+    | `(by default_apply $ns*) => do
+        let ns ← ns.mapM map_ref
+        `(by default_apply $ns*)
+    | s => match s with
+      | .node info kind args => .node info kind <$> args.mapM fill
+      | _ => pure s
+  (⟨·⟩) <$> fill c.raw
 
 def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
           (body: TSyntax `theorem_body) : TermElabM (List Command × List Ident) := do
@@ -630,9 +648,10 @@ def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
         let iss ← of_init_steps iss
         let iss ← with_implicit_let [] iss
         let thms_proofs : List (ThmDecl × Option Term) ← of_props_proofs iss ps
-        let (commands, names) := List.unzip $
+        let (commands, labels_names) := List.unzip $
           ← thms_proofs.flatMapM (thm_commands name by_default ·)
-        pure (commands, (names.flatMap Option.toList))
+        let commands ← commands.mapM (fill_part_references labels_names ·)
+        pure (commands, (labels_names.map (·.2)).flatMap Option.toList)
     | `(theorem_body| The $_:_operator $op:op is $kind:type_class_ref
                       on $type:type . $pn:post_name) => withRef body do
         let env ← getEnv
@@ -675,10 +694,10 @@ def of_thm_or_def : TSyntax `thm_or_def → TermElabM (List Command × List Iden
 
 elab t:top : command => do
   try
-    -- Open the Classical namespace because elaborating if/then/else expressions requires
-    -- propositions to be decidable.  We don't want to make the user explicitly open Classical
-    -- for this purpose since these expressions would not necessary require the Axiom of Choice
-    -- in e.g. ZFC set theory.
+    -- Open the Classical namespace because elaborating if/then/else expressions
+    -- requires propositions to be decidable.  We don't want to make the user
+    -- explicitly open Classical for this purpose since these expressions would not
+    -- necessarily require the Axiom of Choice in e.g. ZFC set theory.
     pushScope
     elabCommand (← `(open Classical))
 

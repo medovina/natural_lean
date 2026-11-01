@@ -175,6 +175,12 @@ def id : Parser :=
 
 -- syntax/term helpers
 
+-- from Mathlib
+def from_components : List Name → Name := go .anonymous where
+  go : Name → List Name → Name
+  | n, []        => n
+  | n, s :: rest => go (s.updatePrefix n) rest
+
 def as_ident : Term → Option Ident
   | `($i:ident) => .some i
   | _ => .none

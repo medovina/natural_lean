@@ -13,8 +13,19 @@ def of_thm_name: TSyntax ``thm_name → CoreM Ident
   | `(thm_name| $i:ident) => pure i
   | _ => throwError s!"unknown thm_name"
 
+def of_label: TSyntax ``label → CoreM Name
+  | `(label| $i:ident) => pure i.getId
+  | _ => throwError "unknown label"
+
+def of_thm_ref: TSyntax `thm_ref → CoreM Ident
+  | `(thm_ref| $n:thm_name) => of_thm_name n
+  | `(thm_ref| part ( $l:label )) => do
+      let l ← of_label l
+      pure (mkIdent (`_part ++ l))
+  | _ => throwError s!"unknown thm_ref"
+
 def of_reference: TSyntax `reference → CoreM (List Ident)
-  | `(reference| $[$n:thm_name] and*) => n.toList.mapM of_thm_name
+  | `(reference| $[$n:thm_ref] and*) => n.toList.mapM of_thm_ref
   | `(reference| the fact that $_p:prop)
   | `(reference| $_:assumption $[that $_p:prop]?) => pure []  -- ignore prop for now
   | _ => throwError s!"unknown reference"
@@ -322,10 +333,6 @@ def of_proof_sentence: TSyntax `proof_sentence → CoreM (List ProofStep)
   | `(proof_sentence| $_:clause_intro ? $s:proof_sentence1 .) =>
       of_proof_sentence1 s
   | _ => throwError "unknown proof_sentence"
-
-def of_label: TSyntax ``label → CoreM Name
-  | `(label| $i:ident) => pure i.getId
-  | _ => throwError "unknown label"
 
 def of_proof_label: TSyntax ``proof_label → CoreM (Name × Option Name)
   | `(proof_label| $i:label $[- $j:label]? . ) =>
