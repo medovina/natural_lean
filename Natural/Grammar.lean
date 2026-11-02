@@ -264,7 +264,7 @@ syntax a_or_some nominal_e_e_t var ? : noun_phrase_e_e_t
 
 -- e → t (e.g. "a positive integer")
 declare_syntax_cat noun_phrase_e_t (behavior := symbol)
-syntax &"a" nominal_e_t : noun_phrase_e_t
+syntax _a nominal_e_t : noun_phrase_e_t
 
 -- (e → t) → t (e.g. "every positive integer")
 syntax noun_phrase_et_t := _every nominal_e_t

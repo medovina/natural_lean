@@ -627,6 +627,7 @@ partial def fill_part_references (label_map: List (Option Label × Option Ident)
         let p := from_components rest
         match label_map.lookup (.some p) with
           | .some (.some name) => pure name
+          | .some none => throwError s!"part ({p}) has no name"
           | _ => throwError s!"theorem has no part ({p})"
     | _ => pure i
   let rec fill : Syntax → CoreM Syntax

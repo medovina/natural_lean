@@ -447,7 +447,7 @@ partial def of_noun_phrase_e_e_t : TSyntax `noun_phrase_e_e_t →
 
 partial def of_noun_phrase_e_t : TSyntax `noun_phrase_e_t →
         CoreM (Option Term × (Term → CoreM Term))
-  | `(noun_phrase_e_t| a $nom:nominal_e_t) => of_nominal_e_t nom
+  | `(noun_phrase_e_t| $_:_a $nom:nominal_e_t) => of_nominal_e_t nom
   | _ => throwError "unknown noun_phrase_e_t"
 
 partial def of_noun_phrase_et_t :
