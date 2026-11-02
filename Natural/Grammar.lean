@@ -370,7 +370,7 @@ kdef _so =
 
 kdef have1 =
   "clearly" | "it must be that" | "note that" |
-  "observe that" | "this shows that" | "trivially" |
+  "observe that" | "similarly" | "this shows that" | "trivially" |
   "we deduce that" | "we have shown that" | "we have" |
   "we know that" | "we must have" | "we see that"
 
@@ -378,12 +378,9 @@ kdef _it = "it"
 
 syntax _follows := _it "follows" ("by" reason)? "that"
 
-kdef similarly = "similarly"
-
 sdef _have
   | have1
   | _follows
-  | similarly ","?
 
 kdef _because = "because" | "since"
 

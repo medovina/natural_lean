@@ -19,12 +19,6 @@ Definition.  For any S : Set(T) and x : T, x ∈ S iff S(x) is true.
 theorem ext {a b : Set α} (h : ∀ (x : α), x ∈ a ↔ x ∈ b) : a = b :=
   funext (fun x => propext (h x))
 
--- Define a coercion from sets to types.
-
-@[coe, reducible] def Elem (s : Set α) : Type u := {x // x ∈ s}
-
-instance : CoeSort (Set α) (Type u) := ⟨Elem⟩
-
 -- Define set comprehension notation.
 
 @[implicit_reducible]
@@ -38,6 +32,16 @@ notation "{" x " | " body "}" => Set.ofPred (fun x => body)
 theorem mem_ofPred_eq {x : α} {p : α → Prop} : (x ∈ {y : α | p y}) = p x := rfl
 
 grind_pattern mem_ofPred_eq => x ∈ Set.ofPred p
+
+-- Define a coercion from sets to types.
+
+@[coe, reducible] def Elem (s : Set α) : Type u := {x // x ∈ s}
+
+instance : CoeSort (Set α) (Type u) := ⟨Elem⟩
+
+-- universal set for any type
+
+def Univ (α: Type) : Set α := { _ : α | True }
 
 -- Define an elaborator that exposes the set comprehension syntax to Natural Lean.
 

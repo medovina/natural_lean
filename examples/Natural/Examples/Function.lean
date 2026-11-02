@@ -1,4 +1,9 @@
-import Natural.Examples.Base
+import Natural.Examples.Set
+
+-- If α is empty then there exists a function from α to β.
+theorem Function.empty_function (h : ¬∃_x : α, True) : ∃_f : (α → β), True :=
+  let f (x: α): β := False.elim (show False by solve_by_elim)
+  ⟨f, True.intro⟩
 
 Lemma.  Let A, B, C and D be types.  Let f : A → B.  Let g : B → C.  Let h : C → D.
 
@@ -28,10 +33,10 @@ Definition.  Let A and B be types.  Let f : A → B.
 
 Definition.  Let A and B be types.  Let f : A → B.  f is bijective iff f is injective and f is surjective.
 
-Theorem.  Let A and B be nonempty types.  Let f : A → B.
+Theorem.  Let A and B be types.  Let f : A → B.
 
   a. If f is surjective then f has a right inverse.  [Function.surj_right_inv]
-  b. If f is injective then f has a left inverse.  [Function.inj_left_inv]
+  b. If f is injective and there is some _a : A then f has a left inverse.  [Function.inj_left_inv]
   c. If f is bijective then f has an inverse.  [Function.bijective_inv]
 
 Proof.
@@ -42,11 +47,15 @@ Proof.
 
   Then f(h(b)) = b for all b : B, so f has a right inverse.
 
-  b. Suppose that f is injective.  There is some a' : A.  For all b : B, define
+  b. Suppose that f is injective.  Suppose there is some a' : A.  For all b : B, define
 
       h(b) = { the unique x : A such that f(x) = b  if there is some x : A such that f(x) = b
              | a'  otherwise }.
 
     Let a : A.  Then h(f(a)) = the unique x : A such that f(x) = f(a), so h(f(a)) = a.  So f has a left inverse.
 
-  c. Suppose that f is bijective.  Then f has a right inverse by part (a).  Also f has a left inverse by part (b).  Then by Function.inv_of_left_right f has an inverse.
+  c. Suppose that f is bijective.  Suppose there is some a' : A.  Then f has a right inverse by part (a).  Also f has a left inverse by part (b).  Then by Function.inv_of_left_right f has an inverse.
+
+  Otherwise there is no a' : A.  If there is some b' : B then since f is surjective there is some x : A such that f(x) = b', which is a contradiction.  So there is no b' : B.  Then by empty_function there exists h : B → A.  For all x : B, f(h(x)) = x, so h is a right inverse of f.  Similarly h is a left inverse of f.  So h is a inverse of f.
+
+  In either case f has an inverse.
