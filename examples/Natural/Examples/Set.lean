@@ -22,14 +22,17 @@ Definition.  Let A : Set(T).  𝒫(A) = { X : Set(T) | X ⊆ A }.
 
 -- set operations
 
-Definition.  Let A, B : Set(T).  A ∪ B = { x : T | x ∈ A or x ∈ B }.
+Definition.  Let A, B : Set(T).
 
-Definition.  Let A, B : Set(T).  A ∩ B = { x : T | x ∈ A and x ∈ B }.
+  a. A ∪ B = { x : T | x ∈ A or x ∈ B }.
+  b. A ∩ B = { x : T | x ∈ A and x ∈ B }.
 
 Lemma.  Let A, B : Set(T).  Let x : T.
 
   a. x ∈ A ∪ B if and only if x ∈ A or x ∈ B.  [Set.mem_union: @simp]
   b. x ∈ A ∩ B if and only if x ∈ A and x ∈ B.  [Set.mem_inter: @simp]
+
+Definition.  Let A, B : Set(T).  A − B = { x : T | x ∈ A and x ∉ B }.
 
 Notation.  "ᶜ" is a postfix operator.  [Set.compl]
 

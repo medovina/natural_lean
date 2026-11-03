@@ -454,7 +454,7 @@ kdef _define = "define"
 sdef proof_sentence1
   | sepBy1(let_or_assume, "/", "," ? "and")
   | atomic(for_all_ids "," _define) expr "=" expr
-  | _define expr "=" expr for_all_ids
+  | _define (atomic(id ":") type "by")? expr "=" expr for_all_ids ?
   | assertions
 
 sdef proof_sentence

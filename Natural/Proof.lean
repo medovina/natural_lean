@@ -79,7 +79,7 @@ inductive ProofStep where
   | assert (p: Term) (reason: Option Reason)
   | assert_chain (ts: List Term) (ops: List String) (tactics: List Term)
   | let (ids: List Name) (type: Term)
-  | let_def (id: Name) (args: List (Name × Term)) (e: Term)
+  | let_def (id: Name) (args: List (Name × Term)) (type: Option Term) (e: Term)
   | assume (p: Term)
   | is_some (p: Term) (reason: Option Reason)
   | if_otherwise (p: Term) (if_true: List ProofStep) (if_false: List ProofStep)
@@ -96,7 +96,7 @@ partial def step_mapM [Monad m] (f: Term → m Term) (rec: ProofStep → m Proof
     | .assert_chain ts ops rs =>
         pure $ .assert_chain (← ts.mapM f) ops rs
     | .let .. => pure step
-    | .let_def id args t => pure $ .let_def id args (← f t)
+    | .let_def id args type t => pure $ .let_def id args type (← f t)
     | .assume p => pure $ .assume (← f p)
     | .is_some p r => pure $ .is_some (← f p) r
     | .if_otherwise p ts fs concl =>
@@ -116,14 +116,14 @@ def step_vars_types : ProofStep → Vars
   | _ => []
 
 def with_step_decl_vars (step: ProofStep) (f: TermElabM α) : TermElabM α := match step with
-  | .let_def id args val => do
-      let type ← infer_fun_type args val
+  | .let_def id args type val => do
+      let type ← Option.elim type (infer_fun_type args val) elab_type
       withLocalDecl id .default type (fun _var => f)
   | step => with_vars (step_vars_types step) f
 
 def step_decl_vars : ProofStep → List Name
   | .let ids _ => ids
-  | .let_def id _ _ => [id]
+  | .let_def id _ _ _ => [id]
   | .assume p => (ex_vars p).map (TSyntax.getId ·.1)
   | .is_some p _reason => (ex_vars p).map (TSyntax.getId ·.1)
   | _ => []
@@ -133,7 +133,7 @@ partial def step_free_vars : ProofStep → List Name
   | .assert p _ => free_vars p
   | .assert_chain ts _ _ => ts.flatMap free_vars
   | .let _ids type => free_vars type
-  | .let_def _ args e => (free_vars e).removeAll (args.map (·.1))
+  | .let_def _ args _type e => (free_vars e).removeAll (args.map (·.1))
   | .assume p => free_vars p
   | .is_some p _ => free_vars p
   | .if_otherwise p t f concl =>
@@ -186,9 +186,10 @@ def show_step : ProofStep → CoreM Format
   | .assert_chain ts ops _ => do
       pure $ nestB f!"assert_chain\n{← fmt_chain ts ops}"
   | .let ids type => do pure f!"let {ids} : {← fmt_term type}"
-  | .let_def id args t => do
+  | .let_def id args type t => do
       let args ← args.mapM fmt_arg
-      pure f!"let_def {id} {f!" ".joinSep args} = {← fmt_term t}"
+      let type ← type.elim (pure f!"") (fun x => do pure f!" : {← fmt_term x}")
+      pure f!"let_def {id} {f!" ".joinSep args}{type} = {← fmt_term t}"
   | .assume t => do pure f!"assume {← fmt_term t}"
   | .is_some p _ => do pure f!"is_some {← fmt_term p}"
   | .if_otherwise _ _ _ concl => do
@@ -285,7 +286,7 @@ def of_init_step: TSyntax `init_step → CoreM (List ProofStep)
 def of_let_or_assume: TSyntax `let_or_assume → CoreM (List ProofStep)
   | `(let_or_assume| $i:init_step) => of_init_step i
   | `(let_or_assume| $_:_let $id = $e) =>
-        do pure [.let_def id.getId [] (← of_expr e)]
+        do pure [.let_def id.getId [] .none (← of_expr e)]
   | `(let_or_assume| $_:_let $id = $e for some $vars:ids_types) =>
         match e with
           | `(expr| $_q:ident [ $_:expr ]) => do
@@ -312,20 +313,30 @@ def of_assertions: TSyntax ``assertions → CoreM (List ProofStep)
   | `(assertions| $s:assert_step /*) => s.getElems.toList.flatMapM of_assert_step
   | _ => throwError "unknown assertions"
 
+def local_function (id: Option Ident) (type: Option Term)
+    (args: TSyntax ``for_all_ids) (l r: TSyntax `expr) : CoreM (List ProofStep) := do
+  let type ← type.mapM (fun
+    | `($t:ident → $u) => pure (t, u)
+    | _ => throwError "expected function type with single parameter")
+  let args ← map_fst (·.getId) <$> of_for_all_ids args
+  let (l, r) ← mapM_pair of_expr (l, r)
+  match ← resolve_left l with
+    | `($f:ident $x:ident) =>
+        unless (id.all (· == f)) do throwError "function name mismatch"
+        let arg_type ← (type.map (·.1)).getDM $
+          match args.lookup x.getId with
+            | .some (.some (":", type)) => pure type
+            | _ => throwError "undefined parameter variable"
+        pure [ .let_def f.getId [(x.getId, arg_type)] (type.map (·.2)) r ]
+    | _ => throwError "invalid local function definition"
+
 def of_proof_sentence1: TSyntax `proof_sentence1 → CoreM (List ProofStep)
   | `(proof_sentence1| $ls:let_or_assume /*) =>
       ls.getElems.toList.flatMapM of_let_or_assume
   | `(proof_sentence1| $args:for_all_ids , $_:_define $l:expr = $r:expr)
-  | `(proof_sentence1| $_:_define $l:expr = $r:expr $args:for_all_ids) => do
-      let (l, r) ← mapM_pair of_expr (l, r)
-      let args ← map_fst (·.getId) <$> of_for_all_ids args
-      match ← resolve_left l with
-        | `($f:ident $x:ident) =>
-            match args.lookup x.getId with
-              | .some (.some (":", type)) =>
-                pure [ .let_def f.getId [(x.getId, type)] r ]
-              | _ => throwError "undefined parameter variable"
-        | _ => throwError "invalid local function definition"
+        => local_function .none .none args l r
+  | `(proof_sentence1| $_:_define $[$id : $type by]? $l:expr = $r:expr $args:for_all_ids)
+        => do local_function id (← type.mapM of_type) args l r
   | `(proof_sentence1| $a:assertions) => of_assertions a
   | _ => throwError "unknown proof_sentence1"
 
@@ -467,8 +478,8 @@ partial def infer_blocks (steps: List ProofStep): List Block :=
   blocks
 
 partial def resolve_step : ProofStep → TermElabM ProofStep
-  | .let_def id args t =>
-      do pure $ .let_def id args (← resolve_term args t)
+  | .let_def id args type t =>
+      do pure $ .let_def id args type (← resolve_term args t)
   | step => step_mapM (resolve ·.raw) resolve_step step
 
 partial def resolve_block : Block → TermElabM Block
@@ -536,10 +547,10 @@ partial def translate (top: Bool) (parent_ex: Vars) (prev: Term) (concl: Option 
             let ids := ids.toArray.map mkIdent
             pure (← `(letDecl| : _ := fun $ids* : $type => $c),
                   ← `(∀ $ids:ident* : $type, _))
-        | .let_def id args e => do
+        | .let_def id args type e => do
             let args ← args.toArray.mapM (fun (x, type) =>
               `(Lean.Parser.Term.letIdBinder| ($(mkIdent x) : $type)))
-            let t ← `(let $(mkIdent id) $args* := $e; $c)
+            let t ← `(let $(mkIdent id) $args* $[: $type]? := $e; $c)
             let decl ← `(letDecl| : _ := $t:term)
             pure (decl, child_concl)
         | .assume p =>
