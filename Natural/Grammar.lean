@@ -220,7 +220,11 @@ sdef multi_or
 
 kdef _is_have = "this is" | "we have"
 
-syntax have_contradiction := _is_have &"a" "contradiction"
+kdef _this = "this"
+
+declare_syntax_cat have_contradiction (behavior := symbol)
+syntax _is_have &"a" "contradiction" : have_contradiction
+syntax atomic(_this "contradicts") reference : have_contradiction
 
 syntax is_tf := &"is" (&"true" <|> &"false")
 
@@ -338,7 +342,7 @@ sdef_extend prop
   | _there _exists some_or_no ? _unique ? exists_phrase
   | multi_or
   | have_contradiction
-  | thm_holds atomic("for" (! &"some") (id "=")? expr)?
+  | thm_holds atomic("for" (! &"some") atomic(id "=")? expr)?
 
 syntax var_list ("such" "that" prop)? : exists_phrase
 syntax nominal_e_t : exists_phrase
@@ -392,8 +396,8 @@ syntax which_is := ("which" "is")? "again"?
 
 sdef which_is_contra
   | atomic(which_is &"a" "contradiction") ("to" reference)?
-  | atomic(which_is "contradicting") reference
   | atomic("which" "contradicts") reference
+  | atomic(which_is "contradicting") reference
 
 syntax which_is_contradiction :=
   atomic("," which_is_contra) because_prop ?

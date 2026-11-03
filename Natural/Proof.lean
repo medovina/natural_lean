@@ -202,8 +202,8 @@ def of_which_is_contra (stx: TSyntax `which_is_contra): CoreM ProofStep :=
     pure $ .assert mk_false (.some (.apply $ ← r.toList.flatMapM of_reference))
   match stx with
     | `(which_is_contra| $_:which_is a contradiction $[to $r:reference]?) => contra r
-    | `(which_is_contra| $_:which_is contradicting $r:reference)
-    | `(which_is_contra| which contradicts $r:reference) => contra (some r)
+    | `(which_is_contra| which contradicts $r:reference)
+    | `(which_is_contra| $_:which_is contradicting $r:reference) => contra (some r)
     | _ => throwError "unknown which_is_contra"
 
 def of_which_is_contradiction (stx: TSyntax ``which_is_contradiction)
