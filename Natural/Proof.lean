@@ -28,6 +28,7 @@ def of_reference: TSyntax `reference → CoreM (List Ident)
   | `(reference| $[$n:thm_ref] and*) => n.toList.mapM of_thm_ref
   | `(reference| the fact that $_p:prop)
   | `(reference| $_:assumption $[that $_p:prop]?) => pure []  -- ignore prop for now
+  | `(reference| the inductive hypothesis) => pure []
   | _ => throwError s!"unknown reference"
 
 inductive Reason where
@@ -57,7 +58,6 @@ def of_reason: TSyntax `reason → CoreM (Option Reason)
   | `(reason| [ $t:tactic ]) => pure (Reason.tactic t)
   | `(reason| $r:reference) => .some <$> Reason.apply <$> of_reference r
   | `(reason| $[$k:ident]? induction) => pure (Reason.induction k)
-  | `(reason| the inductive hypothesis)
   | `(reason| definition) => pure Option.none
   | `(reason| the definition of $i:ident) => pure (.some (.by_definition_of i))
   | _ => throwError "unknown reason"

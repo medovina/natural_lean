@@ -345,13 +345,13 @@ sdef reference
   | sepBy1(thm_ref, "and")
   | atomic("the" "fact") "that" prop
   | assumption ("that" prop)?
+  | "the" "inductive" "hypothesis"
 
 declare_syntax_cat reason (behavior := symbol)
 sdef_extend reason
   | "[" tactic "]"
   | (priority := 1) reference
   | atomic(ident ? "induction")
-  | "the" "inductive" "hypothesis"
   | (priority := 2) &"definition"
   | "the" &"definition" "of" ident
 
