@@ -129,6 +129,22 @@ declare_syntax_cat mixfix_prop
 
 kdef _some_or_unique = "some" | "the unique"
 
+syntax thm_name := ident
+
+syntax label := ident
+
+sdef thm_ref
+  | thm_name
+  | "part" "(" label ")"
+
+syntax assumption := ("our" <|> "the") "assumption"
+
+sdef reference
+  | sepBy1(thm_ref, "and")
+  | atomic("the" "fact") "that" prop
+  | assumption ("that" prop)?
+  | "the" "inductive" "hypothesis"
+
 declare_syntax_cat expr (behavior := symbol)
 syntax nat : expr
 syntax id : expr
@@ -330,22 +346,6 @@ syntax nominal_e_t : exists_phrase
 -- proof steps
 
 syntax _thm := "Theorem" <|> "Lemma" <|> "Example"
-
-syntax thm_name := ident
-
-syntax label := ident
-
-sdef thm_ref
-  | thm_name
-  | "part" "(" label ")"
-
-syntax assumption := ("our" <|> "the") "assumption"
-
-sdef reference
-  | sepBy1(thm_ref, "and")
-  | atomic("the" "fact") "that" prop
-  | assumption ("that" prop)?
-  | "the" "inductive" "hypothesis"
 
 declare_syntax_cat reason (behavior := symbol)
 sdef_extend reason

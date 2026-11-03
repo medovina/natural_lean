@@ -263,6 +263,28 @@ def of_some_or_unique : TSyntax ``_some_or_unique → CoreM Bool
   | `(_some_or_unique| the unique) => pure true
   | _ => throwError "unknown _some_or_unique"
 
+def of_thm_name: TSyntax ``thm_name → CoreM Ident
+  | `(thm_name| $i:ident) => pure i
+  | _ => throwError s!"unknown thm_name"
+
+def of_label: TSyntax ``label → CoreM Name
+  | `(label| $i:ident) => pure i.getId
+  | _ => throwError "unknown label"
+
+def of_thm_ref: TSyntax `thm_ref → CoreM Ident
+  | `(thm_ref| $n:thm_name) => of_thm_name n
+  | `(thm_ref| part ( $l:label )) => do
+      let l ← of_label l
+      pure (mkIdent (`_part ++ l))
+  | _ => throwError s!"unknown thm_ref"
+
+def of_reference: TSyntax `reference → CoreM (List Ident)
+  | `(reference| $[$n:thm_ref] and*) => n.toList.mapM of_thm_ref
+  | `(reference| the fact that $_p:prop)
+  | `(reference| $_:assumption $[that $_p:prop]?) => pure []  -- ignore prop for now
+  | `(reference| the inductive hypothesis) => pure []
+  | _ => throwError s!"unknown reference"
+
 mutual
 
 partial def of_if_case : TSyntax `if_case → CoreM (Term × Term)

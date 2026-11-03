@@ -9,28 +9,6 @@ namespace Natural
 
 -- proof steps
 
-def of_thm_name: TSyntax ``thm_name → CoreM Ident
-  | `(thm_name| $i:ident) => pure i
-  | _ => throwError s!"unknown thm_name"
-
-def of_label: TSyntax ``label → CoreM Name
-  | `(label| $i:ident) => pure i.getId
-  | _ => throwError "unknown label"
-
-def of_thm_ref: TSyntax `thm_ref → CoreM Ident
-  | `(thm_ref| $n:thm_name) => of_thm_name n
-  | `(thm_ref| part ( $l:label )) => do
-      let l ← of_label l
-      pure (mkIdent (`_part ++ l))
-  | _ => throwError s!"unknown thm_ref"
-
-def of_reference: TSyntax `reference → CoreM (List Ident)
-  | `(reference| $[$n:thm_ref] and*) => n.toList.mapM of_thm_ref
-  | `(reference| the fact that $_p:prop)
-  | `(reference| $_:assumption $[that $_p:prop]?) => pure []  -- ignore prop for now
-  | `(reference| the inductive hypothesis) => pure []
-  | _ => throwError s!"unknown reference"
-
 inductive Reason where
   | tactic (t: Syntax.Tactic)
   | apply (ns: List Ident)
