@@ -292,11 +292,11 @@ def of_assertions: TSyntax ``assertions → CoreM (List ProofStep)
   | _ => throwError "unknown assertions"
 
 def local_function (id: Option Ident) (type: Option Term)
-    (args: TSyntax ``for_all_ids) (l r: TSyntax `expr) : CoreM (List ProofStep) := do
+    (args: IdVars) (l r: TSyntax `expr) : CoreM (List ProofStep) := do
   let type ← type.mapM (fun
-    | `($t:ident → $u) => pure (t, u)
+    | `($t → $u) => pure (t, u)
     | _ => throwError "expected function type with single parameter")
-  let args ← map_fst (·.getId) <$> of_for_all_ids args
+  let args := map_fst (·.getId) args
   let (l, r) ← mapM_pair of_expr (l, r)
   match ← resolve_left l with
     | `($f:ident $x:ident) =>
@@ -312,11 +312,13 @@ def of_proof_sentence1: TSyntax `proof_sentence1 → CoreM (List ProofStep)
   | `(proof_sentence1| $ls:let_or_assume /*) =>
       ls.getElems.toList.flatMapM of_let_or_assume
   | `(proof_sentence1| $args:for_all_ids , $_:_define $l:expr = $r:expr)
-        => local_function .none .none args l r
-  | `(proof_sentence1| $_:_define $[$id : $type by]? $l:expr = $r:expr $args:for_all_ids)
-        => do local_function id (← type.mapM of_type) args l r
+        => do local_function .none .none (← of_for_all_ids args) l r
+  | `(proof_sentence1| $_:_define $[$id : $type by]? $l:expr = $r:expr
+                       $args:for_all_ids ?) => do
+      let args ← args.elim (pure []) of_for_all_ids
+      local_function id (← type.mapM of_type) args l r
   | `(proof_sentence1| $a:assertions) => of_assertions a
-  | _ => throwError "unknown proof_sentence1"
+  | s => throwError s!"unknown proof_sentence1: {s}"
 
 def of_proof_sentence: TSyntax `proof_sentence → CoreM (List ProofStep)
   | `(proof_sentence| $_:clause_intro ? $s:proof_sentence1 .) =>
