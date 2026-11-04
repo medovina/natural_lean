@@ -668,14 +668,6 @@ def elab_to_type (t: Term): TermElabM Expr := do
   let type ← trap_errors "elab_to_type" (inferType e)
   instantiateMVars type
 
-def has_type_in_class (t: Term) (cl: Name): TermElabM Bool := do
-  is_type_in_class (← elab_to_type t) cl
-
-def is_numeric (t: Term): TermElabM Bool :=
-  match t with
-    | `($_:num) => pure true
-    | _ => has_type_in_class t `Mul
-
 def matches_op (kind: OpKind) (t: Term) (info: OpInfo): TermElabM Bool :=
   (kind == info.kind && ·) <$> do
   let type ← elab_to_type t
@@ -740,7 +732,20 @@ partial def resolve (s: Syntax) : TermElabM Term := withRef s do
             else s!"{n} is neither defined nor an implicit product")
     | `(_app_or_mul $t:term $u:term) => do
         let (t, u) ← mapM_pair resolve (t, u)
-        if ← is_numeric t then `($t * $u) else `($t $u)
+        match t with
+          | `($_:num) => `($t * $u)
+          | _ =>
+              let type ← elab_to_type t
+              if ← is_type_in_class type `Mul then `($t * $u) else match type.arrow? with
+                | .some (e, _) =>
+                    match (← whnfR e).app2? ``Subtype with
+                      | .some (base_type, _fn) =>
+                          if ← isDefEqI base_type (← elab_to_type u) then
+                            -- prove that the argument u belongs to the subtype expected by t
+                            `($t ⟨$u, by default⟩)
+                          else `($t $u)
+                      | .none => `($t $u)
+                | .none => `($t $u)
     | `(_super $t:term $u:term $id:ident) =>
          let t ← resolve t
          let id := id.getId.toString (escape := false)
