@@ -265,7 +265,7 @@ public partial def of_expr (expr: TSyntax `expr): CoreM Term := withRef expr do
       | _ => elab_expr expr
 
 public partial def of_type : TSyntax ``type → CoreM Term
-  | `(type| $e:expr) => of_expr e >>= (resolve_left ·.raw)
+  | `(type| $e:expr) => of_expr e
   | _ => throwError "unknown type"
 
 partial def of_ids_type : TSyntax ``ids_type → CoreM (List Ident × BinderOp × Term)
@@ -614,9 +614,10 @@ public def infer_fun_type (args: LocalEnv) (t: Term): TermElabM Expr := match ar
 
 mutual
 
--- Resolve ambiguities in a term.  For example, a(b) will become either
--- a product a · b or a function call, depending on the type of a.
-public partial def resolve (s: Syntax) : TermElabM Term := withRef s do
+-- Resolve ambiguities in a term.  For example, a(b) will become either a product a · b
+-- or a function call, depending on the type of a.  Resolution also inserts proofs that
+-- values belong to subtypes when necessary.
+public partial def resolve (as_type: Bool) (s: Syntax) : TermElabM Term := withRef s do
   match s with
     | `($n:num) => pure n
     | `($i:ident) => do
@@ -632,11 +633,13 @@ public partial def resolve (s: Syntax) : TermElabM Term := withRef s do
               let info := i.raw.getInfo?.get!
               let to_ident v : Term := ⟨(mkIdent v).raw.setInfo info⟩
               pure (← multi_prod (vars.map to_ident))
+          else if as_type && checkValidAutoBoundImplicitName n true false matches .ok true
+            then pure ⟨s⟩
           else throwErrorAt s (
             if vars.length == 1 then s!"undefined: {n}"
             else s!"{n} is neither defined nor an implicit product")
     | `(_app_or_mul $t:term $u:term) => do
-        let (t, u) ← mapM_pair resolve (t, u)
+        let (t, u) ← mapM_pair (resolve as_type) (t, u)
         match t with
           | `($_:num) => `($t * $u)
           | _ =>
@@ -652,32 +655,35 @@ public partial def resolve (s: Syntax) : TermElabM Term := withRef s do
                       | .none => `($t $u)
                 | .none => `($t $u)
     | `(_super $t:term $u:term $id:ident) =>
-         let t ← resolve t
+         let t ← resolve as_type t
          let id := id.getId.toString (escape := false)
          if ← (← lookup_op id .postfix).anyM (matches_op .postfix t)
            then build_op .postfix id [t]
-           else `($t ^ $(← resolve u))
-    | `(_holds $x $e) => `(_holds $x $(← resolve e))
+           else `($t ^ $(← resolve as_type u))
+    | `(_holds $x $e) => `(_holds $x $(← resolve as_type e))
     | `($b:instBinder → $t) =>  -- an instance parameter, e.g. "[Nonempty T] -> ..."
-        `($b:instBinder → $(← resolve t))
+        `($b:instBinder → $(← resolve as_type t))
     | _ => match match_binder s with
       | .some (bt, vars, t) => do
-          let names := map_fst TSyntax.getId vars
-          pure $ (← mk_binder bt vars (← resolve_term1 names t))
+          let vars ← vars.mapM (fun
+            | (id, .none) => pure (id, .none)
+            | (id, .some (op, t)) => do pure (id, .some (op, ← resolve (op == ":") t)))
+          pure $ (← mk_binder bt vars (← resolve_term1 (map_fst TSyntax.getId vars) t))
       | .none => match s with
         | `(_bind $xs:ident*, $type, $t) =>
+            let type ← resolve true type
             let vars := xs.toList.map (·.getId, type)
             -- Also declare the type in the environment, which allows it to be implicit.
             let type_decl := (as_ident type).toList.map (·.getId, ← `(Type))
             resolve_term (vars ++ type_decl) t
         | _ => match s with
           | .node info kind args => do
-              let args ← args.mapM resolve
+              let args ← args.mapM (resolve as_type)
               pure ⟨.node info kind args⟩
           | _ => pure ⟨s⟩
 
 public partial def resolve_term1 (le: Vars) (t: Term) : TermElabM Term :=
-  with_vars le (resolve t.raw)
+  with_vars le (resolve false t.raw)
 
 public partial def resolve_term (le: LocalEnv) (t: Term) : TermElabM Term :=
   resolve_term1 (le.map (fun (x, type) => (x, ":", type))) t

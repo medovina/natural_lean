@@ -74,14 +74,15 @@ public inductive ProofStep where
   | group (steps: List ProofStep)
 deriving Nonempty, Inhabited, BEq
 
-partial def step_mapM [Monad m] (f: Term → m Term) (rec: ProofStep → m ProofStep)
-        (step: ProofStep) : m ProofStep := do
+partial def step_mapM [Monad m] (f: Term → m Term) (type_f: Term → m Term)
+        (rec: ProofStep → m ProofStep) (step: ProofStep) : m ProofStep := do
   match step with
     | .assert t rs => pure $ .assert (← f t) rs
     | .assert_chain ts ops rs =>
         pure $ .assert_chain (← ts.mapM f) ops rs
-    | .let .. => pure step
-    | .let_def id args type t => pure $ .let_def id args type (← f t)
+    | .let ids type => pure $ .let ids (← type_f type)
+    | .let_def id args type t =>
+        pure $ .let_def id (← mapM_snd type_f args) (← type.mapM type_f) (← f t)
     | .assume p => pure $ .assume (← f p)
     | .is_some p r => pure $ .is_some (← f p) r
     | .if_otherwise p ts fs concl =>
@@ -464,15 +465,53 @@ partial def infer_blocks (steps: List ProofStep): List Block :=
   assert! (rest.isEmpty)
   blocks
 
-partial def resolve_step : ProofStep → TermElabM ProofStep
+public partial def resolve_step : ProofStep → TermElabM ProofStep
   | .let_def id args type t =>
-      do pure $ .let_def id args type (← resolve_term args t)
-  | step => step_mapM (resolve ·.raw) resolve_step step
+      do pure $ .let_def id args (← type.mapM (resolve true)) (← resolve_term args t)
+  | step => step_mapM (resolve false ·.raw) (resolve true ·.raw) resolve_step step
 
 partial def resolve_block : Block → TermElabM Block
   | ⟨step, children⟩ => do
       let step ← resolve_step step
       pure ⟨step, ← with_step_decl_vars step (children.mapM (resolve_block))⟩
+
+def chain_steps (steps: List ProofStep) (thm: Term) : Block := match steps with
+  | [] => ⟨.assert thm .none, []⟩
+  | step :: steps => ⟨step, [chain_steps steps thm]⟩
+
+def trim_step (thm: Term) : ProofStep → Option ProofStep
+  | .let ids type =>
+      let ids := ids.inter (free_vars thm)
+      if ids == [] then none else some (.let ids type)
+  | step => pure step
+
+def trim_steps (thm: Term) (steps: List ProofStep): List ProofStep :=
+  steps.filterMap (trim_step thm)
+
+def apply_init_step (step: ProofStep) (thm: Term): CoreM Term := match step with
+  | .let .. => for_all (step_vars_types step) thm
+  | .assume a => match a with
+    | `(_inst $cl $x) => `([$cl $x] → $thm)
+    | _ => `($a → $thm)
+  | _ => throwError "apply_init_step"
+
+public def apply_init_steps (steps: List ProofStep) (thm: Term): CoreM Term :=
+  steps.foldrM apply_init_step thm
+
+def extract_thm : Block → CoreM ((List ProofStep) × Term)
+  | ⟨.assert thm .none, []⟩ => pure ([], thm)
+  | ⟨step, [block]⟩ => do
+      let (rest, thm) ← extract_thm block
+      match trim_step thm step with
+        | .some step => do pure (step :: rest, ← apply_init_step step thm)
+        | .none => pure (rest, thm)
+  | _ => throwError "extract_thm: unexpected block"
+
+public def resolve_thm (init_steps: List ProofStep) (thm: Term)
+        : TermElabM ((List ProofStep) × Term) := do
+  let block := chain_steps init_steps thm
+  let block ← resolve_block block
+  extract_thm block
 
 public def proof_by_multi (names: List Ident) : CoreM Term :=
   tactic (.some (.apply names))
@@ -650,7 +689,7 @@ public def translate_proof (init_steps: List ProofStep) (thm: Term): _Proof → 
       let blocks := infer_blocks steps
       let blocks ← blocks.mapM resolve_block
       trace[natural.tree] pretty ("\n" ++ (← show_blocks blocks))
-      Prod.fst <$> translate True [] (← `(())) none blocks
+      (·.1) <$> translate True [] (← `(())) none blocks
   | .proof_by (.some (.by_definition_of i)) => do
       let q := i.getId
       let .some info ← global_info q | throwError s!"type not found: {q}"

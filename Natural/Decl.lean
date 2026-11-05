@@ -348,8 +348,8 @@ def quotient_lift (top_name: Ident) (def_name: Ident) (n: Nat) (arg_type: Term)
     | _ => throwError "unsupported lift"
   `(def $top_name : $type := $(mkIdent q) $def_name $by_thms)
 
-def check_no_binder_op : α × Option (BinderOp × Term) → CoreM (α × Term)
-  | (id, some (":", t)) => pure (id, t)
+def resolve_binder : α × Option (BinderOp × Term) → TermElabM (α × Term)
+  | (id, some (":", t)) => do pure (id, ← resolve true t)
   | _ => throwError "unexpected binder op"
 
 def function_name (s: String) : String := s.replace " " "_"
@@ -357,7 +357,7 @@ def function_name (s: String) : String := s.replace " " "_"
 def generate_def (decl_fn: Option String) (arg_type: Option Term)
     (env: Vars) (defeqs: List DefEq)
     (justification: Option Ident) : TermElabM (List Command) := do
-  let env ← env.mapM (check_no_binder_op ·)
+  let env ← env.mapM (resolve_binder ·)
   let defeqs ← defeqs.mapM (fun (d : DefEq) => do
     pure $ { d with args := ← d.args.mapM (resolve_left ·.raw),
                     val := ← resolve_term env d.val })
@@ -523,22 +523,12 @@ def trim_constraints : List ProofStep → List ProofStep :=
       | _ => true
     | _ => true)
 
-def apply_init_step (step: ProofStep) (thm: Term): CoreM Term := match step with
-  | .let .. => for_all (step_vars_types step) thm
-  | .assume a => match a with
-    | `(_inst $cl $x) => `([$cl $x] → $thm)
-    | _ => `($a → $thm)
-  | _ => throwError "apply_init_step"
-
-def apply_init_steps (steps: List ProofStep) (thm: Term): CoreM Term :=
-  steps.foldrM apply_init_step thm
-
-def of_prop_item (env: Vars) : TSyntax ``prop_item → CoreM ThmDecl
+def of_prop_item (env: Vars) : TSyntax ``prop_item → TermElabM ThmDecl
   | `(prop_item| $i:label . $iss:init_steps $s:top_sentence) => withRef s do
       let iss ← of_init_steps iss
       let iss ← with_implicit_let (env.map (·.1)) iss
       let (thm, name, attr) ← of_top_sentence s
-      pure ⟨← of_label i, trim_constraints iss, ← apply_init_steps iss thm, name, attr⟩
+      pure ⟨← of_label i, iss, thm, name, attr⟩
   | _ => throwError "unknown prop_item"
 
 def label_range (i j: Name) : CoreM (List Name) :=
@@ -567,31 +557,13 @@ def match_proofs : List ThmDecl → List (Label × _Proof) → CoreM (List (ThmD
   | decl :: ts, [] => .cons (decl, .none) <$> match_proofs ts []
   | [], (j, _) :: _ => throwError s!"unmatched proof label: {j}"
 
-def trim_step (thm: Term) : ProofStep → Option ProofStep
-  | .let ids type =>
-      let ids := ids.inter (free_vars thm)
-      if ids == [] then none else some (.let ids type)
-  | step => pure step
-
-def trim_steps (thm: Term) (steps: List ProofStep): List ProofStep :=
-  steps.filterMap (trim_step thm)
-
 def translate_proofs (outer_steps: List ProofStep) (thms_proofs: List (ThmDecl × Option _Proof))
     : TermElabM (List (ThmDecl × Option Term)) :=
   thms_proofs.mapM (fun (decl, proof) => withRef decl.thm do
-
-    -- Pre-resolve the theorem before trimming steps because resolution may change
-    -- its set of free variables (e.g. ab -> a, b).
-    let thm ← resolve_term1 (lets_vars outer_steps) decl.thm
-    let outer_steps := trim_steps thm outer_steps
-
-    -- Apply the trimmed steps, then resolve the entire theorem because the
-    -- the steps themselves may contain assumptions that need resolution.
-    let thm ← apply_init_steps outer_steps decl.thm >>= resolve_term1 []
+    let (outer_steps, thm) ← resolve_thm (outer_steps ++ decl.init_steps) decl.thm
     let outer_steps := trim_constraints outer_steps
 
-    pure ({decl with thm},
-          ← proof.mapM (translate_proof (outer_steps ++ decl.init_steps) thm)))
+    pure ({decl with thm}, ← proof.mapM (translate_proof outer_steps thm)))
 
 def of_props_proofs (outer_steps: List ProofStep) (ps: TSyntax `props_proofs) :
         TermElabM (List (ThmDecl × Option Term)) :=
