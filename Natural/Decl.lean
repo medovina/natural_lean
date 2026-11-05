@@ -1,3 +1,9 @@
+module
+
+import Lean
+import Batteries.Data.List.Basic
+public import Natural.Grammar
+import Natural.Init
 import Natural.Proof
 
 open Lean
@@ -67,7 +73,7 @@ def of_mixfix_decl (ts: TSyntaxArray `mixfix_token) (cat: Ident) (id: Name)
         pure [syntax_decl, attr_decl]
     | _ => throwError "of_mixfix_decl: expected type.name"
 
-def of_notation_decl: TSyntax ``notation_decl → CoreM (List Command)
+public def of_notation_decl: TSyntax ``notation_decl → CoreM (List Command)
   | `(notation_decl| $op:str $[(negation: $neg)]? is $_:_a
           $kind:op_kind $[$rel:relational]? operator . [ $i:ident ]) =>
       of_op_decl op neg kind rel.isSome i.getId
@@ -83,6 +89,11 @@ def of_id_sig : TSyntax ``id_sig → CoreM (Ident × Option Ident)
   | `(id_sig| $i:ident) => pure (i, none)
   | `(id_sig| $i:ident ( $j:ident )) => pure (i, some j)
   | _ => throwError "unknown base_type"
+
+def of_const : TSyntax `const → CoreM Term
+  | `(const| $i:ident) => `($i)
+  | `(const| $n:num) => `($n)
+  | _ => throwError "unknown const"
 
 def of_constructor: TSyntax ``constructor → CoreM (Term × Term)
   | `(constructor| $c:const : $t:type) => do pure (← of_const c, ← of_type t)
@@ -116,6 +127,12 @@ def of_inductive_def (name: Ident): TSyntax ``inductive_def → CoreM (List Comm
 def of_justification : TSyntax ``justification → CoreM Ident
   | `(justification| Justification . By $thm:thm_name .) => of_thm_name thm
   | _ => throwError "unknown justification"
+
+partial def of_simple_type : TSyntax `simple_type → CoreM Term
+  | `(simple_type| $i:ident) => `($i)
+  | `(simple_type| $t:simple_type × $u:simple_type) => do
+      `($(← of_simple_type t) × $(← of_simple_type u))
+  | _ => throwError "unknown simple_type"
 
 def of_quotient_def (name: Ident): TSyntax ``quotient_def → CoreM (List Command)
   | `(quotient_def| as the quotient $t:simple_type / $op:rel_op .
@@ -331,6 +348,12 @@ def quotient_lift (top_name: Ident) (def_name: Ident) (n: Nat) (arg_type: Term)
     | _ => throwError "unsupported lift"
   `(def $top_name : $type := $(mkIdent q) $def_name $by_thms)
 
+def check_no_binder_op : α × Option (BinderOp × Term) → CoreM (α × Term)
+  | (id, some (":", t)) => pure (id, t)
+  | _ => throwError "unexpected binder op"
+
+def function_name (s: String) : String := s.replace " " "_"
+
 def generate_def (decl_fn: Option String) (arg_type: Option Term)
     (env: Vars) (defeqs: List DefEq)
     (justification: Option Ident) : TermElabM (List Command) := do
@@ -452,6 +475,8 @@ def of_defs : TSyntax `defs → CoreM (List (IdVars × DefEq) × Option Ident)
         pure (← ds.toList.mapM of_def1, none)
   | _ => throwError "unknown defs"
 
+def lets_vars (lets: List ProofStep) : Vars := lets.flatMap step_vars_types
+
 def of_direct_def : TSyntax `direct_def → TermElabM (List Command)
   | `(direct_def| $[$ls:let_step .]* $defs:defs) => do
       let ls ← ls.toList.flatMapM (of_let_step ·)
@@ -491,6 +516,23 @@ structure ThmDecl where
   name: Option Ident
   attr: Option (TSyntax ``attributes)
 
+def trim_constraints : List ProofStep → List ProofStep :=
+  List.filter (fun
+    | .assume a => match a with
+      | `(_inst $_ $_) => false
+      | _ => true
+    | _ => true)
+
+def apply_init_step (step: ProofStep) (thm: Term): CoreM Term := match step with
+  | .let .. => for_all (step_vars_types step) thm
+  | .assume a => match a with
+    | `(_inst $cl $x) => `([$cl $x] → $thm)
+    | _ => `($a → $thm)
+  | _ => throwError "apply_init_step"
+
+def apply_init_steps (steps: List ProofStep) (thm: Term): CoreM Term :=
+  steps.foldrM apply_init_step thm
+
 def of_prop_item (env: Vars) : TSyntax ``prop_item → CoreM ThmDecl
   | `(prop_item| $i:label . $iss:init_steps $s:top_sentence) => withRef s do
       let iss ← of_init_steps iss
@@ -524,6 +566,15 @@ def match_proofs : List ThmDecl → List (Label × _Proof) → CoreM (List (ThmD
       else .cons (decl, .none) <$> match_proofs ts ((j, proof) :: ps)
   | decl :: ts, [] => .cons (decl, .none) <$> match_proofs ts []
   | [], (j, _) :: _ => throwError s!"unmatched proof label: {j}"
+
+def trim_step (thm: Term) : ProofStep → Option ProofStep
+  | .let ids type =>
+      let ids := ids.inter (free_vars thm)
+      if ids == [] then none else some (.let ids type)
+  | step => pure step
+
+def trim_steps (thm: Term) (steps: List ProofStep): List ProofStep :=
+  steps.filterMap (trim_step thm)
 
 def translate_proofs (outer_steps: List ProofStep) (thms_proofs: List (ThmDecl × Option _Proof))
     : TermElabM (List (ThmDecl × Option Term)) :=
@@ -669,7 +720,7 @@ def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
         pure ([command], [])
     | _ => throwError "unknown theorem"
 
-def of_theorem (corollary_of: List Ident)
+public def of_theorem (corollary_of: List Ident)
             : TSyntax ``_theorem → TermElabM (List Command × List Ident)
     | `(_theorem| $name:thm_name ? $_:str ? . $b:theorem_body) => do
         let name ← name.mapM (of_thm_name ·)
@@ -683,45 +734,12 @@ partial def final_elab (s: Syntax): CoreM Syntax := do
         Syntax.node info kind <$> args.mapM final_elab
     | _ => pure s
 
-def final_elab_command (c: Command): CoreM Command :=
+public def final_elab_command (c: Command): CoreM Command :=
   TSyntax.mk <$> final_elab c
 
-def of_thm_or_def : TSyntax `thm_or_def → TermElabM (List Command × List Ident × Bool)
+public def of_thm_or_def : TSyntax `thm_or_def → TermElabM (List Command × List Ident × Bool)
   | `(thm_or_def| Definition . $d) => (·, [], false) <$> of_definition d
   | `(thm_or_def| $_:_thm $t:_theorem) => do
     let (cmds, names) ← of_theorem [] t
     pure (cmds, names, true)
   | _ => throwError "unknown thm_or_def"
-
-elab t:top : command => do
-  try
-    -- Open the Classical namespace because elaborating if/then/else expressions
-    -- requires propositions to be decidable.  We don't want to make the user
-    -- explicitly open Classical for this purpose since these expressions would not
-    -- necessarily require the Axiom of Choice in e.g. ZFC set theory.
-    pushScope
-    elabCommand (← `(open Classical))
-
-    let cs : List Command ← liftTermElabM $ match t with
-      | `(top| Notation . $n:notation_decl) => of_notation_decl n
-      | `(top| $d:thm_or_def $[Corollary $ts:_theorem]*) => do
-          let (commands, names, is_thm) ← of_thm_or_def d
-          let commands ← commands.mapM (final_elab_command ·)
-          let corrs ← List.map (·.1) <$> ts.toList.mapM (fun c => withRef c.raw do
-            if is_thm && names == []
-              then throwError "unnamed theorem may not have a corollary"
-              else of_theorem names c)
-          pure $ commands ++ corrs.flatten
-      | _ => throwError "unknown top"
-    let c : Command := TSyntax.mk (mkNullNode cs.toArray)
-    elabCommand c
-
-    -- We trace only after elaborating because some commands could have syntax
-    -- that is defined in previous commands in the same group.
-    let ctrace cmd := do
-      trace[natural] cmd
-      pure ()
-    cs.forM ctrace
-
-  finally
-    popScope

@@ -1,14 +1,25 @@
+module
+
 import Lean
+public import Lean.Elab.Command
+public meta import Lean.Elab.Tactic.ElabTerm
+
 import Batteries.Data.List.Basic
 import Aesop
+public import Aesop.Options.Public
 
 open Lean hiding mkStrLit
+open Lean.Elab.Term
+open Lean.Meta
 open Lean.Parser hiding mkIdent
 open Lean.Parser.Term (bracketedBinder)
 open Lean.PrettyPrinter
 open Lean.Syntax
-open Elab Tactic Meta
+open Elab
 open Elab.Command
+open Elab.Tactic hiding elabTerm
+
+public section
 
 infix:50 "≮" => fun x y => ¬(x < y)
 infix:50 "≯" => fun x y => ¬(x > y)
@@ -412,9 +423,91 @@ def bound_vars (t: Term): Vars := match match_binders t with
   | .some (_, vars, _) => map_fst (·.getId) vars
   | .none => []
 
+syntax "_bind" ident+ "," term "," term : term
+
+partial def syntax_free_vars (only_free: Bool) : Syntax → List Name :=
+  let rec find (s: Syntax) : List Name :=
+    let combine (vars: List Name) (t: List Name) :=
+      if only_free then t.removeAll vars
+      else (vars ++ t).eraseDups
+    match match_binder s with
+      | .some (_bt, xs, t) => combine (xs.map (·.1.getId)) (find t)
+      | _ => match s with
+        | `(_bind $xs:ident*, $_:term, $t:term) =>
+            combine (xs.toList.map TSyntax.getId) (find t)
+        | _ => match s with
+          | .missing => []
+          | .node _ _ args => args.toList.flatMap find |>.eraseDups
+          | .ident _ _ _ _ => [s.getId]
+          | .atom _ _ => []
+  find
+
+def free_vars (t: Term): List Name := syntax_free_vars true (t.raw)
+
+def all_vars (t: Term): List Name := syntax_free_vars false (t.raw)
+
+def to_ident: Term → Ident
+  | `($n:num) => mkIdent (Name.mkSimple s!"n{n.getNat}")
+  | `($i:ident) => i
+  | _ => panic! "to_ident: unknown"
+
+def multi_and : List Term → CoreM Term := foldr1M (fun t a => `($t ∧ $a))
+
+def multi_or : List Term → CoreM Term := foldr1M (fun t a => `($t ∨ $a))
+
+def multi_prod : List Term → CoreM Term := foldr1M (fun t a => `($t * $a))
+
+partial def split_and : Term → List Term
+  | `($t ∧ $u) => split_and t ++ split_and u
+  | t => [t]
+
+def at_most (ts: List Term) : CoreM (List Term) :=
+  let pair (t: Term) (u: Term) := do
+    `(¬($t ∧ $u))
+  (all_pairs ts).mapM pair.uncurry
+
+def precisely_one (ts: List Term) : CoreM (List Term) :=
+  List.cons <$> multi_or ts <*> at_most ts
+
+partial def result_type : Term → Term
+  | `($_t → $u) => result_type u
+  | t => t
+
+def fmt_term (t: Term) : CoreM Format := do
+  let ctx : PPContext := {
+    env := (← getEnv), mctx := {}, lctx := {}, opts := (← getOptions),
+    currNamespace := (← getCurrNamespace), openDecls := (← getOpenDecls) }
+  Lean.ppTerm ctx t
+
+def trap_errors (name: String) (f: TermElabM α) : TermElabM α := do
+  if ← MonadLog.hasErrors then
+    throwError "trap_errors: preexisting error in {name}"
+  let x ← f
+  if ← MonadLog.hasErrors then
+    throwError s!"trapped error in {name}, aborting"
+  pure x
+
+def elab_term (stx: Syntax): TermElabM Expr := trap_errors "elab_term" (elabTerm stx none)
+
+def elab_type (t: Term): TermElabM Expr := trap_errors "elab_type" (elabType t)
+
+def elab_to_type (t: Term): TermElabM Expr := do
+  let e ← elab_term t
+  let type ← trap_errors "elab_to_type" (inferType e)
+  instantiateMVars type
+
+def global_info (n: Name): CoreM (Option ConstantInfo) := do
+  match (← resolveGlobalName n (enableLog := false)) with
+    | (name, _) :: _ => do
+        pure (← getConstInfo name)
+    | _ => pure none
+
+def global_type (n: Name): CoreM (Option Expr) :=
+  (ConstantInfo.type <$> ·) <$> global_info n
+
 -- syntax builders
 
-def non_keywords :=
+meta def non_keywords :=
   ["because", "case", "cases", "least", "now",
    "otherwise", "some", "this", "true", "type", "unique"]
 
@@ -447,7 +540,7 @@ macro "kdef" name:ident "=" ks:sepBy1(str, "|") : command => do
 declare_syntax_cat sdef_decl
 syntax "|" (":" num)? (atomic("(" "priority") ":=" num ")")? stx+ : sdef_decl
 
-def elab_decl (name: Ident) : TSyntax `sdef_decl → CommandElabM Unit
+meta def elab_decl (name: Ident) : TSyntax `sdef_decl → CommandElabM Unit
   | `(sdef_decl| | $[: $prec:num]? $[(priority := $prio)]? $[$args:stx]*) => do
       let command ←
         `(syntax $[: $prec:num]? $[(priority := $prio)]? $[$args:stx]* : $name)
@@ -463,7 +556,7 @@ elab "sdef_extend" name:ident decls:sdef_decl+ : command => do
 
 -- tactics
 
-def rapply (goal : MVarId) (e : Expr) : MetaM (List MVarId) := do
+meta def rapply (goal : MVarId) (e : Expr) : MetaM (List MVarId) := do
   goal.checkNotAssigned `myApply
   goal.withContext do
     let target ← goal.getType
@@ -566,3 +659,4 @@ def to_category: Category → CoreM (TSyntax ``category)
   | .theorem => `(category| theorem)
 
 end Natural
+end

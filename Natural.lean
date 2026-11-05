@@ -1,3 +1,6 @@
+module
+
+import Natural.Command
 import Natural.Decl
 import Natural.Lsp
 

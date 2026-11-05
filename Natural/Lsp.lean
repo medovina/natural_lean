@@ -1,3 +1,5 @@
+module
+
 -- Some code in this file is derived from Verso/Doc/Lsp.lean in Verso:
 --   https://github.com/leanprover/verso
 

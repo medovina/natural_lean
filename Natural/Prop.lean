@@ -1,5 +1,9 @@
+module
+
+public import Lean.CoreM
 import Natural.Grammar
 import Natural.Init
+public import Natural.Util
 
 open Lean
 open Lean.Elab
@@ -9,73 +13,12 @@ open Lean.Syntax
 
 namespace Natural
 
-syntax "_bind" ident+ "," term "," term : term
-
-partial def syntax_free_vars (only_free: Bool) : Syntax → List Name :=
-  let rec find (s: Syntax) : List Name :=
-    let combine (vars: List Name) (t: List Name) :=
-      if only_free then t.removeAll vars
-      else (vars ++ t).eraseDups
-    match match_binder s with
-      | .some (_bt, xs, t) => combine (xs.map (·.1.getId)) (find t)
-      | _ => match s with
-        | `(_bind $xs:ident*, $_:term, $t:term) =>
-            combine (xs.toList.map TSyntax.getId) (find t)
-        | _ => match s with
-          | .missing => []
-          | .node _ _ args => args.toList.flatMap find |>.eraseDups
-          | .ident _ _ _ _ => [s.getId]
-          | .atom _ _ => []
-  find
-
-def free_vars (t: Term): List Name := syntax_free_vars true (t.raw)
-
-def all_vars (t: Term): List Name := syntax_free_vars false (t.raw)
-
-def to_ident: Term → Ident
-  | `($n:num) => mkIdent (Name.mkSimple s!"n{n.getNat}")
-  | `($i:ident) => i
-  | _ => panic! "to_ident: unknown"
-
-def multi_and : List Term → CoreM Term := foldr1M (fun t a => `($t ∧ $a))
-
-def multi_or : List Term → CoreM Term := foldr1M (fun t a => `($t ∨ $a))
-
-def multi_prod : List Term → CoreM Term := foldr1M (fun t a => `($t * $a))
-
-partial def split_and : Term → List Term
-  | `($t ∧ $u) => split_and t ++ split_and u
-  | t => [t]
-
-def at_most (ts: List Term) : CoreM (List Term) :=
-  let pair (t: Term) (u: Term) := do
-    `(¬($t ∧ $u))
-  (all_pairs ts).mapM pair.uncurry
-
-def precisely_one (ts: List Term) : CoreM (List Term) :=
-  List.cons <$> multi_or ts <*> at_most ts
-
-partial def result_type : Term → Term
-  | `($_t → $u) => result_type u
-  | t => t
-
-def fmt_term (t: Term) : CoreM Format := do
-  let ctx : PPContext := {
-    env := (← getEnv), mctx := {}, lctx := {}, opts := (← getOptions),
-    currNamespace := (← getCurrNamespace), openDecls := (← getOpenDecls) }
-  Lean.ppTerm ctx t
-
-def of_const : TSyntax `const → CoreM Term
-  | `(const| $i:ident) => `($i)
-  | `(const| $n:num) => `($n)
-  | _ => throwError "unknown const"
-
-def of_id_list : TSyntax ``id_list → CoreM (List Ident)
+public def of_id_list : TSyntax ``id_list → CoreM (List Ident)
   | `(id_list| $id:ident $[, $ids:ident $_:comma_ahead]* $[$[,]? and $id2:ident]?) => do
       pure $ [id] ++ ids.toList ++ id2.toList
   | _ => throwError "unknown id_list"
 
-def of_natural_name (stx: Syntax) : CoreM Ident := do
+public def of_natural_name (stx: Syntax) : CoreM Ident := do
   -- The name we receive here is wrapped in a syntax category such as natural_property,
   -- so we must look below the top-level tag.
   let s := stx[0]
@@ -88,7 +31,7 @@ def of_natural_name (stx: Syntax) : CoreM Ident := do
     | _ => throwError "unknown name"
   mkIdentFromRef name (canonical := true)
 
-partial def of_natural_type (ntype: TSyntax `natural_type) : CoreM Term :=
+public partial def of_natural_type (ntype: TSyntax `natural_type) : CoreM Term :=
   withRef ntype do match ntype with
     | `(natural_type| type)
     | `(natural_type| types) => `(Type)
@@ -116,9 +59,9 @@ def op_map := [
   ("|", "∣")  -- map vertical bar to division symbol
   ]
 
-def map_op (op: String) := (op_map.lookup op).getD op
+public def map_op (op: String) := (op_map.lookup op).getD op
 
-def of_op (op: TSyntax α): String := map_op (syntax_atom op)
+public def of_op (op: TSyntax α): String := map_op (syntax_atom op)
 
 -- A map from infix operators to their associated type classes in Lean.
 -- For example, Lean elaborates (x + y) to (Add.add x y).
@@ -138,7 +81,7 @@ def prefix_op_class := [ ("-", `neg, ``Neg) ]
 
 def lookup_op_attr (op: String) : CoreM (Option OpInfo) := lookup_assoc op_extension op
 
-def lookup_op (op: String) (kind: OpKind) : CoreM (Option OpInfo) :=
+public def lookup_op (op: String) (kind: OpKind) : CoreM (Option OpInfo) :=
   let table := match kind with
     | .infix => infix_op_class
     | .prefix => prefix_op_class
@@ -153,7 +96,7 @@ def build_op (kind: OpKind) (op: String) (args: List Term): CoreM Term := do
   let ns := ((← lookup_op_attr op).map (·.ns)).getD .anonymous
   pure $ apply_op ns kind op args
 
-def build_infix (t: Term) (op: String) (u: Term) : CoreM Term :=
+public def build_infix (t: Term) (op: String) (u: Term) : CoreM Term :=
   build_op .infix op [t, u]
 
 def fun_to_op (n: Name) : Option String :=
@@ -198,7 +141,7 @@ def of_is_tf : TSyntax ``is_tf → CoreM Bool
   | `(is_tf| is false) => pure false
   | _ => throwError "unknown is_tf"
 
-partial def resolve_left (s: Syntax): CoreM Term := withRef s do
+public partial def resolve_left (s: Syntax): CoreM Term := withRef s do
   match s with
     | `(_app_or_mul $t:term $u:term) => do
        let (t, u) ← mapM_pair resolve_left (t, u)
@@ -221,7 +164,7 @@ def try_elab [Monad m] [MonadExcept Exception m] {α: Type u}
           else throw ex
         | _ => throw ex
 
-def elab_expr (expr: Syntax): CoreM Term := do
+public def elab_expr (expr: Syntax): CoreM Term := do
   let fns : List NaturalElab :=
     (naturalElabAttribute.getEntries (← getEnv) expr.getKind).map (·.value)
   let (stx, bound, type) ← (← try_elab fns expr).getDM
@@ -229,12 +172,6 @@ def elab_expr (expr: Syntax): CoreM Term := do
   match bound with
     | #[] => pure stx
     | _ => `(_bind $bound:ident*, $type:term, $stx:term)
-
-def function_name (s: String) : String := s.replace " " "_"
-
-def check_no_binder_op : α × Option (BinderOp × Term) → CoreM (α × Term)
-  | (id, some (":", t)) => pure (id, t)
-  | _ => throwError "unexpected binder op"
 
 def apply2 (r : Ident) (e f: Term) : CoreM Term :=
     match fun_to_op r.getId with
@@ -263,11 +200,11 @@ def of_some_or_unique : TSyntax ``_some_or_unique → CoreM Bool
   | `(_some_or_unique| the unique) => pure true
   | _ => throwError "unknown _some_or_unique"
 
-def of_thm_name: TSyntax ``thm_name → CoreM Ident
+public def of_thm_name: TSyntax ``thm_name → CoreM Ident
   | `(thm_name| $i:ident) => pure i
   | _ => throwError s!"unknown thm_name"
 
-def of_label: TSyntax ``label → CoreM Name
+public def of_label: TSyntax ``label → CoreM Name
   | `(label| $i:ident) => pure i.getId
   | _ => throwError "unknown label"
 
@@ -278,7 +215,7 @@ def of_thm_ref: TSyntax `thm_ref → CoreM Ident
       pure (mkIdent (`_part ++ l))
   | _ => throwError s!"unknown thm_ref"
 
-def of_reference: TSyntax `reference → CoreM (List Ident)
+public def of_reference: TSyntax `reference → CoreM (List Ident)
   | `(reference| $[$n:thm_ref] and*) => n.toList.mapM of_thm_ref
   | `(reference| the fact that $_p:prop)
   | `(reference| $_:assumption $[that $_p:prop]?) => pure []  -- ignore prop for now
@@ -291,7 +228,7 @@ partial def of_if_case : TSyntax `if_case → CoreM (Term × Term)
   | `(if_case| $e:expr if $p:prop |) => pairM (of_expr e) (of_prop1 p)
   | _ => throwError "unknown if_case"
 
-partial def of_expr (expr: TSyntax `expr): CoreM Term := withRef expr do
+public partial def of_expr (expr: TSyntax `expr): CoreM Term := withRef expr do
   match expr with
     | `(expr| $n:num) => pure n
     | `(expr| $i:ident) => pure i
@@ -327,15 +264,9 @@ partial def of_expr (expr: TSyntax `expr): CoreM Term := withRef expr do
           build_op kind (map_op op) (← ts.mapM (fun e => of_expr ⟨e⟩))
       | _ => elab_expr expr
 
-partial def of_type : TSyntax ``type → CoreM Term
+public partial def of_type : TSyntax ``type → CoreM Term
   | `(type| $e:expr) => of_expr e >>= (resolve_left ·.raw)
   | _ => throwError "unknown type"
-
-partial def of_simple_type : TSyntax `simple_type → CoreM Term
-  | `(simple_type| $i:ident) => `($i)
-  | `(simple_type| $t:simple_type × $u:simple_type) => do
-      `($(← of_simple_type t) × $(← of_simple_type u))
-  | _ => throwError "unknown simple_type"
 
 partial def of_ids_type : TSyntax ``ids_type → CoreM (List Ident × BinderOp × Term)
   | `(ids_type| $xs:ident,* $op:binder_op $t:type) => do
@@ -370,7 +301,7 @@ partial def of_multi_or (prop: TSyntax `multi_or): CoreM Term := withRef prop do
           of_multi_specifier s (← es.getElems.toList.mapM of_rel_prop) >>= multi_and
     | _ => throwError "unknown multi_or"
 
-partial def of_ids_types : TSyntax `ids_types → CoreM IdVars
+public partial def of_ids_types : TSyntax `ids_types → CoreM IdVars
   | `(ids_types| $[$ids:ids_type] and*) => do
       ids.toList.flatMapM (fun i => do
         let (xs, type) ← of_ids_type i
@@ -381,7 +312,7 @@ partial def of_ids_types : TSyntax `ids_types → CoreM IdVars
       pure $ xs.map (·, ":", type)
   | _ => throwError "unknown ids_types"
 
-partial def of_for_all_ids : TSyntax ``for_all_ids → CoreM IdVars
+public partial def of_for_all_ids : TSyntax ``for_all_ids → CoreM IdVars
   | `(for_all_ids| $_:_for_all $ids_type:ids_types) => of_ids_types ids_type
   | _ => throwError "unknown for_all_ids"
 
@@ -392,7 +323,7 @@ partial def of_for_all_opt_with : TSyntax ``for_all_opt_with → CoreM (IdVars �
 
 -- natural language
 
-partial def of_adjective : TSyntax ``adjective → CoreM (Term → CoreM Term)
+public partial def of_adjective : TSyntax ``adjective → CoreM (Term → CoreM Term)
   | `(adjective| only) => pure (fun _x => pure mk_true)
   | `(adjective| $n:natural_property) => do
       let a ← of_natural_name n
@@ -625,21 +556,12 @@ def fix_vars (t: Term): Term :=
   let map := to_map.zip names
   ⟨map_vars map t.raw⟩
 
-def of_prop (prop: TSyntax `prop) : CoreM Term :=
+public def of_prop (prop: TSyntax `prop) : CoreM Term :=
   fix_vars <$> of_prop1 prop
 
 def is_declared (n: Name): MetaM Bool := do
   pure $ (← getLCtx).usesUserName n ||
          (← resolveGlobalName n (enableLog := false)) != []
-
-def global_info (n: Name): CoreM (Option ConstantInfo) := do
-  match (← resolveGlobalName n (enableLog := false)) with
-    | (name, _) :: _ => do
-        pure (← getConstInfo name)
-    | _ => pure none
-
-def global_type (n: Name): CoreM (Option Expr) :=
-  (ConstantInfo.type <$> ·) <$> global_info n
 
 def type_matches_name (type: Expr) (n: Name) :=
   (type.getAppFnArgs).1 == n
@@ -650,23 +572,6 @@ def is_type_in_class (type: Expr) (cl: Name): MetaM Bool := do
   match (← trySynthInstance inst) with
     | LOption.some _ => pure true
     | _ => pure false
-
-def trap_errors (name: String) (f: TermElabM α) : TermElabM α := do
-  if ← MonadLog.hasErrors then
-    throwError "trap_errors: preexisting error in {name}"
-  let x ← f
-  if ← MonadLog.hasErrors then
-    throwError s!"trapped error in {name}, aborting"
-  pure x
-
-def elab_term (stx: Syntax): TermElabM Expr := trap_errors "elab_term" (elabTerm stx none)
-
-def elab_type (t: Term): TermElabM Expr := trap_errors "elab_type" (elabType t)
-
-def elab_to_type (t: Term): TermElabM Expr := do
-  let e ← elab_term t
-  let type ← trap_errors "elab_to_type" (inferType e)
-  instantiateMVars type
 
 def matches_op (kind: OpKind) (t: Term) (info: OpInfo): TermElabM Bool :=
   (kind == info.kind && ·) <$> do
@@ -681,7 +586,7 @@ def with_local (name: Name) (type: Term) (f: TermElabM α) : TermElabM α :=
       withoutAutoBoundImplicit f)
 
 -- Bind the given variables with their types, then run f.
-def with_vars (le: Vars) (f: TermElabM α) : TermElabM α := match le with
+public def with_vars (le: Vars) (f: TermElabM α) : TermElabM α := match le with
   | [] => f
   | (name, none) :: rest =>
       let type := Lean.mkConst ``Unit  -- just a guess
@@ -694,11 +599,11 @@ def with_vars (le: Vars) (f: TermElabM α) : TermElabM α := match le with
         | _ => throwError s!"expected container type: {type}"
   | _ => throwError "resolve_term1: unknown binder op"
 
-abbrev LocalEnv := List (Name × Term)    -- maps name to type
+public abbrev LocalEnv := List (Name × Term)    -- maps name to type
 
 -- Infer the type of a term in an environment with the given local variables,
 -- whose types may have implicit parameters.
-def infer_fun_type (args: LocalEnv) (t: Term): TermElabM Expr := match args with
+public def infer_fun_type (args: LocalEnv) (t: Term): TermElabM Expr := match args with
   | [] => elab_to_type t
   | (x, type) :: rest =>
       withAutoBoundImplicit $ do
@@ -711,7 +616,7 @@ mutual
 
 -- Resolve ambiguities in a term.  For example, a(b) will become either
 -- a product a · b or a function call, depending on the type of a.
-partial def resolve (s: Syntax) : TermElabM Term := withRef s do
+public partial def resolve (s: Syntax) : TermElabM Term := withRef s do
   match s with
     | `($n:num) => pure n
     | `($i:ident) => do
@@ -771,10 +676,10 @@ partial def resolve (s: Syntax) : TermElabM Term := withRef s do
               pure ⟨.node info kind args⟩
           | _ => pure ⟨s⟩
 
-partial def resolve_term1 (le: Vars) (t: Term) : TermElabM Term :=
+public partial def resolve_term1 (le: Vars) (t: Term) : TermElabM Term :=
   with_vars le (resolve t.raw)
 
-partial def resolve_term (le: LocalEnv) (t: Term) : TermElabM Term :=
+public partial def resolve_term (le: LocalEnv) (t: Term) : TermElabM Term :=
   resolve_term1 (le.map (fun (x, type) => (x, ":", type))) t
 
 end

@@ -1,10 +1,16 @@
+module
+
 import Lean
-import Natural.Util
+public import Natural.Util
 
 open Lean
 open Lean.Elab
+open Lean.Parser
+open Lean.PrettyPrinter
 
 namespace Natural
+
+public section
 
 abbrev AssocExtension α := SimpleScopedEnvExtension (String × α) (List (String × α))
 
@@ -19,7 +25,7 @@ def lookup_assoc {α: Type} (ext: AssocExtension α) (name: String): CoreM (Opti
 
 syntax (name := natural) "natural " category str : attr
 
-initialize name_extension : AssocExtension (Category × Name) ←
+public initialize name_extension : AssocExtension (Category × Name) ←
   registerSimpleScopedEnvExtension {
     initial := []
     addEntry | state, (key, val) => (key, val) :: state
@@ -87,7 +93,50 @@ unsafe initialize naturalElabAttribute : KeyedDeclsAttribute NaturalElab ←
   mkElabAttribute NaturalElab `builtin_natural_elab `natural_elab
     `Natural `Natural.NaturalElab "expr"
 
+-- name syntax
+
+def singular_name : Ident → Option Ident → String
+  | i, none => singular i.getId.toString
+  | i, some j => s!"{i.getId.toString} {singular j.getId.toString}"
+
+meta def filter_ident (f : String → Bool) (err: String): Parser :=
+  atomic (ident >> checkStackTop (fun stx => stx.isIdOrAtom?.all f) err)
+
+meta def var : Parser := filter_ident (fun s => s.length == 1) "expected var"
+meta def non_var : Parser := filter_ident (fun s => s.length > 1) "expected non_var"
+
+@[combinator_formatter var] def var.formatter : Formatter := pure ()
+@[combinator_parenthesizer var] def var.parenthesizer : Parenthesizer := pure ()
+
+@[combinator_formatter non_var] def non_var.formatter : Formatter := pure ()
+@[combinator_parenthesizer non_var] def non_var.parenthesizer : Parenthesizer := pure ()
+
+-- a simple name such as "integer"
+syntax name1 := non_var
+
+def lookup_name1 (env: Environment): Syntax → Option (Category × Name)
+  | `(name1| $i:ident) =>
+      (lookup_assoc_in_env env name_extension (singular_name i none))
+  | _ => none
+
+def check_name1 (c: Category) (env: Environment) (s: Syntax): Bool :=
+  (lookup_name1 env s).any (·.1 == c)
+
+-- a compound name such as "natural number"
+syntax name2 := non_var non_var
+
+def lookup_name2 (env: Environment) (s: Syntax): Option (Category × Name) :=
+  match s with
+  | `(name2| $i:ident $j:ident) =>
+      lookup_assoc_in_env env name_extension (singular_name i j)
+  | _ => none
+
+def check_name2 (c: Category) (env: Environment) (s: Syntax): Bool :=
+  (lookup_name2 env s).any (·.1 == c)
+
 -- tracing
 
 initialize
    forM [`natural, `natural.tree] registerTraceClass
+
+end

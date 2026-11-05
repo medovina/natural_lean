@@ -1,5 +1,11 @@
+module
+
 import Lean
+
+public meta import Natural.Init
+
 import Natural.Init
+import Natural.Util
 
 open Lean
 open Lean.Parser
@@ -7,9 +13,7 @@ open Lean.Parser.Term (attributes)
 
 namespace Natural
 
-sdef const
-  | ident
-  | num
+public section
 
 syntax super_digit :=
   unicode("⁰", "^0") <|> unicode("¹", "^1") <|> unicode("²", "^2") <|> unicode("³", "^3") <|>
@@ -30,56 +34,25 @@ syntax comma_ahead := lookahead("," <|> "and")
 syntax id_list :=
   ident (atomic("," ident comma_ahead))* (atomic("," ? "and") ident)?
 
-def filter_ident (f : String → Bool) (err: String): Parser :=
-  atomic (ident >> checkStackTop (fun stx => stx.isIdOrAtom?.all f) err)
+meta def mk_name1 : Parser := node ``name1 non_var
 
-def var : Parser := filter_ident (fun s => s.length == 1) "expected var"
-def non_var : Parser := filter_ident (fun s => s.length > 1) "expected non_var"
-
-def singular_name : Ident → Option Ident → String
-  | i, none => singular i.getId.toString
-  | i, some j => s!"{i.getId.toString} {singular j.getId.toString}"
-
--- a simple name such as "integer"
-syntax name1 := non_var
-def mk_name1 : Parser := node ``name1 non_var
-
-def lookup_name1 (env: Environment): Syntax → Option (Category × Name)
-  | `(name1| $i:ident) =>
-      (lookup_assoc_in_env env name_extension (singular_name i none))
-  | _ => none
-
-def check_name1 (c: Category) (env: Environment) (s: Syntax): Bool :=
-  (lookup_name1 env s).any (·.1 == c)
-
-def name1_of_cat (c: Category) : Parser :=
+meta def name1_of_cat (c: Category) : Parser :=
   atomic (mk_name1 >> checkStackTopEnv (check_name1 c) "unknown simple name")
 
--- a compound name such as "natural number"
-syntax name2 := non_var non_var
-def mk_name2 : Parser := node ``name2 (non_var >> non_var)
+meta def mk_name2 : Parser := node ``name2 (non_var >> non_var)
 
-def lookup_name2 (env: Environment) (s: Syntax): Option (Category × Name) :=
-  match s with
-  | `(name2| $i:ident $j:ident) =>
-      lookup_assoc_in_env env name_extension (singular_name i j)
-  | _ => none
-
-def check_name2 (c: Category) (env: Environment) (s: Syntax): Bool :=
-  (lookup_name2 env s).any (·.1 == c)
-
-def name2_of_cat (c: Category) : Parser :=
+meta def name2_of_cat (c: Category) : Parser :=
   atomic (mk_name2 >> checkStackTopEnv (check_name2 c) "unknown compound name")
 
-def name_of_cat (c: Category): Parser := name1_of_cat c <|> name2_of_cat c
+meta def name_of_cat (c: Category): Parser := name1_of_cat c <|> name2_of_cat c
 
-def _attribute := name_of_cat Category.attribute
-def _property := name_of_cat Category.property
-def _property_noun := name_of_cat Category.property_noun
-def _comparative := name_of_cat Category.comparative
-def _relation := name_of_cat Category.relation
-def _type_name := name_of_cat Category.type
-def _class := name_of_cat Category.class
+meta def _attribute := name_of_cat Category.attribute
+meta def _property := name_of_cat Category.property
+meta def _property_noun := name_of_cat Category.property_noun
+meta def _comparative := name_of_cat Category.comparative
+meta def _relation := name_of_cat Category.relation
+meta def _type_name := name_of_cat Category.type
+meta def _class := name_of_cat Category.class
 
 syntax natural_attribute := _attribute
 syntax natural_property := _property
@@ -176,10 +149,6 @@ syntax _some_or_unique id ":" expr "such" "that" prop : expr
 syntax atomic(expr "if") prop "|" : if_case
 
 syntax type := expr
-
-sdef simple_type
-  | id
-  | simple_type "×" simple_type
 
 syntax ids_type := atomic(ident,+ binder_op) type
 
@@ -516,12 +485,20 @@ syntax notation_decl := (op_decl <|> mixfix_decl) "." "[" ident "]"
 
 syntax id_sig := ident atomic("(" var ")")?
 
+sdef const
+  | ident
+  | num
+
 syntax constructor := const ":" type
 
 syntax inductive_def :=
   "inductively" "with" "constructors" sepBy1(constructor, "and") "."
 
 syntax justification := "Justification" "." "By" thm_name "."
+
+sdef simple_type
+  | id
+  | simple_type "×" simple_type
 
 syntax quotient_def := "as" "the" "quotient" simple_type "/" rel_op "." justification
 
@@ -612,3 +589,5 @@ sdef thm_or_def
 sdef top
   | "Notation" "." notation_decl
   | thm_or_def ("Corollary" _theorem)*
+
+end

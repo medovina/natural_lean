@@ -1,4 +1,11 @@
-import Natural.Prop
+module
+
+public import Lean.CoreM
+import Batteries.Data.List.Basic
+import Natural.Grammar
+import Natural.Init
+public import Natural.Prop
+public import Natural.Util
 
 open Lean
 open Lean.Elab.Term
@@ -9,7 +16,7 @@ namespace Natural
 
 -- proof steps
 
-inductive Reason where
+public inductive Reason where
   | tactic (t: Syntax.Tactic)
   | apply (ns: List Ident)
   | induction (kind: Option Ident)
@@ -53,7 +60,7 @@ def ex_vars (t: Term) : IdVars := match match_binders t with
   | .some (.exists, xs, _) => xs
   | _ => []
 
-inductive ProofStep where
+public inductive ProofStep where
   | assert (p: Term) (reason: Option Reason)
   | assert_chain (ts: List Term) (ops: List String) (tactics: List Term)
   | let (ids: List Name) (type: Term)
@@ -86,7 +93,7 @@ partial def step_mapM [Monad m] (f: Term → m Term) (rec: ProofStep → m Proof
                      (← f concl)
     | .group steps => pure $ .group (← steps.mapM rec)
 
-def step_vars_types : ProofStep → Vars
+public def step_vars_types : ProofStep → Vars
   | .let ids type => ids.map (·, ":", type)
   | .let_def .. => panic! "no environment"
   | .assume p => map_fst TSyntax.getId (ex_vars p)
@@ -243,7 +250,7 @@ def of_proof_prop: TSyntax `proof_prop → CoreM (List ProofStep)
         pure (because ++ [s] ++ contra)
   | _ => throwError "unknown proof_prop"
 
-def of_let_step: TSyntax `let_step → CoreM (List ProofStep)
+public def of_let_step: TSyntax `let_step → CoreM (List ProofStep)
   | `(let_step| $_:_let $xs:ident,* : $type:type) => do
         pure [.let (xs.getElems.toList.map TSyntax.getId) (← of_type type)]
   | `(let_step| $_:_let $xs:id_list be $_:_a ?
@@ -256,7 +263,7 @@ def of_let_step: TSyntax `let_step → CoreM (List ProofStep)
         pure (.let (xs.map TSyntax.getId) type :: inst_decls)
   | _ => throwError "unknown let_step"
 
-def of_init_step: TSyntax `init_step → CoreM (List ProofStep)
+public def of_init_step: TSyntax `init_step → CoreM (List ProofStep)
   | `(init_step| $ls:let_step) => of_let_step ls
   | `(init_step| $_:_assume $p:prop) => do pure [.assume (← of_prop p)]
   | s => throwError s!"unknown init_step: {s}"
@@ -325,7 +332,7 @@ def of_proof_sentence: TSyntax `proof_sentence → CoreM (List ProofStep)
       of_proof_sentence1 s
   | _ => throwError "unknown proof_sentence"
 
-def of_proof_label: TSyntax ``proof_label → CoreM (Name × Option Name)
+public def of_proof_label: TSyntax ``proof_label → CoreM (Name × Option Name)
   | `(proof_label| $i:label $[- $j:label]? . ) =>
       pairM (of_label i) (j.mapM of_label)
   | _ => throwError "unknown proof_label"
@@ -467,10 +474,10 @@ partial def resolve_block : Block → TermElabM Block
       let step ← resolve_step step
       pure ⟨step, ← with_step_decl_vars step (children.mapM (resolve_block))⟩
 
-def proof_by_multi (names: List Ident) : CoreM Term :=
+public def proof_by_multi (names: List Ident) : CoreM Term :=
   tactic (.some (.apply names))
 
-def proof_by (name: Option Ident) : CoreM Term := proof_by_multi name.toList
+public def proof_by (name: Option Ident) : CoreM Term := proof_by_multi name.toList
 
 -- Given a list of ids such as [x, y, z], produce an existential
 -- binding pattern such as `( ⟨x, ⟨y, ⟨z, _⟩⟩⟩ ).
@@ -571,37 +578,9 @@ partial def translate (top: Bool) (parent_ex: Vars) (prev: Term) (concl: Option 
 
 -- proofs
 
-inductive _Proof where
+public inductive _Proof where
   | steps (l: List ProofStep)
   | proof_by (r: Option Reason)
-
-def lets_vars (lets: List ProofStep) : Vars := lets.flatMap step_vars_types
-
-def apply_init_step (step: ProofStep) (thm: Term): CoreM Term := match step with
-  | .let .. => for_all (step_vars_types step) thm
-  | .assume a => match a with
-    | `(_inst $cl $x) => `([$cl $x] → $thm)
-    | _ => `($a → $thm)
-  | _ => throwError "apply_init_step"
-
-def apply_init_steps (steps: List ProofStep) (thm: Term): CoreM Term :=
-  steps.foldrM apply_init_step thm
-
-def trim_constraints : List ProofStep → List ProofStep :=
-  List.filter (fun
-    | .assume a => match a with
-      | `(_inst $_ $_) => false
-      | _ => true
-    | _ => true)
-
-def trim_step (thm: Term) : ProofStep → Option ProofStep
-  | .let ids type =>
-      let ids := ids.inter (free_vars thm)
-      if ids == [] then none else some (.let ids type)
-  | step => pure step
-
-def trim_steps (thm: Term) (steps: List ProofStep): List ProofStep :=
-  steps.filterMap (trim_step thm)
 
 def is_implicit_let (env: List Name) : Term → Option Ident
   | `($x:ident ∈ $_) =>
@@ -619,7 +598,7 @@ def elim_implicit_let (env: List Name) : List Term → CoreM (List ProofStep)
         | none => pure ([.assume u], env)
       pure $ us ++ (← elim_implicit_let env rest)
 
-def with_implicit_let (env: List Name) (steps: List ProofStep) : CoreM (List ProofStep) :=
+public def with_implicit_let (env: List Name) (steps: List ProofStep) : CoreM (List ProofStep) :=
   match steps with
     | [] => pure []
     | step :: rest => do
@@ -661,7 +640,7 @@ partial def infer_conclusions : List ProofStep → CoreM (List ProofStep)
         | _ => pure (step, [])
       (step :: ·) <$> infer_conclusions (extra ++ steps)
 
-def translate_proof (init_steps: List ProofStep) (thm: Term): _Proof → TermElabM Term
+public def translate_proof (init_steps: List ProofStep) (thm: Term): _Proof → TermElabM Term
   | .steps steps => do
       let steps ← match steps with
           | .let .. :: _ => pure steps    -- do not insert init steps
@@ -689,7 +668,7 @@ def translate_proof (init_steps: List ProofStep) (thm: Term): _Proof → TermEla
         default)
   | .proof_by r => tactic r
 
-def of_proof: TSyntax `proof → CoreM _Proof
+public def of_proof: TSyntax `proof → CoreM _Proof
   | `(proof| $steps:case_unit*) => do
         pure $ .steps $ List.flatten (← steps.toList.mapM of_case_unit)
   | `(proof| By $r:reason .) => do pure $ .proof_by (← of_reason r)
