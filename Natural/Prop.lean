@@ -612,6 +612,10 @@ public def infer_fun_type (args: LocalEnv) (t: Term): TermElabM Expr := match ar
           withoutAutoBoundImplicit (infer_fun_type rest t))
         mkArrow type u
 
+def can_coerce (t u : Expr) : MetaM Bool := do
+  withLocalDeclD `x t (fun x => do
+    pure $ (← coerceSimple? x u) matches LOption.some _)
+
 mutual
 
 -- Resolve ambiguities in a term.  For example, a(b) will become either a product a · b
@@ -645,10 +649,13 @@ public partial def resolve (as_type: Bool) (s: Syntax) : TermElabM Term := withR
           | _ =>
               let type ← elab_to_type t
               if ← is_type_in_class type `Mul then `($t * $u) else match type.arrow? with
-                | .some (e, _) =>
-                    match (← whnfR e).app2? ``Subtype with
+                | .some (arg_type, _) =>
+                   let arg_type ← whnfR arg_type
+                    match arg_type.app2? ``Subtype with
                       | .some (base_type, _fn) =>
-                          if ← isDefEqI base_type (← elab_to_type u) then
+                          let u_type ← elab_to_type u >>= (whnfR ·)
+                          if !(← can_coerce u_type arg_type) &&
+                              (← can_coerce u_type base_type) then
                             -- prove that the argument u belongs to the subtype expected by t
                             `($t ⟨$u, by default⟩)
                           else `($t $u)
