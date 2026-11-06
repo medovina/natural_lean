@@ -596,11 +596,12 @@ partial def translate (top: Bool) (parent_ex: Vars) (prev: Term) (concl: Option 
         | .case cases concl =>
             let ts ← List.toArray <$> children.mapM (translate_case concl)
             let d ← multi_or (cases.map Prod.fst)
-            let f := Lean.mkIdent $ match ts.size with
-              | 2 => ``Or.elim
-              | 3 => ``Or.elim3
-              | _ => panic! "unimplemented"
-            let t ← `($f (show $d by default) $ts*)
+            let disj ← withRef (cases.getLast!.fst) `(show $d by default)
+            let f ← Lean.mkIdent <$> match ts.size with
+              | 2 => pure ``Or.elim
+              | 3 => pure ``Or.elim3
+              | _ => throwError "translate: unimplemented"
+            let t ← `($f $disj $ts*)
             pure (← `(letDecl| : _ := $t), concl)
         | .group _ => panic! "group unexpected"
       let (r, rest_concl) ← translate top parent_ex prop concl rest
