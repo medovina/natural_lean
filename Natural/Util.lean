@@ -435,6 +435,7 @@ partial def syntax_free_vars (only_free: Bool) : Syntax → List Name :=
       | _ => match s with
         | `(_bind $xs:ident*, $_:term, $t:term) =>
             combine (xs.toList.map TSyntax.getId) (find t)
+        | `(_holds $_:term $t:term) => find t
         | _ => match s with
           | .missing => []
           | .node _ _ args => args.toList.flatMap find |>.eraseDups

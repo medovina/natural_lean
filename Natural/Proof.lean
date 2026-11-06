@@ -485,9 +485,6 @@ def trim_step (thm: Term) : ProofStep → Option ProofStep
       if ids == [] then none else some (.let ids type)
   | step => pure step
 
-def trim_steps (thm: Term) (steps: List ProofStep): List ProofStep :=
-  steps.filterMap (trim_step thm)
-
 def apply_init_step (step: ProofStep) (thm: Term): CoreM Term := match step with
   | .let .. => for_all (step_vars_types step) thm
   | .assume a => match a with
@@ -679,6 +676,15 @@ partial def infer_conclusions : List ProofStep → CoreM (List ProofStep)
         | _ => pure (step, [])
       (step :: ·) <$> infer_conclusions (extra ++ steps)
 
+-- Remove any let or assume that is not an assertion and has no children.
+partial def trim_blocks (blocks: List Block): List Block :=
+  let trim: Block → Option Block | ⟨step, blocks⟩ => match step with
+    | .let .. | .let_def .. | .assume .. =>
+        let blocks := trim_blocks blocks
+        if blocks.isEmpty then .none else .some ⟨step, blocks⟩
+    | _ => .some ⟨step, blocks⟩
+  blocks.flatMap ((·.toList) ∘ trim)
+
 public def translate_proof (init_steps: List ProofStep) (thm: Term): _Proof → TermElabM Term
   | .steps steps => do
       let steps ← match steps with
@@ -689,6 +695,7 @@ public def translate_proof (init_steps: List ProofStep) (thm: Term): _Proof → 
       let blocks := infer_blocks steps
       let blocks ← blocks.mapM resolve_block
       trace[natural.tree] pretty ("\n" ++ (← show_blocks blocks))
+      let blocks := trim_blocks blocks
       (·.1) <$> translate True [] (← `(())) none blocks
   | .proof_by (.some (.by_definition_of i)) => do
       let q := i.getId
