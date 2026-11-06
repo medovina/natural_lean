@@ -677,7 +677,8 @@ public partial def resolve (as_type: Bool) (s: Syntax) : TermElabM Term := withR
         let t ← resolve as_type t
         let type ← elab_to_type t >>= (whnfR ·)
         -- If the value is a subtype, we need a coercion for Lean to find a Singleton instance.
-        if type.isAppOf ``Subtype then `({↑$t:term}) else `({$t:term})
+        -- In some situations the ↑ operator fails but invoking CoeT.coe works, mysteriously.
+        if type.isAppOf ``Subtype then `({CoeT.coe $t:term}) else `({$t:term})
     | _ => match match_binder s with
       | .some (bt, vars, t) => do
           let vars ← vars.mapM (fun
