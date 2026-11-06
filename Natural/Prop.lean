@@ -616,6 +616,25 @@ def can_coerce (t u : Expr) : MetaM Bool := do
   withLocalDeclD `x t (fun x => do
     pure $ (← coerceSimple? x u) matches LOption.some _)
 
+def resolve_app_or_mul (t u: Term): TermElabM Term := do
+  match t with
+    | `($_:num) => `($t * $u)
+    | _ =>
+        let type ← elab_to_type t
+        if ← is_type_in_class type `Mul then `($t * $u) else match type.arrow? with
+          | .some (arg_type, _) =>
+              let arg_type ← whnfR arg_type
+              match arg_type.app2? ``Subtype with
+                | .some (base_type, _fn) =>
+                    let u_type ← elab_to_type u >>= (whnfR ·)
+                    if !(← can_coerce u_type arg_type) &&
+                        (← can_coerce u_type base_type) then
+                      -- prove that the argument u belongs to the subtype expected by t
+                      `($t ⟨$u, by default⟩)
+                    else `($t $u)
+                | .none => `($t $u)
+          | .none => `($t $u)
+
 mutual
 
 -- Resolve ambiguities in a term.  For example, a(b) will become either a product a · b
@@ -644,23 +663,7 @@ public partial def resolve (as_type: Bool) (s: Syntax) : TermElabM Term := withR
             else s!"{n} is neither defined nor an implicit product")
     | `(_app_or_mul $t:term $u:term) => do
         let (t, u) ← mapM_pair (resolve as_type) (t, u)
-        match t with
-          | `($_:num) => `($t * $u)
-          | _ =>
-              let type ← elab_to_type t
-              if ← is_type_in_class type `Mul then `($t * $u) else match type.arrow? with
-                | .some (arg_type, _) =>
-                   let arg_type ← whnfR arg_type
-                    match arg_type.app2? ``Subtype with
-                      | .some (base_type, _fn) =>
-                          let u_type ← elab_to_type u >>= (whnfR ·)
-                          if !(← can_coerce u_type arg_type) &&
-                              (← can_coerce u_type base_type) then
-                            -- prove that the argument u belongs to the subtype expected by t
-                            `($t ⟨$u, by default⟩)
-                          else `($t $u)
-                      | .none => `($t $u)
-                | .none => `($t $u)
+        resolve_app_or_mul t u
     | `(_super $t:term $u:term $id:ident) =>
          let t ← resolve as_type t
          let id := id.getId.toString (escape := false)
@@ -670,6 +673,11 @@ public partial def resolve (as_type: Bool) (s: Syntax) : TermElabM Term := withR
     | `(_holds $x $e) => `(_holds $x $(← resolve as_type e))
     | `($b:instBinder → $t) =>  -- an instance parameter, e.g. "[Nonempty T] -> ..."
         `($b:instBinder → $(← resolve as_type t))
+    | `({$t:term}) =>
+        let t ← resolve as_type t
+        let type ← elab_to_type t >>= (whnfR ·)
+        -- If the value is a subtype, we need a coercion for Lean to find a Singleton instance.
+        if type.isAppOf ``Subtype then `({↑$t:term}) else `({$t:term})
     | _ => match match_binder s with
       | .some (bt, vars, t) => do
           let vars ← vars.mapM (fun
