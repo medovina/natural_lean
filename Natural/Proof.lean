@@ -694,6 +694,7 @@ public def translate_proof (init_steps: List ProofStep) (thm: Term): _Proof → 
       let steps ← with_implicit_let [] steps
       let steps ← infer_conclusions steps
       let blocks := infer_blocks steps
+      trace[natural.tree_pre] pretty ("tree before resolving:\n" ++ (← show_blocks blocks))
       let blocks ← blocks.mapM resolve_block
       trace[natural.tree] pretty ("\n" ++ (← show_blocks blocks))
       let blocks := trim_blocks blocks

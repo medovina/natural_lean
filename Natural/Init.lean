@@ -137,6 +137,6 @@ def check_name2 (c: Category) (env: Environment) (s: Syntax): Bool :=
 -- tracing
 
 initialize
-   forM [`natural, `natural.tree] registerTraceClass
+   forM [`natural, `natural.tree, `natural.tree_pre] registerTraceClass
 
 end
