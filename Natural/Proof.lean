@@ -8,6 +8,7 @@ public import Natural.Prop
 public import Natural.Util
 
 open Lean
+open Lean.Elab
 open Lean.Elab.Term
 open Lean.Meta
 open Std.Format
@@ -467,8 +468,8 @@ partial def infer_blocks (steps: List ProofStep): List Block :=
 
 public partial def resolve_step : ProofStep → TermElabM ProofStep
   | .let_def id args type t =>
-      do pure $ .let_def id args (← type.mapM (resolve true)) (← resolve_term args t)
-  | step => step_mapM (resolve false ·.raw) (resolve true ·.raw) resolve_step step
+      do pure $ .let_def id args (← type.mapM resolve) (← resolve_term args t)
+  | step => step_mapM (resolve ·.raw) (resolve ·.raw) resolve_step step
 
 partial def resolve_block : Block → TermElabM Block
   | ⟨step, children⟩ => do
@@ -504,11 +505,31 @@ def extract_thm : Block → CoreM ((List ProofStep) × Term)
         | .none => pure (rest, thm)
   | _ => throwError "extract_thm: unexpected block"
 
+def let_vars : ProofStep → LocalEnv
+  | .let ids type => ids.map (·, type)
+  | _ => []
+
+public def find_implicit (env: LocalEnv) : CoreM (List Name) :=
+  let rec find (bound: List Name) : LocalEnv → CoreM (List Name)
+    | [] => pure bound
+    | (x, type) :: env => do
+        let vars := (free_vars type).removeAll bound
+        let vars := vars.filter (checkValidAutoBoundImplicitName · true false matches .ok true)
+        let vars ← vars.filterM (negateM is_global)
+        find (x :: vars ++ bound) env
+  find [] env
+
+public def with_implicit (vars: List Name) (f: TermElabM α): TermElabM α := do
+  let vars ← vars.mapM (fun v => (v, ·) <$> `(Type))
+  with_local vars f
+
 public def resolve_thm (init_steps: List ProofStep) (thm: Term)
-        : TermElabM ((List ProofStep) × Term) := do
+        : TermElabM (List Name × (List ProofStep) × Term) := do
+  let vars := init_steps.flatMap let_vars
+  let implicit ← find_implicit vars
   let block := chain_steps init_steps thm
-  let block ← resolve_block block
-  extract_thm block
+  let block ← with_implicit implicit (resolve_block block)
+  (implicit, ·) <$> extract_thm block
 
 public def proof_by_multi (names: List Ident) : CoreM Term :=
   tactic (.some (.apply names))
@@ -686,7 +707,8 @@ partial def trim_blocks (blocks: List Block): List Block :=
     | _ => .some ⟨step, blocks⟩
   blocks.flatMap ((·.toList) ∘ trim)
 
-public def translate_proof (init_steps: List ProofStep) (thm: Term): _Proof → TermElabM Term
+public def translate_proof (implicit: List Name) (init_steps: List ProofStep) (thm: Term)
+        : _Proof → TermElabM Term
   | .steps steps => do
       let steps ← match steps with
           | .let .. :: _ => pure steps    -- do not insert init steps
@@ -695,7 +717,7 @@ public def translate_proof (init_steps: List ProofStep) (thm: Term): _Proof → 
       let steps ← infer_conclusions steps
       let blocks := infer_blocks steps
       trace[natural.tree_pre] pretty ("tree before resolving:\n" ++ (← show_blocks blocks))
-      let blocks ← blocks.mapM resolve_block
+      let blocks ← with_implicit implicit (blocks.mapM resolve_block)
       trace[natural.tree] pretty ("\n" ++ (← show_blocks blocks))
       let blocks := trim_blocks blocks
       (·.1) <$> translate True [] (← `(())) none blocks

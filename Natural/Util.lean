@@ -40,6 +40,11 @@ def Option.getMD [Monad m] (x: m (Option α)) (d: α): m α :=
 
 namespace Natural
 
+-- functions
+
+def negateM [Monad m] (f: α → m Bool) (x: α): m Bool := do
+  (! ·) <$> f x
+
 -- pairs
 
 def map_pair_fst (f : α → γ) (p : (α × β)) :=
@@ -496,6 +501,9 @@ def elab_to_type (t: Term): TermElabM Expr := do
   let e ← elab_term t
   let type ← trap_errors "elab_to_type" (inferType e)
   instantiateMVars type
+
+def is_global (n: Name) : CoreM Bool := do
+  pure $ (← resolveGlobalName n (enableLog := false)) != []
 
 def global_info (n: Name): CoreM (Option ConstantInfo) := do
   match (← resolveGlobalName n (enableLog := false)) with

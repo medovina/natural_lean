@@ -560,8 +560,7 @@ public def of_prop (prop: TSyntax `prop) : CoreM Term :=
   fix_vars <$> of_prop1 prop
 
 def is_declared (n: Name): MetaM Bool := do
-  pure $ (← getLCtx).usesUserName n ||
-         (← resolveGlobalName n (enableLog := false)) != []
+  pure $ (← getLCtx).usesUserName n || (← is_global n)
 
 def type_matches_name (type: Expr) (n: Name) :=
   (type.getAppFnArgs).1 == n
@@ -579,37 +578,32 @@ def matches_op (kind: OpKind) (t: Term) (info: OpInfo): TermElabM Bool :=
   pure $ (← info.cls.anyM (fun cl => is_type_in_class type cl)) ||
          info.type.any (fun t => type_matches_name type t)
 
--- Bind a name to a type, allowing implicit parameters in the type, then run f.
-def with_local (name: Name) (type: Term) (f: TermElabM α) : TermElabM α :=
-  withAutoBoundImplicit $ do
-    withLocalDecl name .default (← elab_type type) (fun _var =>
-      withoutAutoBoundImplicit f)
-
--- Bind the given variables with their types, then run f.
-public def with_vars (le: Vars) (f: TermElabM α) : TermElabM α := match le with
-  | [] => f
-  | (name, none) :: rest =>
-      let type := Lean.mkConst ``Unit  -- just a guess
-      withLocalDecl name .default type (fun _var => with_vars rest f)
-  | (name, some (":", type)) :: rest => with_local name type (with_vars rest f)
-  | (name, some ("∈", s)) :: rest => do
-      let type ← elab_to_type s
-      match type.getAppArgs with
-        | #[u] => withLocalDecl name .default u (fun _var => with_vars rest f)
-        | _ => throwError s!"expected container type: {type}"
-  | _ => throwError "resolve_term1: unknown binder op"
-
 public abbrev LocalEnv := List (Name × Term)    -- maps name to type
 
--- Infer the type of a term in an environment with the given local variables,
--- whose types may have implicit parameters.
+-- Bind the given variables with their types, then run f.
+public def with_vars (vars: Vars) (f: TermElabM α) : TermElabM α := match vars with
+  | [] => f
+  | (name, binder) :: rest => do
+      let type ← match binder with
+        | .none => pure $ Lean.mkConst ``Unit  -- just a guess
+        | some (":", type) => elab_type type
+        | some ("∈", s) => do
+            let type ← elab_to_type s
+            match type.getAppArgs with
+              | #[u] => pure u
+              | _ => throwError s!"expected container type: {type}"
+        | _ => throwError "resolve_term1: unknown binder op"
+      withLocalDecl name .default type (fun _var => with_vars rest f)
+
+public def with_local (le: LocalEnv) (f: TermElabM α) : TermElabM α :=
+  with_vars (le.map (fun (x, type) => (x, ":", type))) f
+
+-- Infer the type of a term in an environment with the given local variables.
 public def infer_fun_type (args: LocalEnv) (t: Term): TermElabM Expr := match args with
   | [] => elab_to_type t
-  | (x, type) :: rest =>
-      withAutoBoundImplicit $ do
+  | (x, type) :: rest => do
         let type ← elab_type type
-        let u ← withLocalDecl x .default type (fun _var =>
-          withoutAutoBoundImplicit (infer_fun_type rest t))
+        let u ← withLocalDecl x .default type (fun _var => infer_fun_type rest t)
         mkArrow type u
 
 def can_coerce (t u : Expr) : MetaM Bool := do
@@ -640,7 +634,7 @@ mutual
 -- Resolve ambiguities in a term.  For example, a(b) will become either a product a · b
 -- or a function call, depending on the type of a.  Resolution also inserts proofs that
 -- values belong to subtypes when necessary.
-public partial def resolve (as_type: Bool) (s: Syntax) : TermElabM Term := withRef s do
+public partial def resolve (s: Syntax) : TermElabM Term := withRef s do
   match s with
     | `($n:num) => pure n
     | `($i:ident) => do
@@ -656,25 +650,23 @@ public partial def resolve (as_type: Bool) (s: Syntax) : TermElabM Term := withR
               let info := i.raw.getInfo?.get!
               let to_ident v : Term := ⟨(mkIdent v).raw.setInfo info⟩
               pure (← multi_prod (vars.map to_ident))
-          else if as_type && checkValidAutoBoundImplicitName n true false matches .ok true
-            then pure ⟨s⟩
           else throwErrorAt s (
             if vars.length == 1 then s!"undefined: {n}"
             else s!"{n} is neither defined nor an implicit product")
     | `(_app_or_mul $t:term $u:term) => do
-        let (t, u) ← mapM_pair (resolve as_type) (t, u)
+        let (t, u) ← mapM_pair resolve (t, u)
         resolve_app_or_mul t u
     | `(_super $t:term $u:term $id:ident) =>
-         let t ← resolve as_type t
+         let t ← resolve t
          let id := id.getId.toString (escape := false)
          if ← (← lookup_op id .postfix).anyM (matches_op .postfix t)
            then build_op .postfix id [t]
-           else `($t ^ $(← resolve as_type u))
-    | `(_holds $x $e) => `(_holds $x $(← resolve as_type e))
+           else `($t ^ $(← resolve u))
+    | `(_holds $x $e) => `(_holds $x $(← resolve e))
     | `($b:instBinder → $t) =>  -- an instance parameter, e.g. "[Nonempty T] -> ..."
-        `($b:instBinder → $(← resolve as_type t))
+        `($b:instBinder → $(← resolve t))
     | `({$t:term}) =>
-        let t ← resolve as_type t
+        let t ← resolve t
         let type ← elab_to_type t >>= (whnfR ·)
         -- If the value is a subtype, we need a coercion for Lean to find a Singleton instance.
         -- In some situations the ↑ operator fails but invoking CoeT.coe works, mysteriously.
@@ -683,25 +675,25 @@ public partial def resolve (as_type: Bool) (s: Syntax) : TermElabM Term := withR
       | .some (bt, vars, t) => do
           let vars ← vars.mapM (fun
             | (id, .none) => pure (id, .none)
-            | (id, .some (op, t)) => do pure (id, .some (op, ← resolve (op == ":") t)))
+            | (id, .some (op, t)) => do pure (id, .some (op, ← resolve t)))
           pure $ (← mk_binder bt vars (← resolve_term1 (map_fst TSyntax.getId vars) t))
       | .none => match s with
         | `(_bind $xs:ident*, $type, $t) =>
-            let type ← resolve true type
+            let type ← resolve type
             let vars := xs.toList.map (·.getId, type)
             -- Also declare the type in the environment, which allows it to be implicit.
             let type_decl := (as_ident type).toList.map (·.getId, ← `(Type))
             resolve_term (vars ++ type_decl) t
         | _ => match s with
           | .node info kind args => do
-              let args ← args.mapM (resolve as_type)
+              let args ← args.mapM resolve
               pure ⟨.node info kind args⟩
           | _ => pure ⟨s⟩
 
-public partial def resolve_term1 (le: Vars) (t: Term) : TermElabM Term :=
-  with_vars le (resolve false t.raw)
+public partial def resolve_term1 (vars: Vars) (t: Term) : TermElabM Term :=
+  with_vars vars (resolve t.raw)
 
 public partial def resolve_term (le: LocalEnv) (t: Term) : TermElabM Term :=
-  resolve_term1 (le.map (fun (x, type) => (x, ":", type))) t
+  with_local le (resolve t.raw)
 
 end

@@ -348,19 +348,21 @@ def quotient_lift (top_name: Ident) (def_name: Ident) (n: Nat) (arg_type: Term)
     | _ => throwError "unsupported lift"
   `(def $top_name : $type := $(mkIdent q) $def_name $by_thms)
 
-def resolve_binder : α × Option (BinderOp × Term) → TermElabM (α × Term)
-  | (id, some (":", t)) => do pure (id, ← resolve true t)
-  | _ => throwError "unexpected binder op"
+def to_local_env (vars: Vars) : CoreM LocalEnv := vars.mapM (fun
+  | (id, some (":", t)) => pure (id, t)
+  | _ => throwError "unexpected binder op")
 
 def function_name (s: String) : String := s.replace " " "_"
 
 def generate_def (decl_fn: Option String) (arg_type: Option Term)
-    (env: Vars) (defeqs: List DefEq)
+    (vars: Vars) (defeqs: List DefEq)
     (justification: Option Ident) : TermElabM (List Command) := do
-  let env ← env.mapM (resolve_binder ·)
+  let env ← to_local_env vars
+  let implicit ← find_implicit env
+  let env ← with_implicit implicit $ env.mapM (fun (id, t) => do pure (id, ← resolve t))
   let defeqs ← defeqs.mapM (fun (d : DefEq) => do
     pure $ { d with args := ← d.args.mapM (resolve_left ·.raw),
-                    val := ← resolve_term env d.val })
+                    val := ← with_implicit implicit (resolve_term env d.val) })
   let { name := fn, kind, cat, args, .. } := defeqs.head!
   if !decl_fn.all (· == fn) then throwError "declaration mismatch"
   let op_info ← kind.mapM (fun kind => do
@@ -560,10 +562,9 @@ def match_proofs : List ThmDecl → List (Label × _Proof) → CoreM (List (ThmD
 def translate_proofs (outer_steps: List ProofStep) (thms_proofs: List (ThmDecl × Option _Proof))
     : TermElabM (List (ThmDecl × Option Term)) :=
   thms_proofs.mapM (fun (decl, proof) => withRef decl.thm do
-    let (outer_steps, thm) ← resolve_thm (outer_steps ++ decl.init_steps) decl.thm
+    let (implicit, outer_steps, thm) ← resolve_thm (outer_steps ++ decl.init_steps) decl.thm
     let outer_steps := trim_constraints outer_steps
-
-    pure ({decl with thm}, ← proof.mapM (translate_proof outer_steps thm)))
+    pure ({decl with thm}, ← proof.mapM (translate_proof implicit outer_steps thm)))
 
 def of_props_proofs (outer_steps: List ProofStep) (ps: TSyntax `props_proofs) :
         TermElabM (List (ThmDecl × Option Term)) :=
