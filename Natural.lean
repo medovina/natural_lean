@@ -1,10 +1,11 @@
 module
 
-import Natural.Command
-import Natural.Decl
+public meta import Natural.Decl
 import Natural.Lsp
 
 open Natural
+
+elab t:top : command => elab_top t
 
 attribute [natural class "nonempty"] Nonempty
 

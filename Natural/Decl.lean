@@ -9,6 +9,7 @@ import Natural.Proof
 open Lean
 open Lean.Elab.Command
 open Lean.Elab.Term
+open Lean.Meta
 open Lean.Parser.Command
 open Lean.Parser.Term
 open Lean.Syntax
@@ -354,12 +355,18 @@ def to_local_env (vars: Vars) : CoreM LocalEnv := vars.mapM (fun
 
 def function_name (s: String) : String := s.replace " " "_"
 
+def resolve_env : LocalEnv → TermElabM LocalEnv
+  | [] => pure []
+  | (x, type) :: rest => do
+    let type ← resolve type
+    ((x, type) :: ·) <$> with_local [(x, type)] (resolve_env rest)
+
 def generate_def (decl_fn: Option String) (arg_type: Option Term)
     (vars: Vars) (defeqs: List DefEq)
     (justification: Option Ident) : TermElabM (List Command) := do
   let env ← to_local_env vars
   let implicit ← find_implicit env
-  let env ← with_implicit implicit $ env.mapM (fun (id, t) => do pure (id, ← resolve t))
+  let env ← with_implicit implicit (resolve_env env)
   let defeqs ← defeqs.mapM (fun (d : DefEq) => do
     pure $ { d with args := ← d.args.mapM (resolve_left ·.raw),
                     val := ← with_implicit implicit (resolve_term env d.val) })
@@ -693,7 +700,7 @@ def of_theorem_body (name: Option Ident) (corollary_of: List Ident)
         pure ([command], [])
     | _ => throwError "unknown theorem"
 
-public def of_theorem (corollary_of: List Ident)
+def of_theorem (corollary_of: List Ident)
             : TSyntax ``_theorem → TermElabM (List Command × List Ident)
     | `(_theorem| $name:thm_name ? $_:str ? . $b:theorem_body) => do
         let name ← name.mapM (of_thm_name ·)
@@ -707,12 +714,45 @@ partial def final_elab (s: Syntax): CoreM Syntax := do
         Syntax.node info kind <$> args.mapM final_elab
     | _ => pure s
 
-public def final_elab_command (c: Command): CoreM Command :=
+def final_elab_command (c: Command): CoreM Command :=
   TSyntax.mk <$> final_elab c
 
-public def of_thm_or_def : TSyntax `thm_or_def → TermElabM (List Command × List Ident × Bool)
+def of_thm_or_def : TSyntax `thm_or_def → TermElabM (List Command × List Ident × Bool)
   | `(thm_or_def| Definition . $d) => (·, [], false) <$> of_definition d
   | `(thm_or_def| $_:_thm $t:_theorem) => do
     let (cmds, names) ← of_theorem [] t
     pure (cmds, names, true)
   | _ => throwError "unknown thm_or_def"
+
+public def elab_top (t : TSyntax `top) : CommandElabM Unit := do
+  try
+    -- Open the Classical namespace because elaborating if/then/else expressions
+    -- requires propositions to be decidable.  We don't want to make the user
+    -- explicitly open Classical for this purpose since these expressions would not
+    -- necessarily require the Axiom of Choice in e.g. ZFC set theory.
+    pushScope
+    elabCommand (← `(open Classical))
+
+    let cs : List Command ← liftTermElabM $ match t with
+      | `(top| Notation . $n:notation_decl) => of_notation_decl n
+      | `(top| $d:thm_or_def $[Corollary $ts:_theorem]*) => do
+          let (commands, names, is_thm) ← of_thm_or_def d
+          let commands ← commands.mapM (final_elab_command ·)
+          let corrs ← List.map (·.1) <$> ts.toList.mapM (fun c => withRef c.raw do
+            if is_thm && names == []
+              then throwError "unnamed theorem may not have a corollary"
+              else of_theorem names c)
+          pure $ commands ++ corrs.flatten
+      | _ => throwError "unknown top"
+    let c : Command := TSyntax.mk (mkNullNode cs.toArray)
+    elabCommand c
+
+    -- We trace only after elaborating because some commands could have syntax
+    -- that is defined in previous commands in the same group.
+    let ctrace cmd := do
+      trace[natural] cmd
+      pure ()
+    cs.forM ctrace
+
+  finally
+    popScope

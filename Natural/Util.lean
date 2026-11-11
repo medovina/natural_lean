@@ -432,20 +432,19 @@ syntax "_bind" ident+ "," term "," term : term
 
 partial def syntax_free_vars (only_free: Bool) : Syntax → List Name :=
   let rec find (s: Syntax) : List Name :=
-    let combine (vars: List Name) (t: List Name) :=
-      if only_free then t.removeAll vars
-      else (vars ++ t).eraseDups
-    match match_binder s with
-      | .some (_bt, xs, t) => combine (xs.map (·.1.getId)) (find t)
+    let bound := match match_binder s with
+      | .some (_bt, vars, _t) => vars.map (·.1.getId)
       | _ => match s with
-        | `(_bind $xs:ident*, $_:term, $t:term) =>
-            combine (xs.toList.map TSyntax.getId) (find t)
-        | `(_holds $_:term $t:term) => find t
-        | _ => match s with
+        | `(_bind $xs:ident*, $_:term, $_:term) => xs.toList.map (·.getId)
+        | _ => []
+    let ids := match s with
           | .missing => []
           | .node _ _ args => args.toList.flatMap find |>.eraseDups
           | .ident _ _ _ _ => [s.getId]
           | .atom _ _ => []
+    if bound.isEmpty then ids   -- shortcut
+    else if only_free then ids.removeAll bound
+    else (bound ++ ids).eraseDups
   find
 
 def free_vars (t: Term): List Name := syntax_free_vars true (t.raw)

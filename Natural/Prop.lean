@@ -592,7 +592,7 @@ public def with_vars (vars: Vars) (f: TermElabM α) : TermElabM α := match vars
             match type.getAppArgs with
               | #[u] => pure u
               | _ => throwError s!"expected container type: {type}"
-        | _ => throwError "resolve_term1: unknown binder op"
+        | _ => throwError "with_vars: unknown binder op"
       withLocalDecl name .default type (fun _var => with_vars rest f)
 
 public def with_local (le: LocalEnv) (f: TermElabM α) : TermElabM α :=
@@ -681,9 +681,7 @@ public partial def resolve (s: Syntax) : TermElabM Term := withRef s do
         | `(_bind $xs:ident*, $type, $t) =>
             let type ← resolve type
             let vars := xs.toList.map (·.getId, type)
-            -- Also declare the type in the environment, which allows it to be implicit.
-            let type_decl := (as_ident type).toList.map (·.getId, ← `(Type))
-            resolve_term (vars ++ type_decl) t
+            resolve_term vars t
         | _ => match s with
           | .node info kind args => do
               let args ← args.mapM resolve

@@ -511,12 +511,12 @@ def let_vars : ProofStep → LocalEnv
 
 public def find_implicit (env: LocalEnv) : CoreM (List Name) :=
   let rec find (bound: List Name) : LocalEnv → CoreM (List Name)
-    | [] => pure bound
+    | [] => pure []
     | (x, type) :: env => do
         let vars := (free_vars type).removeAll bound
         let vars := vars.filter (checkValidAutoBoundImplicitName · true false matches .ok true)
         let vars ← vars.filterM (negateM is_global)
-        find (x :: vars ++ bound) env
+        (vars ++ ·) <$> find (x :: vars ++ bound) env
   find [] env
 
 public def with_implicit (vars: List Name) (f: TermElabM α): TermElabM α := do
