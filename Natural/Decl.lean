@@ -425,14 +425,6 @@ def infer_type : TSyntax `expr → CoreM Term
   | `(expr| $t:ident [ $_:expr ]) => pure t
   | _ => throwError "must specify constant type"
 
-def elab_commands (commands: List Command) : CommandElabM Unit := do
-  let ctrace cmd := do
-    trace[natural] cmd
-    pure ()
-  commands.forM ctrace
-  let command : Command := Lean.TSyntax.mk (mkNullNode commands.toArray)
-  elabCommand command
-
 def mixfix_defeq (mix: Syntax) (r: Term): CoreM DefEq := do
   let stx_kind := mix.getKind
   let args ← (mix.getArgs.toList.filter (! ·.isAtom)).mapM (of_expr ⟨·⟩)
@@ -480,17 +472,45 @@ def of_defs : TSyntax `defs → CoreM (List (IdVars × DefEq) × Option Ident)
 
 def lets_vars (lets: List ProofStep) : Vars := lets.flatMap step_vars_types
 
-def of_direct_def : TSyntax `direct_def → TermElabM (List Command)
+partial def final_elab (s: Syntax): CoreM Syntax := do
+  let s ← if s.getKind == ``exists_unique then elab_expr s <&> (·.raw) else pure s
+  match s with
+    | Syntax.node info kind args =>
+        Syntax.node info kind <$> args.mapM final_elab
+    | _ => pure s
+
+def final_elab_command (c: Command): CoreM Command :=
+  TSyntax.mk <$> final_elab c
+
+def elab_commands (cs : List Command) : CommandElabM Unit := do
+    let cs ← liftTermElabM (cs.mapM (final_elab_command ·))
+    let c : Command := TSyntax.mk (mkNullNode cs.toArray)
+    elabCommand c
+
+    -- We trace only after elaborating because some commands could have syntax
+    -- that is defined in previous commands in the same group.
+    let ctrace cmd := do
+      trace[natural] cmd
+      pure ()
+    cs.forM ctrace
+
+def elab_direct_def : TSyntax `direct_def → CommandElabM Unit
   | `(direct_def| $[$ls:let_step .]* $defs:defs) => do
-      let ls ← ls.toList.flatMapM (of_let_step ·)
-      let (defs, just) ← of_defs defs
-      defs.flatMapM (fun (vars, eq) =>
+      let (ls, defs, just) ← liftTermElabM do
+        pure (← ls.toList.flatMapM (of_let_step ·), ← of_defs defs)
+      defs.forM (fun (vars, eq) => do
+        -- We elaborate each definition in a group separately so that it will be available
+        -- when elaborating subsequent definitions.
         let args := lets_vars ls ++ map_fst TSyntax.getId vars
-        generate_def none none args [eq] just)
+        let cs ← liftTermElabM $ generate_def none none args [eq] just
+        elab_commands cs
+        )
   | `(direct_def| $n:num $[: $type:type]? = $e:expr .) => do
-      let expr ← of_expr e >>= resolve_term []
-      let type ← type.elim (infer_type e) (of_type ·)
-      pure [← nat_instance type n expr]
+      let cs ← liftTermElabM do
+        let expr ← of_expr e >>= resolve_term []
+        let type ← type.elim (infer_type e) (of_type ·)
+        pure [← nat_instance type n expr]
+      elab_commands cs
   | _ => throwError "unknown direct_def"
 
 def of_cases_def : TSyntax ``cases_def → TermElabM (List Command)
@@ -502,10 +522,12 @@ def of_cases_def : TSyntax ``cases_def → TermElabM (List Command)
       generate_def (some (of_op op)) (some type) (map_fst TSyntax.getId args) eqs none
   | _ => throwError "unknown cases_def"
 
-def of_definition : TSyntax `definition → TermElabM (List Command)
-  | `(definition| $d:type_def) => of_type_def d
-  | `(definition| $d:direct_def) => of_direct_def d
-  | `(definition| $e:cases_def) => of_cases_def e
+def elab_definition : TSyntax `definition → CommandElabM Unit
+  | `(definition| $d:type_def) => do
+      elab_commands (← liftTermElabM $ of_type_def d)
+  | `(definition| $d:direct_def) => elab_direct_def d
+  | `(definition| $e:cases_def) => do
+      elab_commands (← liftTermElabM $ of_cases_def e)
   | _ => throwError "unknown definition"
 
 -- theorems
@@ -701,21 +723,14 @@ def of_theorem (corollary_of: List Ident)
         of_theorem_body name corollary_of b
     | _ => throwError "unknown theorem"
 
-partial def final_elab (s: Syntax): CoreM Syntax := do
-  let s ← if s.getKind == ``exists_unique then elab_expr s <&> (·.raw) else pure s
-  match s with
-    | Syntax.node info kind args =>
-        Syntax.node info kind <$> args.mapM final_elab
-    | _ => pure s
-
-def final_elab_command (c: Command): CoreM Command :=
-  TSyntax.mk <$> final_elab c
-
-def of_thm_or_def : TSyntax `thm_or_def → TermElabM (List Command × List Ident × Bool)
-  | `(thm_or_def| Definition . $d) => (·, [], false) <$> of_definition d
+def elab_thm_or_def : TSyntax `thm_or_def → CommandElabM (List Ident × Bool)
+  | `(thm_or_def| Definition . $d) => do
+      elab_definition d
+      pure ([], false)
   | `(thm_or_def| $_:_thm $t:_theorem) => do
-    let (cmds, names) ← of_theorem [] t
-    pure (cmds, names, true)
+      let (cmds, names) ← liftTermElabM $ of_theorem [] t
+      elab_commands cmds
+      pure (names, true)
   | _ => throwError "unknown thm_or_def"
 
 public def elab_top (t : TSyntax `top) : CommandElabM Unit := do
@@ -732,26 +747,19 @@ public def elab_top (t : TSyntax `top) : CommandElabM Unit := do
     -- the form "suppose there is some x : T" and are hard to eliminate otherwise.
     elabCommand (← `(set_option linter.unusedVariables false))
 
-    let cs : List Command ← liftTermElabM $ match t with
-      | `(top| Notation . $n:notation_decl) => of_notation_decl n
+    match t with
+      | `(top| Notation . $n:notation_decl) => do
+          elab_commands (← liftTermElabM $ of_notation_decl n)
       | `(top| $d:thm_or_def $[Corollary $ts:_theorem]*) => do
-          let (commands, names, is_thm) ← of_thm_or_def d
-          let commands ← commands.mapM (final_elab_command ·)
-          let corrs ← List.map (·.1) <$> ts.toList.mapM (fun c => withRef c.raw do
-            if is_thm && names == []
-              then throwError "unnamed theorem may not have a corollary"
-              else of_theorem names c)
-          pure $ commands ++ corrs.flatten
+          let (names, is_thm) ← elab_thm_or_def d
+          let cs ← liftTermElabM $ do
+            let corrs ← List.map (·.1) <$> ts.toList.mapM (fun c => withRef c.raw do
+              if is_thm && names == []
+                then throwError "unnamed theorem may not have a corollary"
+                else of_theorem names c)
+            pure $ corrs.flatten
+          elab_commands cs
       | _ => throwError "unknown top"
-    let c : Command := TSyntax.mk (mkNullNode cs.toArray)
-    elabCommand c
-
-    -- We trace only after elaborating because some commands could have syntax
-    -- that is defined in previous commands in the same group.
-    let ctrace cmd := do
-      trace[natural] cmd
-      pure ()
-    cs.forM ctrace
 
   finally
     popScope
