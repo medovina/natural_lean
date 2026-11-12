@@ -222,6 +222,10 @@ public def of_reference: TSyntax `reference → CoreM (List Ident)
   | `(reference| the inductive hypothesis) => pure []
   | _ => throwError s!"unknown reference"
 
+-- A dummy function representing the statement "the theorem holds for a certain x".
+-- After code generation we replace the name "_holds" with an auxiliary theorem name.
+def _holds : String → α → Prop := panic! "_holds"
+
 mutual
 
 partial def of_if_case : TSyntax `if_case → CoreM (Term × Term)
@@ -483,8 +487,8 @@ partial def of_var_list : TSyntax `var_list → CoreM (IdVars × Option Term)
   | _ => throwError "unknown var_list"
 
 partial def apply_holds (ids_types: IdVars) : Term → CoreM Term
-  | `(_holds _ _) => match ids_types with
-      | [(x, _)] => `(_holds _ $x)
+  | `(_holds "" _) => match ids_types with
+      | [(x, _)] => `(_holds "" $x)
       | _ => throwError "multiple variables unexpected"
   | `(_holds $_ $_) => throwError "extra holds clause"
   | t => pure t
@@ -523,9 +527,10 @@ partial def of_prop1 (prop: TSyntax `prop): CoreM Term := withRef prop do
     | `(prop| $_:_either ? $p:prop , or $q:prop) => do `($(← of_prop1 p) ∨ $(← of_prop1 q))
     | `(prop| $m:multi_or) => of_multi_or m
     | `(prop| $_:have_contradiction) => pure mk_false
-    | `(prop| $_:thm_holds) => `(_holds _ _)
-    | `(prop| $_:thm_holds for $e:expr) => `(_holds _ $(← of_expr e))
-    | `(prop| $_:thm_holds for $x:ident = $e:expr) => `(_holds $x $(← of_expr e))
+    | `(prop| $_:thm_holds) => `(_holds "" _)
+    | `(prop| $_:thm_holds for $e:expr) => `(_holds "" $(← of_expr e))
+    | `(prop| $_:thm_holds for $x:ident = $e:expr) =>
+        `(_holds $(mkStrLit (id_str x)) $(← of_expr e))
     | stx => throwError s!"unknown prop: {stx}"
 
 partial def of_exists_phrase (unique: Bool) (phrase: TSyntax `exists_phrase) : CoreM Term :=
@@ -585,7 +590,7 @@ public def with_vars (vars: Vars) (f: TermElabM α) : TermElabM α := match vars
   | [] => f
   | (name, binder) :: rest => do
       let type ← match binder with
-        | .none => pure $ Lean.mkConst ``Unit  -- just a guess
+        | .none => mkFreshTypeMVar
         | some (":", type) => elab_type type
         | some ("∈", s) => do
             let type ← elab_to_type s
@@ -594,6 +599,10 @@ public def with_vars (vars: Vars) (f: TermElabM α) : TermElabM α := match vars
               | _ => throwError s!"expected container type: {type}"
         | _ => throwError "with_vars: unknown binder op"
       withLocalDecl name .default type (fun _var => with_vars rest f)
+
+public def with_id_vars (id_vars: IdVars) (f: TermElabM α) : TermElabM α :=
+  let vars := map_fst TSyntax.getId id_vars
+  with_vars vars f
 
 public def with_local (le: LocalEnv) (f: TermElabM α) : TermElabM α :=
   with_vars (le.map (fun (x, type) => (x, ":", type))) f
@@ -672,11 +681,9 @@ public partial def resolve (s: Syntax) : TermElabM Term := withRef s do
         -- In some situations the ↑ operator fails but invoking CoeT.coe works, mysteriously.
         if type.isAppOf ``Subtype then `({CoeT.coe $t:term}) else `({$t:term})
     | _ => match match_binder s with
-      | .some (bt, vars, t) => do
-          let vars ← vars.mapM (fun
-            | (id, .none) => pure (id, .none)
-            | (id, .some (op, t)) => do pure (id, .some (op, ← resolve t)))
-          pure $ (← mk_binder bt vars (← resolve_term1 (map_fst TSyntax.getId vars) t))
+      | .some (bt, id_vars, t) => do
+          let id_vars ← resolve_id_vars id_vars
+          pure $ (← mk_binder bt id_vars (← with_id_vars id_vars (resolve t)))
       | .none => match s with
         | `(_bind $xs:ident*, $type, $t) =>
             let type ← resolve type
@@ -688,10 +695,29 @@ public partial def resolve (s: Syntax) : TermElabM Term := withRef s do
               pure ⟨.node info kind args⟩
           | _ => pure ⟨s⟩
 
-public partial def resolve_term1 (vars: Vars) (t: Term) : TermElabM Term :=
-  with_vars vars (resolve t.raw)
-
 public partial def resolve_term (le: LocalEnv) (t: Term) : TermElabM Term :=
   with_local le (resolve t.raw)
 
+public partial def resolve_id_vars (id_vars: IdVars) : TermElabM IdVars :=
+  id_vars.mapM (fun
+    | (id, .none) => pure (id, .none)
+    | (id, .some (op, t)) => do pure (id, .some (op, ← resolve t)))
+
 end
+
+public def resolve_env : LocalEnv → TermElabM LocalEnv
+  | [] => pure []
+  | (x, type) :: rest => do
+    let type ← resolve type
+    ((x, type) :: ·) <$> with_local [(x, type)] (resolve_env rest)
+
+-- Resolve a term and also elaborate it, which has the side effect of performing
+-- type inference and possibly instantiating metavariables.
+public def resolve_elab (t: Term) : TermElabM Term := do
+  let t ← resolve t
+  -- dbg_trace "resolve_elab: {t}"
+  discard (elab_term t >>= instantiateMVars)
+  pure t
+
+public def resolve_elab_in_env (le: LocalEnv) (t: Term) : TermElabM Term :=
+  with_local le (resolve_elab t)

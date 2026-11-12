@@ -57,9 +57,11 @@ def of_eq_expr_by1 (t: TSyntax `eq_expr_by): CoreM (String × Term × Term) := m
 def of_eq_expr_by (t: TSyntax `eq_expr_by): CoreM (String × Term × Term) :=
   withRef t (of_eq_expr_by1 t)
 
-def ex_vars (t: Term) : IdVars := match match_binders t with
-  | .some (.exists, xs, _) => xs
-  | _ => []
+def ex_vars_term (t: Term) : IdVars × Term := match match_binders t with
+  | .some (.exists, xs, t) => (xs, t)
+  | _ => ([], t)
+
+def ex_vars (t: Term): IdVars := (ex_vars_term t).fst
 
 public inductive ProofStep where
   | assert (p: Term) (reason: Option Reason)
@@ -75,15 +77,15 @@ public inductive ProofStep where
   | group (steps: List ProofStep)
 deriving Nonempty, Inhabited, BEq
 
-partial def step_mapM [Monad m] (f: Term → m Term) (type_f: Term → m Term)
+partial def step_mapM [Monad m] (f: Term → m Term)
         (rec: ProofStep → m ProofStep) (step: ProofStep) : m ProofStep := do
   match step with
     | .assert t rs => pure $ .assert (← f t) rs
     | .assert_chain ts ops rs =>
         pure $ .assert_chain (← ts.mapM f) ops rs
-    | .let ids type => pure $ .let ids (← type_f type)
+    | .let ids type => pure $ .let ids (← f type)
     | .let_def id args type t =>
-        pure $ .let_def id (← mapM_snd type_f args) (← type.mapM type_f) (← f t)
+        pure $ .let_def id (← mapM_snd f args) (← type.mapM f) (← f t)
     | .assume p => pure $ .assume (← f p)
     | .is_some p r => pure $ .is_some (← f p) r
     | .if_otherwise p ts fs concl =>
@@ -101,12 +103,6 @@ public def step_vars_types : ProofStep → Vars
   | .assume p => map_fst TSyntax.getId (ex_vars p)
   | .is_some p _reason => map_fst TSyntax.getId (ex_vars p)
   | _ => []
-
-def with_step_decl_vars (step: ProofStep) (f: TermElabM α) : TermElabM α := match step with
-  | .let_def id args type val => do
-      let type ← Option.elim type (infer_fun_type args val) elab_type
-      withLocalDecl id .default type (fun _var => f)
-  | step => with_vars (step_vars_types step) f
 
 def step_decl_vars : ProofStep → List Name
   | .let ids _ => ids
@@ -468,11 +464,27 @@ partial def infer_blocks (steps: List ProofStep): List Block :=
 
 public partial def resolve_step : ProofStep → TermElabM ProofStep
   | .let_def id args type t =>
-      do pure $ .let_def id args (← type.mapM resolve) (← resolve_term args t)
-  | step => step_mapM (resolve ·.raw) (resolve ·.raw) resolve_step step
+      do pure $ .let_def id args (← type.mapM resolve_elab) (← resolve_elab_in_env args t)
+  | step => step_mapM resolve_elab resolve_step step
+
+def with_step_decl_vars (step: ProofStep) (f: TermElabM α) : TermElabM α := match step with
+  | .let_def id args type val => do
+      let type ← Option.elim type (infer_fun_type args val) elab_type
+      withLocalDecl id .default type (fun _var => f)
+  | step => with_vars (step_vars_types step) f
 
 partial def resolve_block : Block → TermElabM Block
-  | ⟨step, children⟩ => do
+  | ⟨step, children⟩ => match step with
+    | .assume p => do
+      let (id_vars, t) := ex_vars_term p
+      let id_vars ← resolve_id_vars id_vars
+      with_id_vars id_vars (do
+        -- Resolve t and children in the same environment so that type inference
+        -- will be shared.
+        let t ← resolve_elab t
+        let children ← children.mapM (resolve_block)
+        pure ⟨.assume (← mk_binder .exists id_vars t), children⟩)
+    | _ => do
       let step ← resolve_step step
       pure ⟨step, ← with_step_decl_vars step (children.mapM (resolve_block))⟩
 

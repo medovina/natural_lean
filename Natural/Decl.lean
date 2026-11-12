@@ -355,12 +355,6 @@ def to_local_env (vars: Vars) : CoreM LocalEnv := vars.mapM (fun
 
 def function_name (s: String) : String := s.replace " " "_"
 
-def resolve_env : LocalEnv → TermElabM LocalEnv
-  | [] => pure []
-  | (x, type) :: rest => do
-    let type ← resolve type
-    ((x, type) :: ·) <$> with_local [(x, type)] (resolve_env rest)
-
 def generate_def (decl_fn: Option String) (arg_type: Option Term)
     (vars: Vars) (defeqs: List DefEq)
     (justification: Option Ident) : TermElabM (List Command) := do
@@ -620,10 +614,10 @@ partial def has_holds (s: Syntax): Option Syntax := match s with
     | _ => .none
 
 partial def subst_holds (x: Ident) (aux: Ident) : Syntax → CoreM Syntax
-  | `(_holds _ $z) => `($aux $z)
-  | s@`(_holds $y:ident $z) => if x.getId == y.getId then `($aux $z)
+  | `(_holds "" $z) => `($aux $z)
+  | s@`(_holds $y:str $z) => if x.getId.toString == y.getString then `($aux $z)
       else throwErrorAt s
-        f!"theorem is parameterized with '{id_str x}', so cannot hold for '{id_str y}'"
+        f!"theorem is parameterized with '{id_str x}', so cannot hold for '{y.getString}'"
   | s => do match s with
     | .node info kind args => pure $ .node info kind (← args.mapM (subst_holds x aux))
     | _ => pure s
@@ -725,6 +719,7 @@ def of_thm_or_def : TSyntax `thm_or_def → TermElabM (List Command × List Iden
   | _ => throwError "unknown thm_or_def"
 
 public def elab_top (t : TSyntax `top) : CommandElabM Unit := do
+  let unusedVars ← getBoolOption ``Lean.Linter.linter.unusedVariables
   try
     -- Open the Classical namespace because elaborating if/then/else expressions
     -- requires propositions to be decidable.  We don't want to make the user
@@ -732,6 +727,10 @@ public def elab_top (t : TSyntax `top) : CommandElabM Unit := do
     -- necessarily require the Axiom of Choice in e.g. ZFC set theory.
     pushScope
     elabCommand (← `(open Classical))
+
+    -- Disable unused variable warnings, since they can be produced by steps of
+    -- the form "suppose there is some x : T" and are hard to eliminate otherwise.
+    elabCommand (← `(set_option linter.unusedVariables false))
 
     let cs : List Command ← liftTermElabM $ match t with
       | `(top| Notation . $n:notation_decl) => of_notation_decl n
@@ -756,3 +755,5 @@ public def elab_top (t : TSyntax `top) : CommandElabM Unit := do
 
   finally
     popScope
+    elabCommand (← if unusedVars then `(set_option linter.unusedVariables true)
+                                 else `(set_option linter.unusedVariables false))
