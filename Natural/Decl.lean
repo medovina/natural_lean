@@ -719,7 +719,6 @@ def of_thm_or_def : TSyntax `thm_or_def → TermElabM (List Command × List Iden
   | _ => throwError "unknown thm_or_def"
 
 public def elab_top (t : TSyntax `top) : CommandElabM Unit := do
-  let unusedVars ← getBoolOption ``Lean.Linter.linter.unusedVariables
   try
     -- Open the Classical namespace because elaborating if/then/else expressions
     -- requires propositions to be decidable.  We don't want to make the user
@@ -727,10 +726,6 @@ public def elab_top (t : TSyntax `top) : CommandElabM Unit := do
     -- necessarily require the Axiom of Choice in e.g. ZFC set theory.
     pushScope
     elabCommand (← `(open Classical))
-
-    -- Disable unused variable warnings, since they can be produced by steps of
-    -- the form "suppose there is some x : T" and are hard to eliminate otherwise.
-    elabCommand (← `(set_option linter.unusedVariables false))
 
     let cs : List Command ← liftTermElabM $ match t with
       | `(top| Notation . $n:notation_decl) => of_notation_decl n
@@ -755,5 +750,3 @@ public def elab_top (t : TSyntax `top) : CommandElabM Unit := do
 
   finally
     popScope
-    elabCommand (← if unusedVars then `(set_option linter.unusedVariables true)
-                                 else `(set_option linter.unusedVariables false))

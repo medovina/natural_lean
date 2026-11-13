@@ -590,7 +590,7 @@ public def with_vars (vars: Vars) (f: TermElabM α) : TermElabM α := match vars
   | [] => f
   | (name, binder) :: rest => do
       let type ← match binder with
-        | .none => mkFreshTypeMVar
+        | .none => pure $ Lean.mkConst ``Unit  -- just a guess
         | some (":", type) => elab_type type
         | some ("∈", s) => do
             let type ← elab_to_type s
@@ -663,11 +663,6 @@ public partial def resolve (s: Syntax) : TermElabM Term := withRef s do
           else throwErrorAt s (
             if vars.length == 1 then s!"undefined: {n}"
             else s!"{n} is neither defined nor an implicit product")
-    | `(($h : $t) → $u) => do
-      -- Elaborate the left term to infer types before resolve the right term.
-      let t ← resolve_elab t
-      let u ← resolve u
-      `(($h : $t) → $u)
     | `(_app_or_mul $t:term $u:term) => do
         let (t, u) ← mapM_pair resolve (t, u)
         resolve_app_or_mul t u
@@ -708,13 +703,6 @@ public partial def resolve_id_vars (id_vars: IdVars) : TermElabM IdVars :=
     | (id, .none) => pure (id, .none)
     | (id, .some (op, t)) => do pure (id, .some (op, ← resolve t)))
 
--- Resolve a term and also elaborate it, which has the side effect of performing
--- type inference and possibly instantiating metavariables.
-public partial def resolve_elab (t: Term) : TermElabM Term := do
-  let t ← resolve t
-  discard (elab_term t >>= instantiateMVars)
-  pure t
-
 end
 
 public def resolve_env : LocalEnv → TermElabM LocalEnv
@@ -722,6 +710,3 @@ public def resolve_env : LocalEnv → TermElabM LocalEnv
   | (x, type) :: rest => do
     let type ← resolve type
     ((x, type) :: ·) <$> with_local [(x, type)] (resolve_env rest)
-
-public def resolve_elab_in_env (le: LocalEnv) (t: Term) : TermElabM Term :=
-  with_local le (resolve_elab t)
