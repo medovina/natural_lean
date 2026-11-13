@@ -608,11 +608,12 @@ public def with_local (le: LocalEnv) (f: TermElabM α) : TermElabM α :=
   with_vars (le.map (fun (x, type) => (x, ":", type))) f
 
 -- Infer the type of a term in an environment with the given local variables.
-public def infer_fun_type (args: LocalEnv) (t: Term): TermElabM Expr := match args with
-  | [] => elab_to_type t
+public def infer_fun_type (args: LocalEnv) (ret_type: Option Term) (t: Term)
+        : TermElabM Expr := match args with
+  | [] => ret_type.elim (elab_to_type t) elab_type
   | (x, type) :: rest => do
         let type ← elab_type type
-        let u ← withLocalDecl x .default type (fun _var => infer_fun_type rest t)
+        let u ← withLocalDecl x .default type (fun _var => infer_fun_type rest ret_type t)
         mkArrow type u
 
 def can_coerce (t u : Expr) : MetaM Bool := do

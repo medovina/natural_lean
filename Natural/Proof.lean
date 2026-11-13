@@ -469,7 +469,7 @@ public partial def resolve_step : ProofStep → TermElabM ProofStep
 
 def with_step_decl_vars (step: ProofStep) (f: TermElabM α) : TermElabM α := match step with
   | .let_def id args type val => do
-      let type ← Option.elim type (infer_fun_type args val) elab_type
+      let type ← infer_fun_type args type val
       withLocalDecl id .default type (fun _var => f)
   | step => with_vars (step_vars_types step) f
 

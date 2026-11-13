@@ -124,4 +124,4 @@ Theorem.  Let F, G : Set(Set(T)).  Let A, B : Set(T).
 
   f. ⋃ F ⊆ A if and only if x ⊆ A for all x ∈ F.
 
-  g. A ∩ (⋃ F) = ⋃ { s : Set(T) | s = A ∩ u for some u ∈ F }.
+  -- g. A ∩ (⋃ F) = ⋃ { s : Set(T) | s = A ∩ u for some u ∈ F }.
