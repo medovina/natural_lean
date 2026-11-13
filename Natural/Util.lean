@@ -396,7 +396,7 @@ def mk_for_all (vars: IdVars) (t: Term) : CoreM Term :=
     | (x, none), a => `(∀ $x, $a)
     | (x, some (":", t)), a => `(∀ $x : $t, $a)
     | (x, some ("∈", t)), a =>
-        -- Rather than translating to Lean's construct (∀ x ∈ T), we generate a
+        -- Rather than translating to Lean's construct (∀ x ∈ t), we generate a
         -- dependent implication so that the fact that x ∈ t will be available in proofs.
         `(∀ $x:ident, (_ : $x ∈ $t) → $a)
     | _, _ => throwError "mk_for_all: unknown op") t
@@ -405,7 +405,10 @@ def mk_exists (vars: IdVars) (t: Term) : CoreM Term :=
   vars.foldrM (fun
     | (x, none), a => `(∃ $x:ident, $a)
     | (x, some (":", t)), a => `(∃ $x:ident : $t, $a)
-    | (x, some ("∈", t)), a => `(∃ $x:ident ∈ $t, $a)
+    | (x, some ("∈", t)), a =>
+        -- Rather than translating to Lean's construct (∃ x ∈ t), we generate a
+        -- dependent implication so that the fact that x ∈ t will be available in proofs.
+        `(∃ $x:ident, $x ∈ $t ∧ ((_ : $x ∈ $t) → $a))
     | _, _ => throwError "mk_for_all: unknown op") t
 
 def mk_exists_unique (vars: IdVars) (t: Term) : CoreM Term := match vars with
