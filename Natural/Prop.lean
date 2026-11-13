@@ -639,6 +639,12 @@ def resolve_app_or_mul (t u: Term): TermElabM Term := do
                 | .none => `($t $u)
           | .none => `($t $u)
 
+def mk_binder (bt: BinderType) (xs: IdVars) (t: Term) : CoreM Term :=
+  (match bt with
+    | .all => mk_for_all1 true
+    | .exists => mk_exists1 true
+    | .exists_unique => mk_exists_unique) xs t
+
 mutual
 
 -- Resolve ambiguities in a term.  For example, a(b) will become either a product a · b
@@ -683,7 +689,8 @@ public partial def resolve (s: Syntax) : TermElabM Term := withRef s do
     | _ => match match_binder s with
       | .some (bt, id_vars, t) => do
           let id_vars ← resolve_id_vars id_vars
-          pure $ (← mk_binder bt id_vars (← with_id_vars id_vars (resolve t)))
+          let t ← with_id_vars id_vars (resolve t)
+          pure $ (← mk_binder bt id_vars t)
       | .none => match s with
         | `(_bind $xs:ident*, $type, $t) =>
             let type ← resolve type

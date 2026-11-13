@@ -391,25 +391,33 @@ partial def match_binders (s: Syntax): Option (BinderType × IdVars × Term) :=
               if b == b' then .some (b, vars ++ vars', t')
               else m
 
-def mk_for_all (vars: IdVars) (t: Term) : CoreM Term :=
+def mk_for_all1 (dep: Bool) (vars: IdVars) (t: Term) : CoreM Term :=
   vars.foldrM (fun
     | (x, none), a => `(∀ $x, $a)
     | (x, some (":", t)), a => `(∀ $x : $t, $a)
     | (x, some ("∈", t)), a =>
-        -- Rather than translating to Lean's construct (∀ x ∈ t), we generate a
-        -- dependent implication so that the fact that x ∈ t will be available in proofs.
-        `(∀ $x:ident, (_ : $x ∈ $t) → $a)
+        if dep then
+          -- Generate a dependent implication so that the fact that
+          -- x ∈ t will be available in proofs.
+          `(∀ $x:ident, (_ : $x ∈ $t) → $a)
+        else `(∀ $x:ident ∈ $t, $a)
     | _, _ => throwError "mk_for_all: unknown op") t
 
-def mk_exists (vars: IdVars) (t: Term) : CoreM Term :=
+def mk_for_all := mk_for_all1 false
+
+def mk_exists1 (dep: Bool) (vars: IdVars) (t: Term) : CoreM Term :=
   vars.foldrM (fun
     | (x, none), a => `(∃ $x:ident, $a)
     | (x, some (":", t)), a => `(∃ $x:ident : $t, $a)
     | (x, some ("∈", t)), a =>
-        -- Rather than translating to Lean's construct (∃ x ∈ t), we generate a
-        -- dependent implication so that the fact that x ∈ t will be available in proofs.
-        `(∃ $x:ident, $x ∈ $t ∧ ((_ : $x ∈ $t) → $a))
-    | _, _ => throwError "mk_for_all: unknown op") t
+        if dep then
+          -- Generate a dependent implication so that the fact that
+          -- x ∈ t will be available in proofs.
+          `(∃ $x:ident, $x ∈ $t ∧ ((_ : $x ∈ $t) → $a))
+        else `(∃ $x:ident ∈ $t, $a)
+    | _, _ => throwError "mk_exists: unknown op") t
+
+def mk_exists := mk_exists1 false
 
 def mk_exists_unique (vars: IdVars) (t: Term) : CoreM Term := match vars with
   | [(x, none)] => `(*∃! $x:ident, $t)
@@ -419,13 +427,6 @@ def mk_exists_unique (vars: IdVars) (t: Term) : CoreM Term := match vars with
 
 def mk_exists_or_unique (unique: Bool) (vars: IdVars) (t: Term) : CoreM Term :=
   (if unique then mk_exists_unique else mk_exists) vars t
-
-def mk_binder (bt: BinderType) (xs: IdVars) (t: Term)
-    : CoreM Term :=
-  (match bt with
-    | .all => mk_for_all
-    | .exists => mk_exists
-    | .exists_unique => mk_exists_unique) xs t
 
 def for_all (xs: Vars) (t: Term) : CoreM Term :=
   if xs == [] then pure t else mk_for_all (map_fst mkIdent xs) t

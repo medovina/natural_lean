@@ -704,8 +704,7 @@ def of_theorem (corollary_of: List Ident)
 partial def final_elab (s: Syntax): CoreM Syntax := do
   let s ← if s.getKind == ``exists_unique then elab_expr s <&> (·.raw) else pure s
   match s with
-    | Syntax.node info kind args =>
-        Syntax.node info kind <$> args.mapM final_elab
+    | .node info kind args => .node info kind <$> args.mapM final_elab
     | _ => pure s
 
 def final_elab_command (c: Command): CoreM Command :=
