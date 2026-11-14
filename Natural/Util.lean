@@ -501,7 +501,8 @@ def trap_errors (name: String) (f: TermElabM α) : TermElabM α := do
 
 def elab_term (stx: Syntax): TermElabM Expr := trap_errors "elab_term" (elabTerm stx none)
 
-def elab_type (t: Term): TermElabM Expr := trap_errors "elab_type" (elabType t)
+def elab_type (t: Term): TermElabM Expr :=
+  trap_errors "elab_type" (elabType t >>= (whnfR ·))
 
 def elab_type_of (t: Term): TermElabM Expr := do
   let e ← elab_term t
