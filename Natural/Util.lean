@@ -503,9 +503,9 @@ def elab_term (stx: Syntax): TermElabM Expr := trap_errors "elab_term" (elabTerm
 
 def elab_type (t: Term): TermElabM Expr := trap_errors "elab_type" (elabType t)
 
-def elab_to_type (t: Term): TermElabM Expr := do
+def elab_type_of (t: Term): TermElabM Expr := do
   let e ← elab_term t
-  let type ← trap_errors "elab_to_type" (inferType e)
+  let type ← trap_errors "elab_type_of" (inferType e)
   instantiateMVars type
 
 def is_global (n: Name) : CoreM Bool := do

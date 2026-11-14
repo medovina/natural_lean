@@ -579,7 +579,7 @@ def is_type_in_class (type: Expr) (cl: Name): MetaM Bool := do
 
 def matches_op (kind: OpKind) (t: Term) (info: OpInfo): TermElabM Bool :=
   (kind == info.kind && ·) <$> do
-  let type ← elab_to_type t
+  let type ← elab_type_of t
   pure $ (← info.cls.anyM (fun cl => is_type_in_class type cl)) ||
          info.type.any (fun t => type_matches_name type t)
 
@@ -593,7 +593,7 @@ public def with_vars (vars: Vars) (f: TermElabM α) : TermElabM α := match vars
         | .none => pure $ Lean.mkConst ``Unit  -- just a guess
         | some (":", type) => elab_type type
         | some ("∈", s) => do
-            let type ← elab_to_type s
+            let type ← elab_type_of s
             match type.getAppArgs with
               | #[u] => pure u
               | _ => throwError s!"expected container type: {type}"
@@ -610,7 +610,7 @@ public def with_local (le: LocalEnv) (f: TermElabM α) : TermElabM α :=
 -- Infer the type of a term in an environment with the given local variables.
 public def infer_fun_type (args: LocalEnv) (ret_type: Option Term) (t: Term)
         : TermElabM Expr := match args with
-  | [] => ret_type.elim (elab_to_type t) elab_type
+  | [] => ret_type.elim (elab_type_of t) elab_type
   | (x, type) :: rest => do
         let type ← elab_type type
         let u ← withLocalDecl x .default type (fun _var => infer_fun_type rest ret_type t)
@@ -620,23 +620,23 @@ def can_coerce (t u : Expr) : MetaM Bool := do
   withLocalDeclD `x t (fun x => do
     pure $ (← coerceSimple? x u) matches LOption.some _)
 
+public def convert_to (type: Expr) (u: Term): TermElabM Term := do
+  let type ← whnfR type
+  match type.app2? ``Subtype with
+    | .some (base_type, _fn) =>
+        let u_type ← elab_type_of u >>= (whnfR ·)
+        if !(← can_coerce u_type type) && (← can_coerce u_type base_type) then
+          `(⟨$u, by default⟩) -- prove that u belongs to the expected subtype
+        else pure u
+    | .none => pure u
+
 def resolve_app_or_mul (t u: Term): TermElabM Term := do
   match t with
     | `($_:num) => `($t * $u)
     | _ =>
-        let type ← elab_to_type t
+        let type ← elab_type_of t
         if ← is_type_in_class type `Mul then `($t * $u) else match type.arrow? with
-          | .some (arg_type, _) =>
-              let arg_type ← whnfR arg_type
-              match arg_type.app2? ``Subtype with
-                | .some (base_type, _fn) =>
-                    let u_type ← elab_to_type u >>= (whnfR ·)
-                    if !(← can_coerce u_type arg_type) &&
-                        (← can_coerce u_type base_type) then
-                      -- prove that the argument u belongs to the subtype expected by t
-                      `($t ⟨$u, by default⟩)
-                    else `($t $u)
-                | .none => `($t $u)
+          | .some (arg_type, _) => `($t $(← convert_to arg_type u))
           | .none => `($t $u)
 
 def mk_binder (bt: BinderType) (xs: IdVars) (t: Term) : CoreM Term :=
@@ -682,7 +682,7 @@ public partial def resolve (s: Syntax) : TermElabM Term := withRef s do
         `($b:instBinder → $(← resolve t))
     | `({$t:term}) =>
         let t ← resolve t
-        let type ← elab_to_type t >>= (whnfR ·)
+        let type ← elab_type_of t >>= (whnfR ·)
         -- If the value is a subtype, we need a coercion for Lean to find a Singleton instance.
         -- In some situations the ↑ operator fails but invoking CoeT.coe works, mysteriously.
         if type.isAppOf ``Subtype then `({CoeT.coe $t:term}) else `({$t:term})
@@ -695,14 +695,14 @@ public partial def resolve (s: Syntax) : TermElabM Term := withRef s do
         | `(_bind $xs:ident*, $type, $t) =>
             let type ← resolve type
             let vars := xs.toList.map (·.getId, type)
-            resolve_term vars t
+            resolve_in_env vars t
         | _ => match s with
           | .node info kind args => do
               let args ← args.mapM resolve
               pure ⟨.node info kind args⟩
           | _ => pure ⟨s⟩
 
-public partial def resolve_term (le: LocalEnv) (t: Term) : TermElabM Term :=
+public partial def resolve_in_env (le: LocalEnv) (t: Term) : TermElabM Term :=
   with_local le (resolve t.raw)
 
 public partial def resolve_id_vars (id_vars: IdVars) : TermElabM IdVars :=

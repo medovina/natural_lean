@@ -461,8 +461,14 @@ partial def infer_blocks (steps: List ProofStep): List Block :=
   blocks
 
 public partial def resolve_step : ProofStep → TermElabM ProofStep
-  | .let_def id args type t =>
-      do pure $ .let_def id args (← type.mapM resolve) (← resolve_term args t)
+  | .let_def id args type t => do
+      let type ← type.mapM resolve
+      let t ← with_local args (do
+        let t ← resolve t
+        match type with
+          | .some type => convert_to (← elab_type type) t
+          | .none => pure t)
+      do pure $ .let_def id args type t
   | step => step_mapM (resolve ·.raw) resolve_step step
 
 def with_step_decl_vars (step: ProofStep) (f: TermElabM α) : TermElabM α := match step with

@@ -363,7 +363,7 @@ def generate_def (decl_fn: Option String) (arg_type: Option Term)
   let env ← with_implicit implicit (resolve_env env)
   let defeqs ← defeqs.mapM (fun (d : DefEq) => do
     pure $ { d with args := ← d.args.mapM (resolve_left ·.raw),
-                    val := ← with_implicit implicit (resolve_term env d.val) })
+                    val := ← with_implicit implicit (resolve_in_env env d.val) })
   let { name := fn, kind, cat, args, .. } := defeqs.head!
   if !decl_fn.all (· == fn) then throwError "declaration mismatch"
   let op_info ← kind.mapM (fun kind => do
@@ -488,7 +488,7 @@ def of_direct_def : TSyntax `direct_def → TermElabM (List Command)
         let args := lets_vars ls ++ map_fst TSyntax.getId vars
         generate_def none none args [eq] just)
   | `(direct_def| $n:num $[: $type:type]? = $e:expr .) => do
-      let expr ← of_expr e >>= resolve_term []
+      let expr ← of_expr e >>= resolve_in_env []
       let type ← type.elim (infer_type e) (of_type ·)
       pure [← nat_instance type n expr]
   | _ => throwError "unknown direct_def"
