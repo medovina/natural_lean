@@ -585,6 +585,15 @@ def matches_op (kind: OpKind) (t: Term) (info: OpInfo): TermElabM Bool :=
 
 public abbrev LocalEnv := List (Name × Term)    -- maps name to type
 
+def member_type_opt (type: Expr): Option Expr :=
+  match type.getAppArgs with
+    | #[u] => .some u
+    | _ => .none
+
+def member_type (s: Term): TermElabM Expr := do
+  let type ← elab_type_of s
+  (member_type_opt type).getDM (throwError s!"expected container type: {type}")
+
 -- Bind the given variables with their types, then run f.
 public def with_vars (vars: Vars) (f: TermElabM α) : TermElabM α := match vars with
   | [] => f
@@ -592,11 +601,7 @@ public def with_vars (vars: Vars) (f: TermElabM α) : TermElabM α := match vars
       let type ← match binder with
         | .none => pure $ Lean.mkConst ``Unit  -- just a guess
         | some (":", type) => elab_type type
-        | some ("∈", s) => do
-            let type ← elab_type_of s
-            match type.getAppArgs with
-              | #[u] => pure u
-              | _ => throwError s!"expected container type: {type}"
+        | some ("∈", s) => member_type s
         | _ => throwError "with_vars: unknown binder op"
       withLocalDecl name .default type (fun _var => with_vars rest f)
 
@@ -680,6 +685,13 @@ public partial def resolve (s: Syntax) : TermElabM Term := withRef s do
            else `($t ^ $(← resolve u))
     | `($b:instBinder → $t) =>  -- an instance parameter, e.g. "[Nonempty T] -> ..."
         `($b:instBinder → $(← resolve t))
+    | `($t ∈ $u) => do
+        let (t, u) ← mapM_pair resolve (t, u)
+        let t_type ← elab_type_of t
+        let m := member_type_opt (← elab_type_of u)
+        if (← m.anyM (fun m => do pure $ ! (← isDefEq t_type m) && (← can_coerce t_type m))) then
+          `(↑$t ∈ $u)  -- need a coercion for Lean to find a Membership instance
+        else `($t ∈ $u)
     | `({$t:term}) =>
         let t ← resolve t
         let type ← elab_type_of t >>= (whnfR ·)
