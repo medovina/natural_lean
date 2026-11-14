@@ -9,6 +9,7 @@ open Lean
 open Lean.Elab
 open Lean.Elab.Term
 open Lean.Meta
+open Lean.PrettyPrinter
 open Lean.Syntax
 
 namespace Natural
@@ -653,9 +654,18 @@ def mk_binder (bt: BinderType) (xs: IdVars) (t: Term) : CoreM Term :=
 
 mutual
 
+-- Resolve the terms in an expression such as (t ∈ u).
+partial def resolve_mem (t u: Term): TermElabM (Term × Term) := do
+  let (t, u) ← mapM_pair resolve (t, u)
+  let t_type ← elab_type_of t
+  let m := member_type_opt (← elab_type_of u)
+  if (← m.anyM (fun m => do pure $ ! (← isDefEq t_type m) && (← can_coerce t_type m))) then
+    pure (← `(↑ $t), u)  -- need a coercion for Lean to find a Membership instance
+  else pure (t, u)
+
 -- Resolve ambiguities in a term.  For example, a(b) will become either a product a · b
--- or a function call, depending on the type of a.  Resolution also inserts proofs that
--- values belong to subtypes when necessary.
+-- or a function call, depending on the type of a.  When necessary, resolution also
+-- inserts coercions and proofs that values belong to subtypes.
 public partial def resolve (s: Syntax) : TermElabM Term := withRef s do
   match s with
     | `($n:num) => pure n
@@ -687,18 +697,27 @@ public partial def resolve (s: Syntax) : TermElabM Term := withRef s do
     | `($b:instBinder → $t) =>  -- an instance parameter, e.g. "[Nonempty T] -> ..."
         `($b:instBinder → $(← resolve t))
     | `($t ∈ $u) => do
-        let (t, u) ← mapM_pair resolve (t, u)
-        let t_type ← elab_type_of t
-        let m := member_type_opt (← elab_type_of u)
-        if (← m.anyM (fun m => do pure $ ! (← isDefEq t_type m) && (← can_coerce t_type m))) then
-          `(↑$t ∈ $u)  -- need a coercion for Lean to find a Membership instance
-        else `($t ∈ $u)
+        let (t, u) ← resolve_mem t u
+        `($t ∈ $u)
+    | `($t ∉ $u) => do
+        let (t, u) ← resolve_mem t u
+        `($t ∉ $u)
     | `({$t:term}) =>
         let t ← resolve t
         let type ← elab_type_of t
-        -- If the value is a subtype, we need a coercion for Lean to find a Singleton instance.
-        -- In some situations the ↑ operator fails but invoking CoeT.coe works, mysteriously.
-        if type.isAppOf ``Subtype then `({CoeT.coe $t:term}) else `({$t:term})
+        -- If the value is a subtype, generate a set of the base type instead.
+        match type.app2? ``Subtype with
+          | .some (_base_type, fn) =>
+              -- Typically fn will look like this:
+              -- fun (x : ℕ) => Membership.mem.{0, 0} ℕ (Set.{0} ℕ)
+              --                                      (Set.instMembership.{0} ℕ) _uniq.2293 x
+              let b := fn.getLambdaBody
+              if b.isAppOfArity ``Membership.mem 5 then
+                let s := b.getArg!' 1   -- e.g. Set.{0} ℕ
+                let c : Term ← delab s
+                `( ({↑$t:term} : $c:term) )   -- ascription to container of base type
+              else `({$t:term})
+          | .none => `({$t:term})
     | _ => match match_binder s with
       | .some (bt, id_vars, t) => do
           let id_vars ← resolve_id_vars id_vars
