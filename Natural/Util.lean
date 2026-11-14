@@ -506,7 +506,7 @@ def elab_type (t: Term): TermElabM Expr := trap_errors "elab_type" (elabType t)
 def elab_type_of (t: Term): TermElabM Expr := do
   let e ← elab_term t
   let type ← trap_errors "elab_type_of" (inferType e)
-  instantiateMVars type
+  instantiateMVars type >>= (whnfR ·)
 
 def is_global (n: Name) : CoreM Bool := do
   pure $ (← resolveGlobalName n (enableLog := false)) != []

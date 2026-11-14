@@ -626,10 +626,9 @@ def can_coerce (t u : Expr) : MetaM Bool := do
     pure $ (← coerceSimple? x u) matches LOption.some _)
 
 public def convert_to (type: Expr) (u: Term): TermElabM Term := do
-  let type ← whnfR type
   match type.app2? ``Subtype with
     | .some (base_type, _fn) =>
-        let u_type ← elab_type_of u >>= (whnfR ·)
+        let u_type ← elab_type_of u
         if !(← can_coerce u_type type) && (← can_coerce u_type base_type) then
           `(⟨$u, by default⟩) -- prove that u belongs to the expected subtype
         else pure u
@@ -641,7 +640,9 @@ def resolve_app_or_mul (t u: Term): TermElabM Term := do
     | _ =>
         let type ← elab_type_of t
         if ← is_type_in_class type `Mul then `($t * $u) else match type.arrow? with
-          | .some (arg_type, _) => `($t $(← convert_to arg_type u))
+          | .some (arg_type, _) =>
+              let arg_type ← whnfR arg_type
+              `($t $(← convert_to arg_type u))
           | .none => `($t $u)
 
 def mk_binder (bt: BinderType) (xs: IdVars) (t: Term) : CoreM Term :=
@@ -694,7 +695,7 @@ public partial def resolve (s: Syntax) : TermElabM Term := withRef s do
         else `($t ∈ $u)
     | `({$t:term}) =>
         let t ← resolve t
-        let type ← elab_type_of t >>= (whnfR ·)
+        let type ← elab_type_of t
         -- If the value is a subtype, we need a coercion for Lean to find a Singleton instance.
         -- In some situations the ↑ operator fails but invoking CoeT.coe works, mysteriously.
         if type.isAppOf ``Subtype then `({CoeT.coe $t:term}) else `({$t:term})
